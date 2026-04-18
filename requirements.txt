@@ -1,4 +1,6 @@
+streamlit
 streamlit-js-eval
 geopy
+pandas
 requests
 beautifulsoup4

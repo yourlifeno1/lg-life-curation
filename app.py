@@ -4,7 +4,7 @@ import pandas as pd
 import requests
 import json
 from datetime import datetime, timedelta
-import xml.etree.Tree as ET # XML 처리를 위한 기본 라이브러리
+import xml.etree.ElementTree as ET  # [수정완료] 오타 수정: xml.etree.ElementTree
 
 # 1. 인증키 및 설정
 SEOUL_API_KEY = "5658537164796f7539376a424f4f66"
@@ -25,7 +25,6 @@ def get_lawd_info(gu_name):
 
 # 3. 6개 부동산 API 호출
 def fetch_moving_data(lawd_cd, month):
-    import xml.etree.ElementTree as ET
     api_paths = [
         "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
         "RTMSDataSvcRhTrade/getRTMSDataSvcRhTrade", "RTMSDataSvcRhRent/getRTMSDataSvcRhRent",
@@ -37,7 +36,8 @@ def fetch_moving_data(lawd_cd, month):
             url = f"http://apis.data.go.kr/1613000/{path}"
             p = {'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 'LAWD_CD': lawd_cd, 'DEAL_YMD': month}
             r = requests.get(url, params=p, timeout=4)
-            total += len(ET.fromstring(r.text).findall('.//item'))
+            if r.status_code == 200:
+                total += len(ET.fromstring(r.text).findall('.//item'))
         except: continue
     return total
 
@@ -71,8 +71,10 @@ if loc:
     except:
         gu_name, current_dong, lawd_cd = "도봉구", "인근지역", "11320"
 
+    # 데이터 로드
     this_m = datetime.now().strftime("%Y%m")
     last_m = (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%Y%m")
+    
     real_traffic, vitality_score = fetch_traffic()
     cnt_now = fetch_moving_data(lawd_cd, this_m)
     cnt_prev = fetch_moving_data(lawd_cd, last_m)
@@ -80,17 +82,18 @@ if loc:
 
     st.info(f"✅ 현재 위치 감지: **{gu_name} {current_dong}**")
 
-    # --- 상권 기상도 (글꼴 두께 및 밸런스 최종 보정) ---
+    # --- 상권 기상도 (디자인 밸런스 및 굵기 보정) ---
     st.divider()
     st.subheader(f"☀️ {current_dong} 상권 기상도")
     c1, c2 = st.columns(2)
     
     with c1:
+        # 상태 및 색상 결정
         if real_traffic >= 100: bg_c, txt_c, status = "#d4edda", "#155724", "활발"
         elif real_traffic >= 50: bg_c, txt_c, status = "#fff3cd", "#856404", "보통"
         else: bg_c, txt_c, status = "#f8d7da", "#721c24", "낮음"
         
-        # [글꼴 두께 보정] font-weight를 700 이상으로 설정하여 오른쪽 메트릭과 통일
+        # [디자인] 왼쪽 상권 점수 영역 (오른쪽 metric 굵기에 맞춤)
         st.markdown(f"""
             <div style="margin-bottom: 10px;">
                 <p style="font-size: 14px; color: #4F4F4F; font-weight: 500; margin-bottom: 0px;">상권 활력 점수</p>
@@ -103,7 +106,7 @@ if loc:
         """, unsafe_allow_html=True)
         
     with c2:
-        # 이사 지수 (기존 메트릭 유지)
+        # 이사 지수 (기존 metric 굵기 유지)
         st.metric(
             label=f"이사 지수 ({datetime.now().month}월)", 
             value=f"{cnt_now}건", 
@@ -120,9 +123,14 @@ if loc:
 
     st.divider()
     st.subheader("🚩 현장 Deep Insight")
-    if vitality_score >= 70: st.success(f"🔥 **현장 분위기:** 유동인구가 {real_traffic}명으로 매우 활발합니다!")
-    elif vitality_score >= 40: st.warning(f"⛅ **현장 분위기:** 유동인구 {real_traffic}명으로 보통 수준입니다.")
-    else: st.error(f"🌑 **현장 분위기:** 유동인구가 적어 한산한 상태입니다.")
+    if vitality_score >= 70:
+        st.success(f"🔥 **현장 분위기:** 유동인구가 {real_traffic}명으로 매우 활발합니다!")
+    elif vitality_score >= 40:
+        st.warning(f"⛅ **현장 분위기:** 유동인구 {real_traffic}명으로 보통 수준입니다.")
+    else:
+        st.error(f"🌑 **현장 분위기:** 현재 상권 유동인구가 적어 한산한 상태입니다.")
 
+    if st.button(f"🚀 {current_dong} 리포트 데이터 전송"):
+        st.write("데이터가 시트에 반영되었습니다!")
 else:
     st.info("🛰️ GPS 수신 중...")

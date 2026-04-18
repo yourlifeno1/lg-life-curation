@@ -7,13 +7,13 @@ import random
 from datetime import datetime
 import xml.etree.ElementTree as ET
 
-# 1. 인증키 및 설정 (고정)
+# 1. 인증키 및 설정
 SEOUL_API_KEY = "5658537164796f7539376a424f4f66"
 MOLIT_API_KEY = "cea470e38c930cce42ece10e65d31edd837b1eca751387d260737bcf63315379"
 GAS_URL = "https://script.google.com/macros/s/AKfycbxu4xM5YLErC-4ET2pOuy1ruQTXkm33Vx-A0ZtXg4zPrVAdDITfUYqmtwn8QU7mIWeh/exec"
 SHEET_ID = "1sTjTYGKmHRwE1OLIE-JTo2r3qipXrrRlH7mcJvwqJG0"
 
-# 2. 서울시 25개 자치구 법정동 코드 자동 매핑 함수
+# 2. 자치구 매핑 (서울 전역)
 def get_lawd_code(gu_name):
     seoul_gu_map = {
         "종로구": "11110", "중구": "11140", "용산구": "11170", "성동구": "11200",
@@ -23,115 +23,107 @@ def get_lawd_code(gu_name):
         "구로구": "11530", "금천구": "11545", "영등포구": "11560", "동작구": "11590",
         "관악구": "11620", "서초구": "11650", "강남구": "11680", "송파구": "11710", "강동구": "11740"
     }
-    # 구 이름이 매칭되지 않으면 기본값으로 '도봉구' 반환
     return seoul_gu_map.get(gu_name, "11320")
 
-# 3. 보수적인 상권 활력도 산출 함수 (0명 = 0점)
-def calculate_conservative_vitality(traffic_count):
+# 3. [보수적] 상권 활력도 계산 (0명=0점, 심야 가중치)
+def calculate_vitality(count):
+    if count <= 0: return 0
     now_hour = datetime.now().hour
-    if traffic_count == 0:
-        return 0
-    
-    # 영업시간 가중치 (밤 22시 ~ 아침 07시는 활력 점수 70% 감소)
-    time_weight = 1.0
-    if now_hour >= 22 or now_hour < 7:
-        time_weight = 0.3
-    
-    # 10분당 150명을 만점(100점) 기준으로 선형 계산
-    raw_score = (traffic_count / 150) * 100
-    return max(0, min(int(raw_score * time_weight), 99))
+    # 10분당 150명 기준 선형 계산
+    base_score = (count / 150) * 100
+    # 밤 10시 ~ 아침 7시 사이는 70% 감쇄
+    weight = 0.3 if (now_hour >= 22 or now_hour < 7) else 1.0
+    return max(0, min(int(base_score * weight), 99))
 
-# 4. 공공데이터 호출 함수들
-def get_seoul_traffic():
+# 4. [보수적] 이사 유입 지수 계산
+def calculate_moving_idx(total_deals):
+    if total_deals <= 0: return 0
+    # 한 구의 한 달 거래량이 200건 이상일 때를 100점으로 보수적 산출
+    score = (total_deals / 200) * 100
+    return max(0, min(int(score), 100))
+
+# 5. API 호출 함수
+def fetch_seoul_traffic():
     url = f"http://openapi.seoul.go.kr:8088/{SEOUL_API_KEY}/json/sDOTPeople/1/5/"
     try:
         res = requests.get(url, timeout=3).json()
-        count = int(float(res["sDOTPeople"]["row"][0]['VISIT_COUNT']))
-        return count
+        return int(float(res["sDOTPeople"]["row"][0]['VISIT_COUNT']))
     except: return 0
 
-def get_moving_data(lawd_cd):
-    deal_ymd = datetime.now().strftime("%Y%m")
-    # 임대차(전월세) 데이터 3종 합산
-    services = ["getRTMSDataSvcAptRent", "getRTMSDataSvcRhRent", "getRTMSDataSvcOffiRent"]
+def fetch_moving_data(lawd_cd):
+    ymd = datetime.now().strftime("%Y%m")
+    svcs = ["getRTMSDataSvcAptRent", "getRTMSDataSvcRhRent", "getRTMSDataSvcOffiRent"]
     total = 0
     try:
-        for svc in services:
-            url = f"http://openapi.molit.go.kr:8081/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/{svc}"
-            params = {'serviceKey': MOLIT_API_KEY, 'LAWD_CD': lawd_cd, 'DEAL_YMD': deal_ymd}
-            res = requests.get(url, params=params, timeout=2)
-            root = ET.fromstring(res.text)
-            total += len(root.findall('.//item'))
-        return min(30 + (total * 2), 100), total
-    except: return 0, 0
+        for s in svcs:
+            url = f"http://openapi.molit.go.kr:8081/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/{s}"
+            p = {'serviceKey': MOLIT_API_KEY, 'LAWD_CD': lawd_cd, 'DEAL_YMD': ymd}
+            r = requests.get(url, params=p, timeout=2)
+            total += len(ET.fromstring(r.text).findall('.//item'))
+        return total
+    except: return 0
 
-# --- 메인 UI 시작 ---
-st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")
-st.title("📍 LG 라이프 큐레이션 (통합 분석 모드)")
+# --- UI 시작 ---
+st.set_page_config(page_title="LG 큐레이션 프로", layout="wide")
+st.title("📍 LG 라이프 큐레이션 (정합성 보정 버전)")
 
-# GPS 수신
 loc = get_geolocation()
 
 if loc:
     lat, lon = loc['coords']['latitude'], loc['coords']['longitude']
     
-    # [FIX] 위치 파악 및 서울 전역 자동 매핑
+    # 주소 분석
     try:
-        addr_res = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}", headers={'User-Agent':'LG_App'}).json()
-        address = addr_res.get('address', {})
-        gu_name = address.get('city_district') or address.get('borough') or ""
-        current_dong = address.get('suburb') or address.get('neighbourhood') or "감지지역"
+        addr = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}", headers={'User-Agent':'LG_App'}).json()
+        address_dict = addr.get('address', {})
+        gu_name = address_dict.get('city_district') or address_dict.get('borough') or "도봉구"
+        current_dong = address_dict.get('suburb') or address_dict.get('neighbourhood') or "감지지역"
         lawd_cd = get_lawd_code(gu_name)
     except:
-        gu_name, current_dong, lawd_cd = "도봉구", "도봉동", "11320"
+        gu_name, current_dong, lawd_cd = "도봉구", "지역미설정", "11320"
 
-    # 실시간 데이터 산출
-    traffic_count = get_seoul_traffic()
-    vitality_score = calculate_conservative_vitality(traffic_count)
-    moving_score, moving_count = get_moving_data(lawd_cd)
+    # 실시간 값 계산 (화면 즉시 반영용)
+    real_traffic = fetch_seoul_traffic()
+    real_vitality = calculate_vitality(real_traffic)
+    real_moving_count = fetch_moving_data(lawd_cd)
+    real_moving_idx = calculate_moving_idx(real_moving_count)
 
-    # 상단 상태바
-    st.success(f"✅ 현재 위치 인식: **{gu_name} {current_dong}** (법정동코드: {lawd_cd})")
-    st.write(f"⏱️ **현시간 분석 정보:** 유동인구 {traffic_count}명 / 이사거래 {moving_count}건")
+    st.success(f"✅ 현재 위치: **{gu_name} {current_dong}**")
+    st.write(f"⏱️ **실시간 모니터링:** 유동인구 {real_traffic}명 | 이사거래 {real_moving_count}건")
 
-    # 분석 버튼
-    if st.button(f"🚀 {current_dong} 실시간 정밀 리포트 생성"):
-        with st.status("서울시 및 국토부 데이터 통합 분석 중..."):
+    if st.button(f"🚀 {current_dong} 데이터 시트 반영"):
+        with st.status("분석 데이터 전송 중..."):
             payload = {
                 "region": current_dong,
-                "weather": vitality_score,
-                "move_idx": moving_score,
-                "care_score": int((vitality_score + moving_score) / 2),
-                "care_reason": f"유동인구 {traffic_count}명, 이사 {moving_count}건 실시간 분석 결과",
-                "as_reason": f"{gu_name} 지역 시간대별 유동성 가중치 적용됨",
-                "recommend_prod": "휘센 타워II & 스타일러",
-                "issue": f"{datetime.now().strftime('%H:%M')} 기준 GPS 실시간 리포트"
+                "weather": real_vitality,
+                "move_idx": real_moving_idx,
+                "care_score": int((real_vitality + real_moving_idx) / 2) if real_vitality > 0 else real_moving_idx,
+                "care_reason": f"유동인구 {real_traffic}명 감지. 상권 활력도 {real_vitality}점.",
+                "as_reason": f"{gu_name} 부동산 실거래 {real_moving_count}건 기반 분석",
+                "recommend_prod": "비수기 가전 세척 패키지",
+                "issue": f"{datetime.now().strftime('%H:%M')} 실시간 분석"
             }
             requests.post(GAS_URL, data=json.dumps(payload))
-        st.balloons()
         st.rerun()
 
-    # 결과 리포트 출력
-    try:
-        df = pd.read_csv(f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv")
-        region_data = df[df['지역명'].str.contains(current_dong[:2], na=False)]
-        
-        if not region_data.empty:
-            row = region_data.iloc[-1]
-            st.divider()
-            c1, c2 = st.columns(2)
-            with c1: st.metric("상권 활력도", f"{row['기상도']}점", f"{traffic_count}명")
-            with c2: st.metric("이사/유입 지수", f"{row['이사지수']}%", f"{moving_count}건")
-            
-            st.divider()
-            st.subheader("🚩 전문가 Deep Insight")
-            if vitality_score < 20:
-                st.error("현재 상권 활동성이 매우 낮습니다. 야간 예약 관리 모드로 전환을 권장합니다.")
-            else:
-                st.info(row['케어근거'])
-        else:
-            st.warning("분석 버튼을 눌러 첫 리포트를 생성해 주세요.")
-    except:
-        st.error("시트 데이터를 불러오는 중 오류가 발생했습니다.")
+    # --- 리포트 출력 섹션 (보수적 데이터 우선 출력) ---
+    st.divider()
+    st.subheader(f"📊 {current_dong} 현장 실시간 리포트")
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        st.metric("상권 활력도", f"{real_vitality}점", f"실시간 유동: {real_traffic}명")
+    with c2:
+        st.metric("이사/유입 지수", f"{real_moving_idx}%", f"최근 거래: {real_moving_count}건")
+    
+    st.divider()
+    st.subheader("🚩 전문가 Deep Insight")
+    if real_vitality == 0:
+        st.error("❗ 현재 상권 활력이 없습니다. (유동인구 0명) 야간 업무 모드로 전환하세요.")
+    elif real_vitality < 30:
+        st.warning("⚠️ 상권 활동성이 저조한 시간대입니다.")
+    else:
+        st.info("✅ 상권 활동이 활발합니다. 가전 케어 제안에 적합한 환경입니다.")
+
 else:
-    st.info("🛰️ 현장 좌표를 수신하고 있습니다. 브라우저의 위치 권한을 허용해 주세요.")
+    st.info("🛰️ GPS 신호를 기다리고 있습니다...")

@@ -23,7 +23,7 @@ def get_lawd_info(gu_name):
     }
     return seoul_gu_map.get(gu_name, "11320")
 
-# 3. 6개 부동산 API 통합 호출
+# 3. 6개 부동산 API 호출
 def fetch_moving_data(lawd_cd, month):
     api_paths = [
         "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
@@ -60,7 +60,6 @@ loc = get_geolocation()
 
 if loc:
     lat, lon = loc['coords']['latitude'], loc['coords']['longitude']
-    
     try:
         addr = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}", headers={'User-Agent':'LG_App'}).json()
         address = addr.get('address', {})
@@ -71,10 +70,8 @@ if loc:
     except:
         gu_name, current_dong, lawd_cd = "도봉구", "인근지역", "11320"
 
-    # 데이터 로드
     this_m = datetime.now().strftime("%Y%m")
     last_m = (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%Y%m")
-    
     real_traffic, vitality_score = fetch_traffic()
     cnt_now = fetch_moving_data(lawd_cd, this_m)
     cnt_prev = fetch_moving_data(lawd_cd, last_m)
@@ -82,28 +79,31 @@ if loc:
 
     st.info(f"✅ 현재 위치 감지: **{gu_name} {current_dong}**")
 
-    # --- 상권 기상도 (디자인 고정 및 화살표 강제 제거) ---
+    # --- 상권 기상도 (디자인 보정 버전) ---
     st.divider()
     st.subheader(f"☀️ {current_dong} 상권 기상도")
     c1, c2 = st.columns(2)
     
     with c1:
-        # 상태 및 색상 결정
-        if real_traffic >= 100: color, status = "#28a745", "활발" # 녹색
-        elif real_traffic >= 50: color, status = "#ffc107", "보통" # 노란색
-        else: color, status = "#dc3545", "낮음" # 빨간색
+        # 상태에 따른 색상 정의 (배경색, 글자색)
+        if real_traffic >= 100: bg_c, txt_c, status = "#d4edda", "#155724", "활발"
+        elif real_traffic >= 50: bg_c, txt_c, status = "#fff3cd", "#856404", "보통"
+        else: bg_c, txt_c, status = "#f8d7da", "#721c24", "낮음"
         
-        # [강제수정] st.metric 대신 HTML을 써서 화살표를 물리적으로 삭제
+        # [디자인 복구 및 개선] 화살표 없이 색상 박스(Badge) 형태로 구현
         st.markdown(f"""
-            <div style="padding: 10px; border-radius: 5px;">
-                <p style="font-size: 14px; color: gray; margin-bottom: 0px;">상권 활력 점수</p>
+            <div style="margin-bottom: 10px;">
+                <p style="font-size: 14px; color: #666; margin-bottom: 0px;">상권 활력 점수</p>
                 <p style="font-size: 38px; font-weight: bold; margin: 0px;">{vitality_score}점</p>
-                <p style="font-size: 16px; color: {color}; font-weight: bold; margin-top: -5px;">상태: {status} (유동 {real_traffic}명)</p>
+                <div style="display: inline-block; background-color: {bg_c}; color: {txt_c}; 
+                            padding: 2px 10px; border-radius: 15px; font-size: 13px; font-weight: bold;">
+                    상태: {status} (유동 {real_traffic}명)
+                </div>
             </div>
         """, unsafe_allow_html=True)
         
     with c2:
-        # 이사 지수는 화살표가 필요하므로 기존 st.metric 사용
+        # 이사 지수 (기존 화살표 박스 유지)
         st.metric(
             label=f"이사 지수 ({datetime.now().month}월)", 
             value=f"{cnt_now}건", 
@@ -120,15 +120,11 @@ if loc:
 
     st.divider()
     st.subheader("🚩 현장 Deep Insight")
-    if vitality_score >= 70:
-        st.success(f"🔥 **현장 분위기:** 유동인구가 {real_traffic}명으로 매우 활발합니다!")
-    elif vitality_score >= 40:
-        st.warning(f"⛅ **현장 분위기:** 유동인구 {real_traffic}명으로 보통 수준입니다.")
-    else:
-        st.error(f"🌑 **현장 분위기:** 유동인구가 적어 한산한 상태입니다({real_traffic}명).")
+    if vitality_score >= 70: st.success(f"🔥 **현장 분위기:** 유동인구가 {real_traffic}명으로 매우 활발합니다!")
+    elif vitality_score >= 40: st.warning(f"⛅ **현장 분위기:** 유동인구 {real_traffic}명으로 보통 수준입니다.")
+    else: st.error(f"🌑 **현장 분위기:** 유동인구가 적어 한산한 상태입니다.")
 
-    if st.button(f"🚀 {current_dong} 분석 데이터 전송"):
-        st.write("시트 전송 완료!")
-
+    if st.button(f"🚀 {current_dong} 리포트 데이터 전송"):
+        st.write("전송 완료!")
 else:
     st.info("🛰️ GPS 수신 중...")

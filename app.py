@@ -93,7 +93,6 @@ if loc:
         # 상권 데이터 (정밀 파싱)
         rank_node = root.find(".//REALT_TIM_CMRCL_STTS")
         if rank_node is not None:
-            shop_lvl = rank_node.find("CUR_ALIVE_HOT_LVL").text if rank_node.find("CUR_ALIVE_HOT_LVL") is not None else "보통"
             r1 = rank_node.find("UPJONG_NM_1").text if rank_node.find("UPJONG_NM_1") is not None else "-"
             r2 = rank_node.find("UPJONG_NM_2").text if rank_node.find("UPJONG_NM_2") is not None else "-"
             r3 = rank_node.find("UPJONG_NM_3").text if rank_node.find("UPJONG_NM_3") is not None else "-"

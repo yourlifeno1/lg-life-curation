@@ -12,7 +12,7 @@ MOLIT_API_KEY = "cea470e38c930cce42ece10e65d31edd837b1eca751387d260737bcf6331537
 GAS_URL = "https://script.google.com/macros/s/AKfycbxu4xM5YLErC-4ET2pOuy1ruQTXkm33Vx-A0ZtXg4zPrVAdDITfUYqmtwn8QU7mIWeh/exec"
 SHEET_ID = "1sTjTYGKmHRwE1OLIE-JTo2r3qipXrrRlH7mcJvwqJG0"
 
-# 2. 서울 25개 구 법정동 코드 자동 매핑
+# 2. 서울 25개 구 법정동 코드
 def get_lawd_info(gu_name):
     seoul_gu_map = {
         "종로구": "11110", "중구": "11140", "용산구": "11170", "성동구": "11200",
@@ -24,23 +24,23 @@ def get_lawd_info(gu_name):
     }
     return seoul_gu_map.get(gu_name, "11320")
 
-# 3. [최종 보정] 이미지 규격에 맞춘 국토부 API 호출 함수
-def fetch_moving_data_final(lawd_cd, target_month):
-    # 이미지의 Base URL 규칙 적용: apis.data.go.kr/1613000/서비스명/엔드포인트
-    api_configs = [
-        {"svc": "RTMSDataSvcAptRent", "end": "getRTMSDataSvcAptRent"},
-        {"svc": "RTMSDataSvcRhRent", "end": "getRTMSDataSvcRhRent"},
-        {"svc": "RTMSDataSvcOffiRent", "end": "getRTMSDataSvcOffiRent"},
-        {"svc": "RTMSDataSvcAptTradeDev", "end": "getRTMSDataSvcAptTradeDev"},
-        {"svc": "RTMSDataSvcRhTrade", "end": "getRTMSDataSvcRhTrade"},
-        {"svc": "RTMSDataSvcOffiTrade", "end": "getRTMSDataSvcOffiTrade"}
+# 3. [핵심] 6개 개별 End Point 완전 반영 함수
+def fetch_all_moving_data(lawd_cd, target_month):
+    # 매니저님이 승인받으신 6개 API의 정확한 경로 리스트
+    api_list = [
+        "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", # 아파트 매매
+        "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",         # 아파트 전월세
+        "RTMSDataSvcRhTrade/getRTMSDataSvcRhTrade",       # 연립다세대 매매
+        "RTMSDataSvcRhRent/getRTMSDataSvcRhRent",         # 연립다세대 전월세
+        "RTMSDataSvcOffiTrade/getRTMSDataSvcOffiTrade",   # 오피스텔 매매
+        "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent"      # 오피스텔 전월세
     ]
     
-    total_count = 0
-    for config in api_configs:
-        # 이미지에 명시된 URL 구조 그대로 생성
-        url = f"http://apis.data.go.kr/1613000/{config['svc']}/{config['end']}"
-        
+    total_deals = 0
+    base_url = "http://apis.data.go.kr/1613000"
+    
+    for api_path in api_list:
+        full_url = f"{base_url}/{api_path}"
         params = {
             'serviceKey': requests.utils.unquote(MOLIT_API_KEY),
             'LAWD_CD': lawd_cd,
@@ -48,32 +48,32 @@ def fetch_moving_data_final(lawd_cd, target_month):
         }
         
         try:
-            # 6종의 API를 차례대로 찌르며 데이터를 합산합니다.
-            response = requests.get(url, params=params, timeout=5)
+            response = requests.get(full_url, params=params, timeout=4)
             if response.status_code == 200:
                 root = ET.fromstring(response.text)
+                # <item> 태그의 개수를 세어 거래 건수 합산
                 items = root.findall('.//item')
-                total_count += len(items)
+                total_deals += len(items)
         except:
             continue
             
-    return total_count
+    return total_deals
 
-# 4. 실시간 유동인구 및 보수적 활력 점수
-def fetch_traffic_and_score():
+# 4. 실시간 유동인구 및 시간대 점수화
+def fetch_traffic_data():
     url = f"http://openapi.seoul.go.kr:8088/{SEOUL_API_KEY}/json/sDOTPeople/1/1/"
     try:
         res = requests.get(url, timeout=3).json()
-        real_count = int(float(res["sDOTPeople"]["row"][0]['VISIT_COUNT']))
-        # 활력 점수만 시간 가중치 적용 (22시 이후 70% 감소)
+        count = int(float(res["sDOTPeople"]["row"][0]['VISIT_COUNT']))
+        # 활력 점수만 밤(22시~07시) 시간대 보정
         now_hour = datetime.now().hour
         weight = 0.3 if (now_hour >= 22 or now_hour < 7) else 1.0
-        vitality_score = min(int((real_count / 150) * 100 * weight), 99)
-        return real_count, vitality_score
+        score = min(int((count / 150) * 100 * weight), 99)
+        return count, score
     except:
         return 0, 0
 
-# --- UI 구성 (상권기상도 버전 고정) ---
+# --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")
 st.title("📍 LG 라이프 큐레이션")
 
@@ -82,38 +82,38 @@ loc = get_geolocation()
 if loc:
     lat, lon = loc['coords']['latitude'], loc['coords']['longitude']
     
-    # 주소 및 법정동 코드 인식
+    # 위치 및 구 이름 파악
     try:
-        addr = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}", headers={'User-Agent':'LG_App'}).json()
-        address_dict = addr.get('address', {})
-        gu_name = address_dict.get('city_district') or address_dict.get('borough') or "도봉구"
-        # 쌍문동 지역 보정
+        addr = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}_&lon={lon}", headers={'User-Agent':'LG_App'}).json()
+        address = addr.get('address', {})
+        gu_name = address.get('city_district') or address.get('borough') or "도봉구"
+        # 쌍문동 보정
         if "쌍문" in addr.get('display_name', ""): gu_name = "도봉구"
-        current_dong = address_dict.get('suburb') or address_dict.get('neighbourhood') or "인근지역"
         lawd_cd = get_lawd_info(gu_name)
+        current_dong = address.get('suburb') or address.get('neighbourhood') or "인근지역"
     except:
-        gu_name, current_dong, lawd_cd = "도봉구", "인근지역", "11320"
+        gu_name, current_dong, lawd_cd = "도봉구", "지역미설정", "11320"
 
-    # 데이터 호출 (당월/전월 비교)
+    # 데이터 수집 (4월 당월 및 3월 전월)
     m_now = datetime.now().strftime("%Y%m")
     m_prev = (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%Y%m")
     
-    real_traffic, vitality_score = fetch_traffic_and_score()
-    count_now = fetch_moving_data_final(lawd_cd, m_now)
-    count_prev = fetch_moving_data_final(lawd_cd, m_prev)
+    real_traffic, vitality_score = fetch_traffic_data()
+    count_now = fetch_all_moving_data(lawd_cd, m_now)
+    count_prev = fetch_all_moving_data(lawd_cd, m_prev)
     
-    # 등락률 계산
+    # 증감률
     diff_p = ((count_now - count_prev) / count_prev * 100) if count_prev > 0 else 0
 
-    st.info(f"✅ 현재 위치 인식: **{gu_name} {current_dong}**")
+    st.info(f"✅ 현재 위치 감지: **{gu_name} {current_dong}**")
 
-    if st.button(f"🚀 {current_dong} 정밀 분석 데이터 전송"):
-        with st.status("신규 공공데이터 서버 동기화 중..."):
+    if st.button(f"🚀 {current_dong} 정밀 리포트 전송"):
+        with st.status("6개 부동산 API 통합 분석 중..."):
             payload = {
                 "region": current_dong, "weather": vitality_score, "move_idx": int(diff_p),
-                "care_score": 85, "care_reason": f"3월 확정거래 {count_prev}건 분석 결과",
-                "as_reason": f"현시간 실시간 유동인구 {real_traffic}명 확인",
-                "recommend_prod": "이사/입주 가전 큐레이션", "issue": "국토부 신규 API 정합성 확인"
+                "care_score": 85, "care_reason": f"3월 확정거래 {count_prev}건 분석",
+                "as_reason": f"실시간 유동인구 {real_traffic}명 확인",
+                "recommend_prod": "이사 가전 패키지", "issue": "6종 API 통합 연동 완료"
             }
             requests.post(GAS_URL, data=json.dumps(payload))
         st.rerun()
@@ -125,8 +125,7 @@ if loc:
     with c1:
         st.metric("상권 활력도", f"{vitality_score}점", f"실시간 유동 {real_traffic}명")
     with c2:
-        # 3월 데이터를 메인으로 보여주어 통계적 신뢰도 확보
-        st.metric("이사 지수 (3월)", f"{count_prev}건", f"4월 실시간 신고중: {count_now}건")
+        st.metric("이사 지수 (3월)", f"{count_prev}건", f"4월 실시간 신고: {count_now}건")
 
     st.divider()
     st.subheader("📊 이 달의 케어 이슈 순위")
@@ -137,8 +136,8 @@ if loc:
 
     st.divider()
     st.subheader("🚩 현장 Deep Insight")
-    st.info(f"**이사 분석:** {gu_name} 지역은 지난 3월 확정 거래 **{count_prev}건**으로 활발한 이사 물동량을 기록했습니다. 현재 4월 거래가 실시간 집계 중입니다.")
-    st.warning(f"**상권 분석:** 현재 실시간 유동인구는 **{real_traffic}명**입니다. 야간 가중치를 적용한 활력도는 **{vitality_score}점**입니다.")
+    st.info(f"**이사 분석:** {gu_name} 지역은 3월 한 달간 총 **{count_prev}건**의 부동산 거래가 발생했습니다.")
+    st.warning(f"**상권 분석:** 현재 유동인구 **{real_traffic}명** 기준, 시간대별 보수 지수가 적용되었습니다.")
 
 else:
-    st.info("🛰️ GPS 좌표를 수신하여 리포트를 구성 중입니다...")
+    st.info("🛰️ GPS 신호를 수신하여 리포트를 구성 중입니다...")

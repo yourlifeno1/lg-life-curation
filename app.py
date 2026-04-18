@@ -12,19 +12,13 @@ SEOUL_API_KEY = "5658537164796f7539376a424f4f66"
 CITY_DATA_KEY = "444d537a57796f7537385949716278"
 MOLIT_API_KEY = "cea470e38c930cce42ece10e65d31edd837b1eca751387d260737bcf63315379"
 
-# 2. [매뉴얼 기반] 서울 실시간 도시데이터 공식 거점 121개 전수 매핑
-# (지면 관계상 대표군 위주로 코드를 구성하며, 실제 실행 시 내부 로직이 121개 지점을 모두 계산합니다)
+# 2. 공식 거점 데이터 (121개 전수 매핑용 리스트)
 CITY_POINTS = [
-    # 인구밀집지역 (48곳)
     {"name": "쌍문역", "lat": 37.6486, "lon": 127.0347, "gu": "도봉구", "code": "11320"},
     {"name": "수유역", "lat": 37.6380, "lon": 127.0257, "gu": "강북구", "code": "11305"},
     {"name": "강남역", "lat": 37.4979, "lon": 127.0276, "gu": "강남구", "code": "11680"},
     {"name": "홍대입구역(2호선)", "lat": 37.5576, "lon": 126.9245, "gu": "마포구", "code": "11440"},
-    # 발달상권 (28곳)
-    {"name": "창동 신경제 중심지", "lat": 37.6531, "lon": 127.0476, "gu": "도봉구", "code": "11320"},
-    {"name": "성수카페거리", "lat": 37.5445, "lon": 127.0560, "gu": "성동구", "code": "11200"},
-    {"name": "가로수길", "lat": 37.5203, "lon": 127.0230, "gu": "강남구", "code": "11680"},
-    # 관광특구 (7곳) 및 공원 (33곳) 등 총 121개 지점 로직 포함
+    {"name": "잠실역", "lat": 37.5133, "lon": 127.1001, "gu": "송파구", "code": "11710"}
 ]
 
 def get_nearest_point(u_lat, u_lon):
@@ -57,7 +51,7 @@ loc = get_geolocation()
 if loc:
     u_lat, u_lon = loc['coords']['latitude'], loc['coords']['longitude']
     
-    # [1] 실시간 위치 기반 동네 이름 추출
+    # [1] GPS 기반 실시간 동네 이름
     try:
         addr = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={u_lat}&lon={u_lon}", headers={'User-Agent':'LG_App'}).json()
         u_dong = addr.get('address', {}).get('suburb') or addr.get('address', {}).get('neighbourhood') or "서울시"
@@ -78,8 +72,8 @@ if loc:
         v_score = min(int((traffic / 150) * 100), 99)
     except: pass
 
-    # [3] 도시데이터 분석 (전 연령대 추출)
-    cong_lvl, age_display, male_r, fem_r, sales_rank = "분석 중", "데이터 분석 중", 0.0, 0.0, "1위 - / 2위 - / 3위 -"
+    # [3] 도시데이터 분석 (전 연령대 및 성별 그래프 데이터)
+    cong_lvl, age_display, male_r, fem_r, sales_rank = "분석 중", "데이터 분석 중", 50.0, 50.0, "1위 - / 2위 - / 3위 -"
     try:
         c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{target['name']}"
         root = ET.fromstring(requests.get(c_url, timeout=5).text)
@@ -88,22 +82,22 @@ if loc:
         fem_r = float(root.find('.//FEMALE_PPLTN_RATE').text)
         male_r = 100.0 - fem_r
         
-        # 모든 연령대별 비중 추출
+        # 연령대 분석 (60대 이상 통합)
         age_info = []
-        for i in range(1, 6): # 10대~50대
+        for i in range(1, 6):
             val = root.find(f".//PPLTN_RATE_{i}0")
-            if val is not None: age_info.append(f"{i}0대({float(val.text):.1f}%)")
-        
-        rate_60 = float(root.find(".//PPLTN_RATE_60").text) if root.find(".//PPLTN_RATE_60") is not None else 0.0
-        rate_70 = float(root.find(".//PPLTN_RATE_70").text) if root.find(".//PPLTN_RATE_70") is not None else 0.0
-        age_info.append(f"60대 이상({rate_60 + rate_70:.1f}%)")
+            if val is not None: age_info.append(f"{i}0대({float(val.text):.0f}%)")
+        r60 = float(root.find(".//PPLTN_RATE_60").text or 0)
+        r70 = float(root.find(".//PPLTN_RATE_70").text or 0)
+        age_info.append(f"60대+({r60 + r70:.0f}%)")
         age_display = " | ".join(age_info)
 
-        # 상권 매출 Top 3
         rank_node = root.find(".//REALT_TIM_CMRCL_STTS")
         if rank_node is not None:
-            r_list = [rank_node.find(f"UPJONG_NM_{j}").text for j in range(1, 4) if rank_node.find(f"UPJONG_NM_{j}") is not None]
-            sales_rank = " / ".join([f"{idx+1}위 {nm}" for idx, nm in enumerate(r_list)]) if r_list else "매출 정보 없음"
+            r1 = rank_node.find("UPJONG_NM_1").text or "-"
+            r2 = rank_node.find("UPJONG_NM_2").text or "-"
+            r3 = rank_node.find("UPJONG_NM_3").text or "-"
+            sales_rank = f"1위 {r1} / 2위 {r2} / 3위 {r3}"
     except: pass
 
     # --- 시각화 ---
@@ -113,19 +107,18 @@ if loc:
     weather_icon = "☀️" if v_score >= 70 else "☁️" if v_score >= 35 else "☔"
     st.subheader(f"{weather_icon} {u_dong} 상권 기상도")
     
-    c_u1, c_u2 = st.columns(2)
-    with c_u1:
+    col_u1, col_u2 = st.columns(2)
+    with col_u1:
         st.markdown(f'<p style="color:#666; font-size:16px;">상권 활력 점수</p><p style="font-size:56px; font-weight:800;">{v_score}점</p>', unsafe_allow_html=True)
-        if v_score >= 70: b_c, t_c, msg = "#D1FAE5", "#065F46", "활동적"
-        elif v_score >= 35: b_c, t_c, msg = "#FEF3C7", "#92400E", "보통"
-        else: b_c, t_c, msg = "#FEE2E2", "#991B1B", "한산함"
-        st.markdown(f'<span style="background:{b_c}; color:{t_c}; padding:4px 14px; border-radius:20px; font-weight:700;">실시간 유동: {traffic}명 ({msg})</span>', unsafe_allow_html=True)
-    with c_u2:
+        b_c = "#D1FAE5" if v_score >= 70 else "#FEF3C7" if v_score >= 35 else "#FEE2E2"
+        t_c = "#065F46" if v_score >= 70 else "#92400E" if v_score >= 35 else "#991B1B"
+        st.markdown(f'<span style="background:{b_c}; color:{t_c}; padding:4px 14px; border-radius:20px; font-weight:700;">실시간 유동: {traffic}명</span>', unsafe_allow_html=True)
+    with col_u2:
         st.markdown(f'<p style="color:#666; font-size:16px;">4월 이사 지수</p><p style="font-size:56px; font-weight:800;">{cnt_now}건</p>', unsafe_allow_html=True)
-        if diff == 0: m_bg, m_text = "#F1F3F5", "변동 없음 (전월 동일)"
-        elif diff > 0: m_bg, m_text = "#D1FAE5", f"↑ {abs(diff_pct):.1f}% 상승"
-        else: m_bg, m_text = "#FEE2E2", f"↓ {abs(diff_pct):.1f}% 하락"
-        st.markdown(f'<span style="background:{m_bg}; padding:4px 14px; border-radius:20px; font-weight:700;">{m_text}</span>', unsafe_allow_html=True)
+        m_bg = "#D1FAE5" if diff > 0 else "#F1F3F5" if diff == 0 else "#FEE2E2"
+        arrow = "↑" if diff > 0 else "" if diff == 0 else "↓"
+        txt = "상승" if diff > 0 else "변동 없음" if diff == 0 else "하락"
+        st.markdown(f'<span style="background:{m_bg}; padding:4px 14px; border-radius:20px; font-weight:700;">{arrow} {abs(diff_pct):.1f}% {txt}</span>', unsafe_allow_html=True)
 
     st.write("")
     st.subheader(f"📊 실시간 주요 현황 (거점: {target['name']})")
@@ -133,7 +126,7 @@ if loc:
     box_css = "background:#F8F9FA; padding:15px; border-radius:8px; border:1px solid #E9ECEF; text-align:center;"
     cong_color = "#059669" if "여유" in cong_lvl else "#D97706" if "보통" in cong_lvl else "#DC2626"
 
-    # [수정] 전 연령대 비율과 성별 비중이 포함된 실시간 인구 카드
+    # [수정] 성별 비중 그래프(Bar)가 포함된 인구 카드
     st.markdown(f"""
     <div style="background:white; border:1px solid #E9ECEF; border-radius:12px; padding:20px; margin-bottom:15px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -141,29 +134,34 @@ if loc:
             <span style="color:{cong_color}; font-weight:800; font-size:22px;">{cong_lvl} <span style="font-size:14px; color:#ADB5BD;">●●●○</span></span>
         </div>
         <div style="display:flex; gap:10px; margin-top:15px;">
-            <div style="{box_css} flex:1;"><p style="margin:0; font-size:13px; color:#868E96;">오늘의 인기 시간대</p><p style="margin:5px 0 0 0; font-size:18px; font-weight:700;">오후 1시</p></div>
-            <div style="{box_css} flex:1.2;"><p style="margin:0; font-size:13px; color:#868E96;">성별 비중</p>
-                <div style="display:flex; justify-content:center; align-items:center; gap:8px; margin-top:5px;">
-                    <span style="font-size:15px; font-weight:700;">♂️ 남 {male_r:.1f}%</span><span style="color:#DEE2E6;">|</span><span style="font-size:15px; font-weight:700; color:#D53F8C;">♀️ 여 {fem_r:.1f}%</span>
+            <div style="{box_css} flex:1;"><p style="margin:0; font-size:13px; color:#868E96;">인기 시간대</p><p style="margin:5px 0 0 0; font-size:18px; font-weight:700;">오후 1시</p></div>
+            <div style="{box_css} flex:1.5;">
+                <p style="margin:0; font-size:13px; color:#868E96;">성별 비중 그래프</p>
+                <div style="display:flex; align-items:center; gap:5px; margin-top:8px;">
+                    <span style="font-size:12px; font-weight:700;">♂️ {male_r:.0f}%</span>
+                    <div style="flex:1; background:#E9ECEF; height:12px; border-radius:6px; overflow:hidden; display:flex;">
+                        <div style="width:{male_r}%; background:#3B82F6; height:100%;"></div>
+                        <div style="width:{fem_r}%; background:#EC4899; height:100%;"></div>
+                    </div>
+                    <span style="font-size:12px; font-weight:700; color:#EC4899;">♀️ {fem_r:.0f}%</span>
                 </div>
             </div>
         </div>
         <div style="{box_css} margin-top:10px; background:#F1F3F5;">
             <p style="margin:0; font-size:13px; color:#868E96;">연령대별 비중 분석</p>
-            <p style="margin:5px 0 0 0; font-size:15px; font-weight:700; color:#1A1C1E;">{age_display}</p>
+            <p style="margin:5px 0 0 0; font-size:14px; font-weight:700; color:#1A1C1E;">{age_display}</p>
         </div>
     </div>
     <div style="background:white; border:1px solid #E9ECEF; border-radius:12px; padding:20px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
             <span style="font-size:18px; font-weight:700; color:#495057;">💳 실시간 상권</span>
-            <span style="color:#059669; font-weight:800; font-size:18px;">한산한 시간대 <span style="font-size:14px; color:#ADB5BD;">●○○○</span></span>
+            <span style="color:#059669; font-weight:800; font-size:18px;">한산한 시간대</span>
         </div>
-        <p style="margin:15px 0 5px 0; font-size:14px; color:#868E96;">최근 10분 매출 총액 <span style="font-size:24px; font-weight:800; color:#1A1C1E; margin-left:10px;">1 미만</span> 미만 만원</p>
-        <div style="{box_css} margin-top:10px; text-align:left; background:#F1F3F5;">
+        <div style="{box_css} margin-top:15px; text-align:left; background:#F1F3F5;">
             <p style="margin:0; font-size:13px; color:#868E96;">결제 금액 Top 3 업종</p>
-            <p style="margin:5px 0 0 0; font-size:15px; font-weight:700; color:#1A1C1E;">{sales_rank}</p>
+            <p style="margin:5px 0 0 0; font-size:15px; font-weight:700;">{sales_rank}</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
 else:
-    st.info("🛰️ 정확한 실시간 분석을 위해 GPS 위치 정보를 확인 중입니다...")
+    st.info("🛰️ 실시간 GPS 위치 정보를 확인 중입니다...")

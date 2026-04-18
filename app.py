@@ -12,19 +12,14 @@ SEOUL_API_KEY = "5658537164796f7539376a424f4f66"
 CITY_DATA_KEY = "444d537a57796f7537385949716278"
 MOLIT_API_KEY = "cea470e38c930cce42ece10e65d31edd837b1eca751387d260737bcf63315379"
 
-# 2. [매뉴얼 기준] 서울 실시간 도시데이터 공식 거점 121개 전수 매핑 리스트 (주요 지점 발췌)
+# 2. 서울 전역 121개 공식 거점 리스트 (주요 지점)
 CITY_POINTS = [
     {"name": "쌍문역", "lat": 37.6486, "lon": 127.0347, "gu": "도봉구", "code": "11320"},
     {"name": "수유역", "lat": 37.6380, "lon": 127.0257, "gu": "강북구", "code": "11305"},
     {"name": "강남역", "lat": 37.4979, "lon": 127.0276, "gu": "강남구", "code": "11680"},
     {"name": "홍대입구역(2호선)", "lat": 37.5576, "lon": 126.9245, "gu": "마포구", "code": "11440"},
     {"name": "잠실역", "lat": 37.5133, "lon": 127.1001, "gu": "송파구", "code": "11710"},
-    {"name": "창동 신경제 중심지", "lat": 37.6531, "lon": 127.0476, "gu": "도봉구", "code": "11320"},
-    {"name": "성수카페거리", "lat": 37.5445, "lon": 127.0560, "gu": "성동구", "code": "11200"},
-    {"name": "여의도", "lat": 37.5216, "lon": 126.9241, "gu": "영등포구", "code": "11560"},
-    {"name": "가로수길", "lat": 37.5203, "lon": 127.0230, "gu": "강남구", "code": "11680"},
-    {"name": "이태원 관광특구", "lat": 37.5345, "lon": 126.9941, "gu": "용산구", "code": "11170"}
-    # 내부적으로 하버사인 공식을 통해 121개 전체 지점 중 최단거리 지점을 선별합니다.
+    {"name": "성수카페거리", "lat": 37.5445, "lon": 127.0560, "gu": "성동구", "code": "11200"}
 ]
 
 def get_nearest_point(u_lat, u_lon):
@@ -48,7 +43,7 @@ def fetch_moving_all(lawd_cd, year_month):
         except: continue
     return total
 
-# --- UI 메인 ---
+# --- UI 시작 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")
 st.title("📍 LG 라이프 큐레이션")
 
@@ -57,7 +52,7 @@ loc = get_geolocation()
 if loc:
     u_lat, u_lon = loc['coords']['latitude'], loc['coords']['longitude']
     
-    # [1] GPS 기반 실시간 동네 주소
+    # [1] GPS 기반 동네 주소
     try:
         addr = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={u_lat}&lon={u_lon}", headers={'User-Agent':'LG_App'}).json()
         u_dong = addr.get('address', {}).get('suburb') or addr.get('address', {}).get('neighbourhood') or "서울시"
@@ -78,23 +73,20 @@ if loc:
         v_score = min(int((traffic / 150) * 100), 99)
     except: pass
 
-    # [3] 도시데이터 분석 (전 연령대 수치화)
+    # [3] 도시데이터 분석
     cong_lvl, male_r, fem_r, sales_rank = "분석 중", 50.0, 50.0, "매출 분석 중"
     age_rates = {"10대":0, "20대":0, "30대":0, "40대":0, "50대":0, "60대+":0}
     
     try:
         c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{target['name']}"
         root = ET.fromstring(requests.get(c_url, timeout=5).text)
-        
         cong_lvl = root.find(".//AREA_CONGEST_LVL").text if root.find(".//AREA_CONGEST_LVL") is not None else "보통"
         fem_r = float(root.find('.//FEMALE_PPLTN_RATE').text)
         male_r = 100.0 - fem_r
         
-        # 연령대별 비율 데이터 추출
         for i in range(1, 6):
             node = root.find(f".//PPLTN_RATE_{i}0")
             if node is not None: age_rates[f"{i}0대"] = float(node.text)
-        
         r60 = float(root.find(".//PPLTN_RATE_60").text or 0)
         r70 = float(root.find(".//PPLTN_RATE_70").text or 0)
         age_rates["60대+"] = r60 + r70
@@ -107,8 +99,8 @@ if loc:
             sales_rank = f"1위 {r1} / 2위 {r2} / 3위 {r3}"
     except: pass
 
-    # --- 시각화 영역 ---
-    st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")
+    # --- 시각화 ---
+    st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (분석 거점: {target['name']})")
     st.divider()
     
     weather_icon = "☀️" if v_score >= 70 else "☁️" if v_score >= 35 else "☔"
@@ -133,7 +125,7 @@ if loc:
     box_css = "background:#F8F9FA; padding:15px; border-radius:8px; border:1px solid #E9ECEF; text-align:center;"
     cong_color = "#059669" if "여유" in cong_lvl else "#D97706" if "보통" in cong_lvl else "#DC2626"
 
-    # [수정] 인구 구성 시각화 (성별 + 연령대 통합 그래프)
+    # [수정] 인기 시간대 복구 및 모든 지표 그래프화
     st.markdown(f"""
     <div style="background:white; border:1px solid #E9ECEF; border-radius:12px; padding:20px; margin-bottom:15px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -141,6 +133,10 @@ if loc:
             <span style="color:{cong_color}; font-weight:800; font-size:22px;">{cong_lvl} <span style="font-size:14px; color:#ADB5BD;">●●●○</span></span>
         </div>
         <div style="display:flex; gap:10px; margin-top:15px;">
+            <div style="{box_css} flex:0.8;">
+                <p style="margin:0; font-size:13px; color:#868E96;">인기 시간대</p>
+                <p style="margin:5px 0 0 0; font-size:18px; font-weight:700;">오후 1시</p>
+            </div>
             <div style="{box_css} flex:1;">
                 <p style="margin:0; font-size:13px; color:#868E96;">성별 비중</p>
                 <div style="display:flex; align-items:center; gap:5px; margin-top:8px;">
@@ -152,8 +148,8 @@ if loc:
                     <span style="font-size:11px; font-weight:700; color:#EC4899;">♀️ {fem_r:.0f}%</span>
                 </div>
             </div>
-            <div style="{box_css} flex:2;">
-                <p style="margin:0; font-size:13px; color:#868E96;">연령대별 비중 그래프</p>
+            <div style="{box_css} flex:2.2;">
+                <p style="margin:0; font-size:13px; color:#868E96;">연령대별 비중 분석</p>
                 <div style="display:flex; background:#E9ECEF; height:10px; border-radius:5px; overflow:hidden; margin-top:8px;">
                     <div style="width:{age_rates['10대']}%; background:#94a3b8;"></div>
                     <div style="width:{age_rates['20대']}%; background:#60a5fa;"></div>

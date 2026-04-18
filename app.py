@@ -12,7 +12,7 @@ SEOUL_API_KEY = "5658537164796f7539376a424f4f66"
 CITY_DATA_KEY = "444d537a57796f7537385949716278"
 MOLIT_API_KEY = "cea470e38c930cce42ece10e65d31edd837b1eca751387d260737bcf63315379"
 
-# 2. 실시간 도시데이터 지점 매핑 (매뉴얼 공식 명칭 기준)
+# 2. 공식 거점 매핑 (매뉴얼 기준 쌍문역 정확도 강화)
 CITY_POINTS = [
     {"name": "쌍문역", "lat": 37.6486, "lon": 127.0347, "gu": "도봉구", "code": "11320"},
     {"name": "수유역", "lat": 37.6380, "lon": 127.0257, "gu": "강북구", "code": "11305"},
@@ -30,7 +30,6 @@ def get_nearest_point(u_lat, u_lon):
     return min(CITY_POINTS, key=lambda p: haversine(u_lat, u_lon, p['lat'], p['lon']))
 
 def fetch_moving_all(lawd_cd, year_month):
-    """아파트+연립다세대+오피스텔 합산 로직"""
     total = 0
     paths = ["RTMSDataSvcAptRent/getRTMSDataSvcAptRent", "RTMSDataSvcRhRent/getRTMSDataSvcRhRent", "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent"]
     for path in paths:
@@ -51,7 +50,7 @@ loc = get_geolocation()
 if loc:
     u_lat, u_lon = loc['coords']['latitude'], loc['coords']['longitude']
     
-    # [1] 위치 및 거점 분석
+    # [1] 위치 분석
     try:
         addr = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={u_lat}&lon={u_lon}", headers={'User-Agent':'LG_App'}).json()
         u_dong = addr.get('address', {}).get('suburb') or addr.get('address', {}).get('neighbourhood') or "쌍문1동"
@@ -59,32 +58,34 @@ if loc:
     
     target = get_nearest_point(u_lat, u_lon)
 
-    # [2] 이사 지수 (4월 vs 3월 합산 데이터)
-    this_m, last_m = "202404", "202403"
-    cnt_now = fetch_moving_all(target['code'], this_m)
-    cnt_last = fetch_moving_all(target['code'], last_m)
+    # [2] 이사 지수
+    cnt_now = fetch_moving_all(target['code'], "202404")
+    cnt_last = fetch_moving_all(target['code'], "202403")
     diff = cnt_now - cnt_last
     diff_pct = (diff / cnt_last * 100) if cnt_last > 0 else 0
 
-    # [3] 도시데이터 분석 (인구/연령대/매출)
-    pop_info, sales_info, cong_lvl = "데이터 확인 중", "주거 밀착형 상권", "보통"
+    # [3] 실시간 도시데이터 (혼잡도 정밀 수신 모드)
+    pop_info, sales_info, cong_lvl = "데이터 확인 중", "분할 분석 중", "분석 중"
     try:
         c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{target['name']}"
-        root = ET.fromstring(requests.get(c_url).text)
+        res = requests.get(c_url, timeout=5)
+        root = ET.fromstring(res.text)
         
-        # 연령층 데이터 상세화
-        fem_rate = float(root.find('.//FEMALE_PPLTN_RATE').text)
-        ages = {f"{i}0대": float(root.find(f'.//PPLTN_RATE_{i}').text) for i in range(2, 6)}
-        top_age = max(ages, key=ages.get)
-        pop_info = f"{'여성' if fem_rate > 50 else '남성'} {top_age} 중심"
+        # [핵심수정] API가 보내주는 실제 혼잡도 값 파싱
+        lvl_node = root.find(".//AREA_CONGEST_LVL")
+        if lvl_node is not None:
+            cong_lvl = lvl_node.text  # '여유', '보통', '약간 붐빔', '붐빔' 추출
         
-        # 혼잡도 및 매출 특성
-        cong_lvl = root.find(".//AREA_CONGEST_LVL").text
-        # 매출 특성 (간이 로직: 인구 연령대와 혼잡도 기반 추정 또는 API 필드 매핑)
-        if "20대" in top_age or "30대" in top_age:
-            sales_info = "식음료 및 트렌드 가전 수요"
-        else:
-            sales_info = "생활 밀착형 가전 수요 높음"
+        # 인구 구성
+        fem_node = root.find('.//FEMALE_PPLTN_RATE')
+        if fem_node is not None:
+            fem_rate = float(fem_node.text)
+            ages = {f"{i}0대": float(root.find(f'.//PPLTN_RATE_{i}').text) for i in range(2, 6)}
+            top_age = max(ages, key=ages.get)
+            pop_info = f"{'여성' if fem_rate > 50 else '남성'} {top_age} 중심"
+        
+        # 상권 특성
+        sales_info = "식음료 및 트렌드 가전 수요" if "20대" in pop_info or "30대" in pop_info else "생활 밀착형 가전 수요"
     except: pass
 
     # [4] S-DoT 유동인구
@@ -95,10 +96,9 @@ if loc:
     except: traffic, v_score = 0, 0
 
     # --- 시각화 ---
-    st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (분석 거점: {target['name']})")
+    st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")
     st.divider()
     
-    # 상권 기상도 제목
     weather_icon = "☀️" if v_score >= 70 else "☁️" if v_score >= 40 else "☔"
     st.subheader(f"{weather_icon} {u_dong} 상권 기상도")
     
@@ -113,17 +113,14 @@ if loc:
 
     with col2:
         st.markdown(f'<p style="{lab_s}">4월 이사 지수</p><p style="{val_s}">{cnt_now}건</p>', unsafe_allow_html=True)
-        # [수정] 0%일 때 회색 박스 처리 로직
         if diff == 0:
-            m_c, m_t = "#F1F3F5", f"변동 없음 (전월 {cnt_last}건 동일)"
+            m_c, m_t = "#F1F3F5", "변동 없음 (전월 동일)"
         else:
             m_c = "#DBEAFE" if diff > 0 else "#FEE2E2"
             arrow = "↑" if diff > 0 else "↓"
-            m_t = f"{arrow} {abs(diff_pct):.1f}% {'상승' if diff > 0 else '하락'} (전월 {cnt_last}건 대비)"
-        
+            m_t = f"{arrow} {abs(diff_pct):.1f}% {'상승' if diff > 0 else '하락'}"
         st.markdown(f'<span style="background:{m_c}; padding:4px 12px; border-radius:15px; font-weight:700;">{m_t}</span>', unsafe_allow_html=True)
 
-    # 실시간 주요 현황 (3단 박스)
     st.write("")
     st.subheader(f"📊 실시간 주요 현황 (거점: {target['name']})")
     box1, box2, box3 = st.columns(3)
@@ -134,11 +131,12 @@ if loc:
     with box2:
         st.markdown(f'<div style="{card_s}"><p style="color:#888;">실시간 상권 매출</p><p style="font-size:22px; font-weight:700; color:#1E40AF;">{sales_info}</p></div>', unsafe_allow_html=True)
     with box3:
-        c_bg = "#FEE2E2" if "붐빔" in cong_lvl else "#D1FAE5" if "여유" in cong_lvl else "#FEF3C7"
-        c_fg = "#991B1B" if "붐빔" in cong_lvl else "#065F46" if "여유" in cong_lvl else "#92400E"
+        # [색상 로직] 여유(그린), 보통(옐로), 붐빔(레드)
+        c_bg = "#D1FAE5" if "여유" in cong_lvl else "#FEE2E2" if "붐빔" in cong_lvl else "#FEF3C7"
+        c_fg = "#065F46" if "여유" in cong_lvl else "#991B1B" if "붐빔" in cong_lvl else "#92400E"
         st.markdown(f'<div style="{card_s}"><p style="color:#888;">실시간 혼잡도</p><p style="font-size:22px; font-weight:700; color:{c_fg}; background:{c_bg}; display:inline-block; padding:2px 10px; border-radius:10px;">{cong_lvl}</p></div>', unsafe_allow_html=True)
 
     st.divider()
-    st.success(f"현재 {u_dong} 일대는 **{pop_info}**의 인구 구성이 두드러집니다. **{sales_info}**를 고려한 제안이 효과적입니다.")
+    st.success(f"현재 {target['name']} 지점은 **{cong_lvl}** 상태로, **{pop_info}** 고객군이 주류입니다.")
 else:
-    st.info("🛰️ GPS 좌표를 확인하고 있습니다. 잠시만 기다려 주세요...")
+    st.info("🛰️ 실시간 GPS를 통해 기상도를 분석 중입니다...")

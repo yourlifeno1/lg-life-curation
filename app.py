@@ -12,7 +12,7 @@ SEOUL_API_KEY = "5658537164796f7539376a424f4f66"
 CITY_DATA_KEY = "444d537a57796f7537385949716278"
 MOLIT_API_KEY = "cea470e38c930cce42ece10e65d31edd837b1eca751387d260737bcf63315379"
 
-# 2. 공식 거점 데이터
+# 2. 공식 거점 데이터 (매뉴얼 기반 명칭)
 CITY_POINTS = [
     {"name": "쌍문역", "lat": 37.6486, "lon": 127.0347, "gu": "도봉구", "code": "11320"},
     {"name": "수유역", "lat": 37.6380, "lon": 127.0257, "gu": "강북구", "code": "11305"},
@@ -41,7 +41,7 @@ def fetch_moving_all(lawd_cd, year_month):
         except: continue
     return total
 
-# --- UI 메인 ---
+# --- UI 시작 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")
 st.title("📍 LG 라이프 큐레이션")
 
@@ -68,7 +68,6 @@ if loc:
     try:
         c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{target['name']}"
         root = ET.fromstring(requests.get(c_url, timeout=5).text)
-        
         cong_node = root.find(".//AREA_CONGEST_LVL")
         if cong_node is not None: cong_lvl = cong_node.text
         
@@ -92,19 +91,19 @@ if loc:
         v_score = min(int((traffic / 150) * 100), 99)
     except: pass
 
-    # 시각화 영역
+    # --- 시각화 ---
     st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")
     st.divider()
     
-    # [상단] 상권 기상도
+    # 상권 기상도
     weather_icon = "☀️" if "여유" in cong_lvl else "☁️" if "보통" in cong_lvl else "☔"
     st.subheader(f"{weather_icon} {u_dong} 상권 기상도")
     
-    col_u1, col_u2 = st.columns(2)
-    with col_u1:
+    c1, c2 = st.columns(2)
+    with c1:
         st.markdown(f'<p style="color:#666; font-size:16px;">상권 활력 점수</p><p style="font-size:56px; font-weight:800;">72점</p>', unsafe_allow_html=True)
         st.markdown(f'<span style="background:#D1FAE5; color:#065F46; padding:4px 14px; border-radius:20px; font-weight:700;">실시간 유동: {traffic}명</span>', unsafe_allow_html=True)
-    with col_u2:
+    with c2:
         st.markdown(f'<p style="color:#666; font-size:16px;">4월 이사 지수</p><p style="font-size:56px; font-weight:800;">{cnt_now}건</p>', unsafe_allow_html=True)
         if diff == 0:
             st.markdown(f'<span style="background:#F1F3F5; color:#495057; padding:4px 14px; border-radius:20px; font-weight:700;">변동 없음</span>', unsafe_allow_html=True)
@@ -118,7 +117,7 @@ if loc:
     
     box_css = "background:#F8F9FA; padding:15px; border-radius:8px; border:1px solid #E9ECEF; text-align:center;"
     
-    # 👥 실시간 인구 카드
+    # 실시간 인구 카드
     st.markdown(f"""
     <div style="background:white; border:1px solid #E9ECEF; border-radius:12px; padding:20px; margin-bottom:15px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -127,4 +126,37 @@ if loc:
         </div>
         <div style="display:flex; gap:10px; margin-top:15px;">
             <div style="{box_css} flex:1;">
-                <p style="margin:0
+                <p style="margin:0; font-size:13px; color:#868E96;">오늘의 인기 시간대</p>
+                <p style="margin:5px 0 0 0; font-size:18px; font-weight:700;">오후 1시</p>
+            </div>
+            <div style="{box_css} flex:1;">
+                <p style="margin:0; font-size:13px; color:#868E96;">가장 많은 연령대</p>
+                <p style="margin:5px 0 0 0; font-size:18px; font-weight:700;">{top_age}</p>
+            </div>
+            <div style="{box_css} flex:1.2; background:#F0F7FF; border:1px solid #D0E3FF;">
+                <p style="margin:0; font-size:13px; color:#2B6CB0;">성별 비중</p>
+                <div style="display:flex; justify-content:center; align-items:center; gap:8px; margin-top:5px;">
+                    <span style="font-size:14px; font-weight:700;">♂️ 남 {male_r:.1f}%</span>
+                    <span style="color:#D0E3FF;">|</span>
+                    <span style="font-size:14px; font-weight:700; color:#D53F8C;">♀️ 여 {fem_r:.1f}%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 실시간 상권 카드
+    st.markdown(f"""
+    <div style="background:white; border:1px solid #E9ECEF; border-radius:12px; padding:20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:18px; font-weight:700; color:#495057;">💳 실시간 상권</span>
+            <span style="color:#059669; font-weight:800; font-size:18px;">한산한 시간대 <span style="font-size:14px; color:#ADB5BD;">●○○○</span></span>
+        </div>
+        <p style="margin:15px 0 5px 0; font-size:14px; color:#868E96;">최근 10분 매출 총액 <span style="font-size:24px; font-weight:800; color:#1A1C1E; margin-left:10px;">1 미만</span> 미만 만원</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.divider()
+    st.caption("※ 서울 실시간 도시데이터 V8.5 API 정보 기반")
+else:
+    st.info("🛰️ 실시간 GPS 위치를 확인하고 있습니다...")

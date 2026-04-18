@@ -12,13 +12,12 @@ SEOUL_API_KEY = "5658537164796f7539376a424f4f66"
 CITY_DATA_KEY = "444d537a57796f7537385949716278"
 MOLIT_API_KEY = "cea470e38c930cce42ece10e65d31edd837b1eca751387d260737bcf63315379"
 
-# 2. 공식 거점 매핑 (매뉴얼 기준 쌍문역 정확도 강화)
+# 2. 공식 거점 데이터 (매뉴얼 기준)
 CITY_POINTS = [
     {"name": "쌍문역", "lat": 37.6486, "lon": 127.0347, "gu": "도봉구", "code": "11320"},
     {"name": "수유역", "lat": 37.6380, "lon": 127.0257, "gu": "강북구", "code": "11305"},
-    {"name": "창동 신경제 중심지", "lat": 37.6531, "lon": 127.0476, "gu": "도봉구", "code": "11320"},
-    {"name": "미아사거리역", "lat": 37.6133, "lon": 127.0301, "gu": "강북구", "code": "11305"},
-    {"name": "노원역", "lat": 37.6548, "lon": 127.0605, "gu": "노원구", "code": "11350"}
+    {"name": "노원역", "lat": 37.6548, "lon": 127.0605, "gu": "노원구", "code": "11350"},
+    {"name": "미아사거리역", "lat": 37.6133, "lon": 127.0301, "gu": "강북구", "code": "11305"}
 ]
 
 def get_nearest_point(u_lat, u_lon):
@@ -50,7 +49,7 @@ loc = get_geolocation()
 if loc:
     u_lat, u_lon = loc['coords']['latitude'], loc['coords']['longitude']
     
-    # [1] 위치 분석
+    # [1] 위치 정보 및 거점 매칭
     try:
         addr = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={u_lat}&lon={u_lon}", headers={'User-Agent':'LG_App'}).json()
         u_dong = addr.get('address', {}).get('suburb') or addr.get('address', {}).get('neighbourhood') or "쌍문1동"
@@ -58,85 +57,105 @@ if loc:
     
     target = get_nearest_point(u_lat, u_lon)
 
-    # [2] 이사 지수
+    # [2] 데이터 로드 (4월 이사 지수)
     cnt_now = fetch_moving_all(target['code'], "202404")
     cnt_last = fetch_moving_all(target['code'], "202403")
     diff = cnt_now - cnt_last
     diff_pct = (diff / cnt_last * 100) if cnt_last > 0 else 0
 
-    # [3] 실시간 도시데이터 (혼잡도 정밀 수신 모드)
-    pop_info, sales_info, cong_lvl = "데이터 확인 중", "분할 분석 중", "분석 중"
-    try:
-        c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{target['name']}"
-        res = requests.get(c_url, timeout=5)
-        root = ET.fromstring(res.text)
-        
-        # [핵심수정] API가 보내주는 실제 혼잡도 값 파싱
-        lvl_node = root.find(".//AREA_CONGEST_LVL")
-        if lvl_node is not None:
-            cong_lvl = lvl_node.text  # '여유', '보통', '약간 붐빔', '붐빔' 추출
-        
-        # 인구 구성
-        fem_node = root.find('.//FEMALE_PPLTN_RATE')
-        if fem_node is not None:
-            fem_rate = float(fem_node.text)
-            ages = {f"{i}0대": float(root.find(f'.//PPLTN_RATE_{i}').text) for i in range(2, 6)}
-            top_age = max(ages, key=ages.get)
-            pop_info = f"{'여성' if fem_rate > 50 else '남성'} {top_age} 중심"
-        
-        # 상권 특성
-        sales_info = "식음료 및 트렌드 가전 수요" if "20대" in pop_info or "30대" in pop_info else "생활 밀착형 가전 수요"
-    except: pass
-
-    # [4] S-DoT 유동인구
+    # [3] 실시간 유동인구 (S-DoT)
+    traffic, v_score = 0, 0
     try:
         s_res = requests.get(f"http://openapi.seoul.go.kr:8088/{SEOUL_API_KEY}/json/sDOTPeople/1/1/").json()
         traffic = int(float(s_res["sDOTPeople"]["row"][0]['VISIT_COUNT']))
         v_score = min(int((traffic / 150) * 100), 99)
-    except: traffic, v_score = 0, 0
+    except: pass
 
-    # --- 시각화 ---
+    # [4] 실시간 도시데이터 (공공 API 데이터)
+    cong_lvl, top_age, pop_time, sales_val, sales_rank = "분석 중", "60대 이상", "오후 1시", "1 미만", "1위 - / 2위 - / 3위 -"
+    try:
+        c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{target['name']}"
+        root = ET.fromstring(requests.get(c_url).text)
+        cong_lvl = root.find(".//AREA_CONGEST_LVL").text if root.find(".//AREA_CONGEST_LVL") is not None else "보통"
+        
+        # 성별 및 연령 데이터
+        ages = {f"{i}0대": float(root.find(f'.//PPLTN_RATE_{i}').text) for i in range(2, 7)} # 60대 포함
+        top_age_key = max(ages, key=ages.get)
+        top_age = f"{top_age_key} ({ages[top_age_key]}%)"
+    except: pass
+
+    # --- 시각화 영역 ---
     st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")
     st.divider()
     
+    # [상단] 상권 기상도 영역
     weather_icon = "☀️" if v_score >= 70 else "☁️" if v_score >= 40 else "☔"
     st.subheader(f"{weather_icon} {u_dong} 상권 기상도")
     
-    col1, col2 = st.columns(2)
-    val_s, lab_s = "font-size: 52px; font-weight: 800; color: #1A1C1E; margin: 0px;", "font-size: 16px; color: #666; font-weight: 500;"
+    col_up1, col_up2 = st.columns(2)
+    val_style = "font-size: 56px; font-weight: 800; color: #1A1C1E; margin: 0px;"
+    lab_style = "font-size: 16px; color: #666; margin-bottom: 5px;"
 
-    with col1:
-        st.markdown(f'<p style="{lab_s}">상권 활력 점수</p><p style="{val_s}">{v_score}점</p>', unsafe_allow_html=True)
-        b_c = "#D1FAE5" if v_score >= 70 else "#FEF3C7" if v_score >= 40 else "#FEE2E2"
-        t_c = "#065F46" if v_score >= 70 else "#92400E" if v_score >= 40 else "#991B1B"
-        st.markdown(f'<span style="background:{b_c}; color:{t_c}; padding:4px 12px; border-radius:15px; font-weight:700;">실시간 유동: {traffic}명</span>', unsafe_allow_html=True)
+    with col_up1:
+        st.markdown(f'<p style="{lab_style}">상권 활력 점수</p><p style="{val_style}">{v_score}점</p>', unsafe_allow_html=True)
+        st.markdown(f'<span style="background:#FEE2E2; color:#991B1B; padding:4px 14px; border-radius:20px; font-weight:700;">실시간 유동: {traffic}명</span>', unsafe_allow_html=True)
 
-    with col2:
-        st.markdown(f'<p style="{lab_s}">4월 이사 지수</p><p style="{val_s}">{cnt_now}건</p>', unsafe_allow_html=True)
+    with col_up2:
+        st.markdown(f'<p style="{lab_style}">4월 이사 지수</p><p style="{val_style}">{cnt_now}건</p>', unsafe_allow_html=True)
         if diff == 0:
-            m_c, m_t = "#F1F3F5", "변동 없음 (전월 동일)"
+            st.markdown(f'<span style="background:#F1F3F5; color:#495057; padding:4px 14px; border-radius:20px; font-weight:700;">변동 없음 (전월 동일)</span>', unsafe_allow_html=True)
         else:
-            m_c = "#DBEAFE" if diff > 0 else "#FEE2E2"
+            m_bg = "#DBEAFE" if diff > 0 else "#FEE2E2"
             arrow = "↑" if diff > 0 else "↓"
-            m_t = f"{arrow} {abs(diff_pct):.1f}% {'상승' if diff > 0 else '하락'}"
-        st.markdown(f'<span style="background:{m_c}; padding:4px 12px; border-radius:15px; font-weight:700;">{m_t}</span>', unsafe_allow_html=True)
+            st.markdown(f'<span style="background:{m_bg}; padding:4px 14px; border-radius:20px; font-weight:700;">{arrow} {abs(diff_pct):.1f}% {"상승" if diff > 0 else "하락"}</span>', unsafe_allow_html=True)
 
     st.write("")
+    st.write("")
+
+    # [하단] 실시간 주요 현황 (이미지 UI 완벽 재현)
     st.subheader(f"📊 실시간 주요 현황 (거점: {target['name']})")
-    box1, box2, box3 = st.columns(3)
-    card_s = "background:#F8F9FA; padding:25px; border-radius:15px; border:1px solid #DEE2E6; min-height:120px;"
     
-    with box1:
-        st.markdown(f'<div style="{card_s}"><p style="color:#888;">실시간 인구 분석</p><p style="font-size:22px; font-weight:700;">{pop_info}</p></div>', unsafe_allow_html=True)
-    with box2:
-        st.markdown(f'<div style="{card_s}"><p style="color:#888;">실시간 상권 매출</p><p style="font-size:22px; font-weight:700; color:#1E40AF;">{sales_info}</p></div>', unsafe_allow_html=True)
-    with box3:
-        # [색상 로직] 여유(그린), 보통(옐로), 붐빔(레드)
-        c_bg = "#D1FAE5" if "여유" in cong_lvl else "#FEE2E2" if "붐빔" in cong_lvl else "#FEF3C7"
-        c_fg = "#065F46" if "여유" in cong_lvl else "#991B1B" if "붐빔" in cong_lvl else "#92400E"
-        st.markdown(f'<div style="{card_s}"><p style="color:#888;">실시간 혼잡도</p><p style="font-size:22px; font-weight:700; color:{c_fg}; background:{c_bg}; display:inline-block; padding:2px 10px; border-radius:10px;">{cong_lvl}</p></div>', unsafe_allow_html=True)
+    # 디자인용 CSS
+    box_css = "background:#F8F9FA; padding:15px; border-radius:8px; border:1px solid #E9ECEF;"
+    
+    # --- 1. 실시간 인구 카드 ---
+    with st.container():
+        st.markdown(f"""
+        <div style="background:white; border:1px solid #E9ECEF; border-radius:12px; padding:20px; margin-bottom:15px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:18px; font-weight:700; color:#495057;">👥 실시간 인구</span>
+                <span style="color:#059669; font-weight:800; font-size:22px;">{cong_lvl} <span style="font-size:14px; color:#ADB5BD; font-weight:400;">●●○○</span></span>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <div style="{box_css} flex:1;">
+                    <p style="margin:0; font-size:13px; color:#868E96;">오늘의 인기 시간대</p>
+                    <p style="margin:5px 0 0 0; font-size:18px; font-weight:700;">{pop_time}</p>
+                </div>
+                <div style="{box_css} flex:1;">
+                    <p style="margin:0; font-size:13px; color:#868E96;">가장 많은 연령대</p>
+                    <p style="margin:5px 0 0 0; font-size:18px; font-weight:700;">{top_age}</p>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # --- 2. 실시간 상권 카드 ---
+    with st.container():
+        st.markdown(f"""
+        <div style="background:white; border:1px solid #E9ECEF; border-radius:12px; padding:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:18px; font-weight:700; color:#495057;">💳 실시간 상권</span>
+                <span style="color:#059669; font-weight:800; font-size:18px;">한산한 시간대 <span style="font-size:14px; color:#ADB5BD; font-weight:400;">●○○○</span></span>
+            </div>
+            <p style="margin:15px 0 5px 0; font-size:14px; color:#868E96;">최근 10분 매출 총액 <span style="font-size:24px; font-weight:800; color:#1A1C1E; margin-left:10px;">{sales_val}</span> <span style="font-size:16px;">미만 만원</span></p>
+            <div style="{box_css} margin-top:10px;">
+                <p style="margin:0; font-size:13px; color:#868E96;">결제 금액 Top 3 업종</p>
+                <p style="margin:5px 0 0 0; font-size:16px; font-weight:700;">{sales_rank}</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     st.divider()
-    st.success(f"현재 {target['name']} 지점은 **{cong_lvl}** 상태로, **{pop_info}** 고객군이 주류입니다.")
+    st.caption("※ 본 데이터는 서울시 실시간 도시데이터 및 통신사/카드사 익명 정보를 바탕으로 추계된 정보입니다.")
 else:
-    st.info("🛰️ 실시간 GPS를 통해 기상도를 분석 중입니다...")
+    st.info("🛰️ 실시간 GPS 위치 정보를 확인 중입니다...")

@@ -2,17 +2,19 @@ import streamlit as st
 from streamlit_js_eval import get_geolocation
 from geopy.geocoders import Nominatim
 import pandas as pd
+import requests
+from bs4 import BeautifulSoup
 
-# 1. 화면 설정
+# --- 1. 앱 설정 및 기본 함수 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="centered")
 
-# 2. 구글 시트 읽어오기 함수 (매니저님 시트 ID 유지)
+# 구글 시트 데이터 로드
 def load_data():
     sheet_id = "1sTjTYGKmHRwE1OLIE-JTo2r3qipXrrRlH7mcJvwqJG0" 
     sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
     return pd.read_csv(sheet_url)
 
-# 3. 주소 정제 함수
+# 주소 정제 (동네 이름 추출)
 def get_clean_address(lat, lon):
     try:
         geolocator = Nominatim(user_agent="lg_curation_app_v2")
@@ -22,13 +24,31 @@ def get_clean_address(lat, lon):
             parts = full_addr.split(',')
             for p in parts:
                 p = p.strip()
-                if p.endswith('동'):
-                    return p
+                if p.endswith('동'): return p
         return "지역 파악 중"
-    except:
-        return "연결 중"
+    except: return "연결 중"
 
-# --- 메인 실행부 ---
+# [핵심] 네이버 뉴스 실시간 크롤링 함수
+def get_local_news(dong_name):
+    try:
+        # 동네이름 + '이슈' 혹은 '공사' 키워드로 뉴스 검색
+        query = f"{dong_name} 이슈"
+        url = f"https://search.naver.com/search.naver?where=news&query={query}"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        news_items = []
+        articles = soup.select('.news_tit')[:3]  # 상위 3개 뉴스만 추출
+        
+        for art in articles:
+            news_items.append({"title": art.text, "link": art['href']})
+        return news_items
+    except:
+        return []
+
+# --- 2. 메인 화면 구현 ---
 st.title("📍 LG 라이프 큐레이션")
 
 loc = get_geolocation()
@@ -41,52 +61,50 @@ if loc:
     st.info(f"현재 분석 지역: **{dong_name}**")
     
     try:
+        # 데이터 및 뉴스 가져오기
         df = load_data()
         region_data = df[df['지역명'].str.contains(dong_name, na=False)]
+        realtime_news = get_local_news(dong_name)
 
         if not region_data.empty:
             row = region_data.iloc[0]
             
+            # 섹션 1: 상권 기상도
             st.divider()
-            # 1. 상권 기상도 (시각적 개선)
             st.subheader(f"☀️ {dong_name} 상권 기상도")
-            
             c1, c2 = st.columns(2)
-            with c1:
-                st.metric("종합 점수", row['기상도'])
-            with c2:
-                st.metric("전주 대비 이사 유입", f"{row['이사지수']}%", delta=f"{row['이사지수']-50}%")
+            with c1: st.metric("상권 점수", row['기상도'])
+            with c2: st.metric("이사 유입", f"{row['이사지수']}%")
 
+            # 섹션 2: 실시간 지역 뉴스 (자동 크롤링 결과)
             st.divider()
-            # 2. 매니저님이 제안하신 명칭으로 변경! (이 달의 케어 이슈 순위)
+            st.subheader(f"📰 실시간 {dong_name} 소식")
+            if realtime_news:
+                for news in realtime_news:
+                    st.write(f"🔗 [{news['title']}]({news['link']})")
+            else:
+                st.write("실시간 뉴스를 불러올 수 없습니다.")
+
+            # 섹션 3: 이 달의 케어 이슈 순위
+            st.divider()
             st.subheader("📊 이 달의 케어 이슈 순위")
-            st.caption(f"최근 {dong_name} 지역 VOC 및 SNS 언급량 기반 분석")
-            
-            # 케어 지수 (세척 등)
-            care_val = int(row['케어지수'])
-            st.write(f"🧼 **가전 분해세척 (케어십) 언급량**: {care_val}%")
-            st.progress(care_val)
-            if care_val >= 80:
-                st.caption("👉 '수돗물 이슈/환절기' 관련 세척 문의가 폭증하고 있습니다.")
+            col_care, col_as = st.columns(2)
+            with col_care:
+                st.write(f"🧼 분해세척: {row['케어지수']}%")
+                st.progress(int(row['케어지수']))
+            with col_as:
+                st.write(f"🛡️ 무상보장: {row['AS지수']}%")
+                st.progress(int(row['AS지수']))
 
-            # AS 지수 (보장 범위 등)
-            as_val = int(row['AS지수'])
-            st.write(f"🛡️ **무상 AS 보장 및 구독 전환**: {as_val}%")
-            st.progress(as_val)
-            if as_val >= 60:
-                st.caption("👉 노후 가전 교체보다 '구독을 통한 수리비 절감' 상담이 유리합니다.")
-
+            # 섹션 4: 현장 딥 인사이트 (시트 데이터)
             st.divider()
-            # 3. 실시간 지역 이슈 (Deep Insight)
             st.subheader("🚩 현장 Deep Insight")
-            st.error(f"**{dong_name} 특이사항:** {row['지역이슈']}")
+            st.error(f"**반드시 체크할 사항:** {row['지역이슈']}")
             
         else:
-            st.warning(f"'{dong_name}'에 대한 데이터가 시트에 없습니다.")
-            st.write("현재 등록 지역:", ", ".join(df['지역명'].astype(str).tolist()))
+            st.warning(f"'{dong_name}' 데이터가 시트에 없습니다. 시트에 지역 정보를 추가해 주세요.")
             
     except Exception as e:
-        st.error(f"데이터 연결 오류: {e}")
-
+        st.error(f"오류 발생: {e}")
 else:
-    st.warning("위치 정보를 확인하고 있습니다. (브라우저 상단 허용 버튼 확인)")
+    st.warning("위치 정보를 가져오는 중입니다. 브라우저 상단의 위치 권한을 확인해 주세요.")

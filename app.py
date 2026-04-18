@@ -36,11 +36,12 @@ def fetch_moving_all(lawd_cd, year_month):
             url = f"http://apis.data.go.kr/1613000/{path}"
             p = {'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 'LAWD_CD': lawd_cd, 'DEAL_YMD': year_month}
             r = requests.get(url, params=p, timeout=5)
-            total += len(ET.fromstring(r.text).findall('.//item'))
+            if r.status_code == 200:
+                total += len(ET.fromstring(r.text).findall('.//item'))
         except: continue
     return total
 
-# --- UI 메인 ---
+# --- UI 시작 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")
 st.title("📍 LG 라이프 큐레이션")
 
@@ -62,16 +63,96 @@ if loc:
     diff = cnt_now - cnt_last
     diff_pct = (diff / cnt_last * 100) if cnt_last > 0 else 0
 
-    # 실시간 도시데이터 분석 (성별 데이터 파싱 강화)
+    # [수정] 도시데이터 분석 (SyntaxError 해결 및 성별 비중 추가)
     cong_lvl, top_age, pop_time, male_r, fem_r = "분석 중", "분석 중", "확인 중", 0.0, 0.0
     try:
         c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{target['name']}"
-        root = ET.fromstring(requests.get(c_url).text)
-        cong_lvl = root.find(".//AREA_CONGEST_LVL").text if root.find(".//AREA_CONGEST_LVL") is not None else "보통"
+        root = ET.fromstring(requests.get(c_url, timeout=5).text)
         
-        # 성별 비중 (매뉴얼 API 구조 반영)
-        fem_r = float(root.find('.//FEMALE_PPLTN_RATE').text)
-        male_r = 100.0 - fem_r
+        # 혼잡도
+        lvl_node = root.find(".//AREA_CONGEST_LVL")
+        if lvl_node is not None: cong_lvl = lvl_node.text
         
-        # 연령대 분석
-        ages = {f"{i}0대": float(root.
+        # 성별 비중
+        fem_node = root.find('.//FEMALE_PPLTN_RATE')
+        if fem_node is not None:
+            fem_r = float(fem_node.text)
+            male_r = 100.0 - fem_r
+        
+        # 연령대 분석 (에러 났던 괄호 부분 수정)
+        age_list = {}
+        for i in range(2, 7):
+            val = root.find(f'.//PPLTN_RATE_{i}')
+            if val is not None:
+                age_list[f"{i}0대"] = float(val.text)
+        if age_list:
+            top_age = max(age_list, key=age_list.get)
+        
+        pop_time = datetime.now().strftime("%p %I시").replace("AM", "오전").replace("PM", "오후")
+    except: pass
+
+    # --- 시각화 영역 ---
+    st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")
+    st.divider()
+    
+    # 상권 기상도
+    weather_icon = "☀️" if "여유" in cong_lvl else "☁️" if "보통" in cong_lvl else "☔"
+    st.subheader(f"{weather_icon} {u_dong} 상권 기상도")
+    
+    col_up1, col_up2 = st.columns(2)
+    val_s, lab_s = "font-size: 56px; font-weight: 800; color: #1A1C1E; margin: 0px;", "font-size: 16px; color: #666; font-weight: 500;"
+
+    with col_up1:
+        st.markdown(f'<p style="{lab_s}">상권 활력 점수</p><p style="{val_s}">72점</p>', unsafe_allow_html=True)
+        st.markdown(f'<span style="background:#D1FAE5; color:#065F46; padding:4px 14px; border-radius:20px; font-weight:700;">분석: 활동적</span>', unsafe_allow_html=True)
+
+    with col_up2:
+        st.markdown(f'<p style="{lab_s}">4월 이사 지수</p><p style="{val_s}">{cnt_now}건</p>', unsafe_allow_html=True)
+        if diff == 0:
+            st.markdown(f'<span style="background:#F1F3F5; color:#495057; padding:4px 14px; border-radius:20px; font-weight:700;">변동 없음</span>', unsafe_allow_html=True)
+        else:
+            m_bg = "#DBEAFE" if diff > 0 else "#FEE2E2"
+            arrow = "↑" if diff > 0 else "↓"
+            st.markdown(f'<span style="background:{m_bg}; padding:4px 14px; border-radius:20px; font-weight:700;">{arrow} {abs(diff_pct):.1f}%</span>', unsafe_allow_html=True)
+
+    st.write("")
+    st.subheader(f"📊 실시간 주요 현황 (거점: {target['name']})")
+    
+    box_css = "background:#F8F9FA; padding:15px; border-radius:8px; border:1px solid #E9ECEF; text-align:center;"
+    
+    # --- 실시간 인구 카드 (성별 비중 포함) ---
+    with st.container():
+        #
+        st.markdown(f"""
+        <div style="background:white; border:1px solid #E9ECEF; border-radius:12px; padding:20px; margin-bottom:15px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:18px; font-weight:700; color:#495057;">👥 실시간 인구</span>
+                <span style="color:#059669; font-weight:800; font-size:22px;">{cong_lvl} <span style="font-size:14px; color:#ADB5BD; font-weight:400;">●●●○</span></span>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <div style="{box_css} flex:1;">
+                    <p style="margin:0; font-size:13px; color:#868E96;">오늘의 인기 시간대</p>
+                    <p style="margin:5px 0 0 0; font-size:18px; font-weight:700;">{pop_time}</p>
+                </div>
+                <div style="{box_css} flex:1;">
+                    <p style="margin:0; font-size:13px; color:#868E96;">가장 많은 연령대</p>
+                    <p style="margin:5px 0 0 0; font-size:18px; font-weight:700;">{top_age}</p>
+                </div>
+                <div style="{box_css} flex:1.2; background:#F0F7FF; border:1px solid #D0E3FF;">
+                    <p style="margin:0; font-size:13px; color:#2B6CB0;">성별 비중</p>
+                    <div style="display:flex; justify-content:center; align-items:center; gap:8px; margin-top:5px;">
+                        <span style="font-size:14px; font-weight:700;">♂️ 남 {male_r:.1f}%</span>
+                        <span style="color:#D0E3FF;">|</span>
+                        <span style="font-size:14px; font-weight:700; color:#D53F8C;">♀️ 여 {fem_r:.1f}%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # --- 실시간 상권 카드 ---
+    with st.container():
+        #
+        st.markdown(f"""
+        <div style="background:white; border:1px solid #E9ECEF; border-radius:12px; padding:20px;">
+            <div style="display:flex; justify-content:space-between; align

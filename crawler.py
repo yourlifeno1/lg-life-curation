@@ -23,10 +23,17 @@ def push_to_google_sheet(channel, region, category, voc, summary):
         IDS["VOC"]: voc,
         IDS["요약"]: summary
     }
+    
+    # [진단 모드] 전송 시도 후 결과를 로그에 남깁니다.
     try:
-        requests.post(FORM_URL, data=payload, timeout=10)
-    except:
-        pass
+        r = requests.post(FORM_URL, data=payload, timeout=10)
+        if r.status_code == 200:
+            print(f"✅ [성공] 시트로 전송되었습니다! ({region} - {category})")
+        else:
+            print(f"❌ [실패] 에러 코드: {r.status_code}")
+            print(f"👉 이 코드가 400번대라면 IDS 번호나 FORM_URL 주소 오타입니다.")
+    except Exception as e:
+        print(f"❌ [통신 에러] 전송 중 오류 발생: {e}")
 
 def crawl_engine(region, item, mode="kin"):
     """

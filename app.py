@@ -12,9 +12,8 @@ MOLIT_API_KEY = "cea470e38c930cce42ece10e65d31edd837b1eca751387d260737bcf6331537
 GAS_URL = "https://script.google.com/macros/s/AKfycbxu4xM5YLErC-4ET2pOuy1ruQTXkm33Vx-A0ZtXg4zPrVAdDITfUYqmtwn8QU7mIWeh/exec"
 SHEET_ID = "1sTjTYGKmHRwE1OLIE-JTo2r3qipXrrRlH7mcJvwqJG0"
 
-# 2. 법정동 및 구 정보 자동 매핑
-def get_lawd_info(display_name, gu_name):
-    if "쌍문" in display_name: return "11320", "도봉구"
+# 2. 서울 25개 구 법정동 코드 (국토부 API용)
+def get_lawd_info(gu_name):
     seoul_gu_map = {
         "종로구": "11110", "중구": "11140", "용산구": "11170", "성동구": "11200",
         "광진구": "11215", "동대문구": "11230", "중랑구": "11260", "성북구": "11290",
@@ -23,44 +22,48 @@ def get_lawd_info(display_name, gu_name):
         "구로구": "11530", "금천구": "11545", "영등포구": "11560", "동작구": "11590",
         "관악구": "11620", "서초구": "11650", "강남구": "11680", "송파구": "11710", "강동구": "11740"
     }
-    return seoul_gu_map.get(gu_name, "11320"), gu_name
+    return seoul_gu_map.get(gu_name, "11320")
 
-# 3. [논리보정] 부동산 데이터 분석 (당월 신고지연 고려)
-def fetch_moving_analysis(lawd_cd):
-    this_m = datetime.now().strftime("%Y%m")
-    last_m = (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%Y%m")
-    svcs = ["getRTMSDataSvcAptRent", "getRTMSDataSvcRhRent", "getRTMSDataSvcOffiRent"]
+# 3. [복구] 국토부 부동산 데이터 호출 함수 (XML 파싱 강화)
+def fetch_moving_data(lawd_cd, target_month):
+    # 아파트 전월세, 연립다세대 전월세, 오피스텔 전월세 3종 통합
+    services = ["getRTMSDataSvcAptRent", "getRTMSDataSvcRhRent", "getRTMSDataSvcOffiRent"]
+    total_count = 0
     
-    def get_count(month):
-        total = 0
-        for s in svcs:
-            try:
-                url = f"http://openapi.molit.go.kr:8081/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/{s}"
-                p = {'serviceKey': MOLIT_API_KEY, 'LAWD_CD': lawd_cd, 'DEAL_YMD': month}
-                r = requests.get(url, params=p, timeout=3)
-                total += len(ET.fromstring(r.text).findall('.//item'))
-            except: continue
-        return total
+    for svc in services:
+        url = f"http://openapi.molit.go.kr:8081/OpenAPI_ToolInstallPackage/service/rest/RTMSOBJSvc/{svc}"
+        params = {
+            'serviceKey': requests.utils.unquote(MOLIT_API_KEY), # 키 인코딩 문제 해결
+            'LAWD_CD': lawd_cd,
+            'DEAL_YMD': target_month
+        }
+        try:
+            response = requests.get(url, params=params, timeout=5)
+            if response.status_code == 200:
+                root = ET.fromstring(response.text)
+                items = root.findall('.//item')
+                total_count += len(items)
+        except Exception as e:
+            continue
+    return total_count
 
-    curr_c = get_count(this_m)
-    prev_c = get_count(last_m)
-    
-    # 논리 핵심: 4월(당월) 데이터는 신고 기간이므로, 3월(전월)의 활발한 실적을 '상담 기준'으로 삼음
-    # 대신 증감률은 팩트대로 보여주되, 안내 문구로 보완함
-    diff_p = ((curr_c - prev_c) / prev_c * 100) if prev_c > 0 else 0
-    return curr_c, prev_c, diff_p
-
-# 4. 실시간 유동인구
-def fetch_traffic():
+# 4. 실시간 유동인구 및 시간대별 활력 점수
+def fetch_traffic_and_score():
     url = f"http://openapi.seoul.go.kr:8088/{SEOUL_API_KEY}/json/sDOTPeople/1/1/"
     try:
         res = requests.get(url, timeout=3).json()
-        count = int(float(res["sDOTPeople"]["row"][0]['VISIT_COUNT']))
-        score = int((count / 150) * 100) if datetime.now().hour < 22 else int((count / 150) * 10)
-        return min(score, 99), count
-    except: return 0, 0
+        real_count = int(float(res["sDOTPeople"]["row"][0]['VISIT_COUNT']))
+        
+        now_hour = datetime.now().hour
+        # 상권 활력도 점수만 시간대 반영 (밤 22시~아침 7시 70% 삭감)
+        weight = 0.3 if (now_hour >= 22 or now_hour < 7) else 1.0
+        vitality_score = min(int((real_count / 150) * 100 * weight), 99)
+        
+        return real_count, vitality_score
+    except:
+        return 0, 0
 
-# --- UI 메인 (디자인 엄수) ---
+# --- 메인 UI (기상도 디자인 고정) ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")
 st.title("📍 LG 라이프 큐레이션")
 
@@ -69,59 +72,72 @@ loc = get_geolocation()
 if loc:
     lat, lon = loc['coords']['latitude'], loc['coords']['longitude']
     
+    # 1. 현재 위치 파악
     try:
-        addr = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}", headers={'User-Agent':'LG_App'}).json()
-        disp_name = addr.get('display_name', "")
-        addr_dict = addr.get('address', {})
-        raw_gu = addr_dict.get('city_district') or addr_dict.get('borough') or "도봉구"
-        lawd_cd, gu_name = get_lawd_info(disp_name, raw_gu)
-        current_dong = addr_dict.get('suburb') or addr_dict.get('neighbourhood') or "인근지역"
+        addr = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}", headers={'User-Agent':'LG_Manager_App'}).json()
+        address = addr.get('address', {})
+        gu_name = address.get('city_district') or address.get('borough') or "도봉구"
+        current_dong = address.get('suburb') or address.get('neighbourhood') or "인근지역"
+        # 주소에 '쌍문' 포함 시 도봉구 강제 매핑
+        if "쌍문" in addr.get('display_name', ""): gu_name = "도봉구"
+        lawd_cd = get_lawd_info(gu_name)
     except:
-        gu_name, current_dong, lawd_cd = "도봉구", "지역미설정", "11320"
+        gu_name, current_dong, lawd_cd = "도봉구", "인근지역", "11320"
 
-    # 데이터 호출
-    traffic_score, traffic_cnt = fetch_traffic()
-    curr_c, prev_c, diff_p = fetch_moving_analysis(lawd_cd)
+    # 2. 데이터 수집 (당월 4월, 전월 3월)
+    this_month = datetime.now().strftime("%Y%m")
+    last_month = (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%Y%m")
+    
+    real_traffic, vitality_score = fetch_traffic_and_score()
+    count_4월 = fetch_moving_data(lawd_cd, this_month)
+    count_3월 = fetch_moving_data(lawd_cd, last_month)
+    
+    # 전월 대비 등락률
+    diff_percent = ((count_4월 - count_3월) / count_3월 * 100) if count_3월 > 0 else 0
 
-    st.info(f"✅ 위치 감지: **{gu_name} {current_dong}**")
+    st.info(f"✅ 현재 위치 감지: **{gu_name} {current_dong}**")
 
-    if st.button(f"🚀 {current_dong} 정밀 분석 및 리포트 전송"):
-        with st.status("공공데이터 및 부동산 실거래 트렌드 분석 중..."):
+    # [분석 버튼]
+    if st.button(f"🚀 {current_dong} 실시간 분석 및 리포트 생성"):
+        with st.status("공공데이터 동기화 중..."):
             payload = {
                 "region": current_dong,
-                "weather": traffic_score,
-                "move_idx": int(diff_p),
+                "weather": vitality_score,
+                "move_idx": int(diff_percent),
                 "care_score": 85,
-                "care_reason": f"3월 확정거래 {prev_c}건 기반 분석 (4월 신고 진행중)",
-                "as_reason": f"실시간 유동인구 {traffic_cnt}명 확인됨",
-                "recommend_prod": "이사/입주 가전 큐레이션",
-                "issue": f"3월 활성데이터 반영 리포트"
+                "care_reason": f"3월 확정 거래 {count_3월}건 대비 4월 추이 분석",
+                "as_reason": f"현시간 유동인구 {real_traffic}명 기반 활력도 산출",
+                "recommend_prod": "이사/입주 가전 패키지",
+                "issue": f"{gu_name} 실시간 데이터 연동"
             }
             requests.post(GAS_URL, data=json.dumps(payload))
         st.rerun()
 
-    # --- 상권기상도 디자인 고정 ---
+    # --- 디자인 고정 출력 섹션 ---
     st.divider()
+    
+    # 섹션 1: 상권 기상도
     st.subheader(f"☀️ {current_dong} 상권 기상도")
     c1, c2 = st.columns(2)
-    with c1: 
-        st.metric("상권 활력도", f"{traffic_score}점", f"실시간 유동 {traffic_cnt}명")
-    with c2: 
-        # 당월 데이터가 0에 가깝더라도, 전월의 '팩트' 데이터를 함께 보여주어 상담 근거 마련
-        st.metric("이사 지수 (3월 확정분)", f"{prev_c}건", f"{diff_p:+.1f}% (4월 신고중)", delta_color="inverse")
+    with c1:
+        st.metric("상권 활력도", f"{vitality_score}점", f"실시간 유동 {real_traffic}명")
+    with c2:
+        # 3월 데이터를 메인으로 보여주어 '0건' 공포 해결
+        st.metric("이사 지수 (3월 확정)", f"{count_3월}건", f"4월 신고중: {count_4월}건")
 
+    # 섹션 2: 이슈 순위
     st.divider()
     st.subheader("📊 이 달의 케어 이슈 순위")
-    st.write(f"🧼 **가전 분해세척 필요도**: 85%")
+    st.write("🧼 **가전 분해세척 필요도**: 85%")
     st.progress(85)
-    st.write(f"🛡️ **무상 AS 및 구독 전환**: 80%")
+    st.write("🛡️ **무상 AS 및 구독 전환**: 80%")
     st.progress(80)
 
+    # 섹션 3: Deep Insight
     st.divider()
     st.subheader("🚩 현장 Deep Insight")
-    # 팩트에 기반한 논리적인 설명 추가
-    st.info(f"**이사 분석:** 현재 4월 데이터는 신고 기간으로 집계 중이나, **3월 확정 거래가 {prev_c}건**으로 매우 활발했습니다. AI 분석에 따르면 이사 후 가전 설치/세척 수요가 이번 주부터 집중될 것으로 보입니다.")
-    st.warning(f"**실시간 분석:** 밤 시간대 유동인구가 {traffic_cnt}명으로 보수적인 활력 점수가 산출되었습니다.")
+    st.info(f"**이사 트렌드:** {gu_name} 지역은 지난 3월 한 달간 총 **{count_3월}건**의 이사 거래가 완료되었습니다. 현재 4월 거래가 실시간 신고 중이며, 유입 흐름은 전월 대비 {diff_percent:+.1f}% 추세를 보입니다.")
+    st.warning(f"**상권 분석:** 현재 실시간 유동인구는 **{real_traffic}명**입니다. 야간 시간대 가중치를 적용하여 상권 활력도는 **{vitality_score}점**으로 분석되었습니다.")
 
 else:
-    st.info("🛰️ 정확한 분석을 위해 GPS 신호를 기다리고 있습니다...")
+    st.info("🛰️ GPS 신호를 수신하여 리포트를 구성 중입니다...")

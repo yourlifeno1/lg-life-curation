@@ -1,2 +1,4 @@
 streamlit-js-eval
 geopy
+requests
+beautifulsoup4

@@ -4,7 +4,7 @@ import pandas as pd
 import requests
 import json
 from datetime import datetime, timedelta
-import xml.etree.ElementTree as ET
+import xml.etree.Tree as ET # XML 처리를 위한 기본 라이브러리
 
 # 1. 인증키 및 설정
 SEOUL_API_KEY = "5658537164796f7539376a424f4f66"
@@ -25,6 +25,7 @@ def get_lawd_info(gu_name):
 
 # 3. 6개 부동산 API 호출
 def fetch_moving_data(lawd_cd, month):
+    import xml.etree.ElementTree as ET
     api_paths = [
         "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
         "RTMSDataSvcRhTrade/getRTMSDataSvcRhTrade", "RTMSDataSvcRhRent/getRTMSDataSvcRhRent",
@@ -52,7 +53,7 @@ def fetch_traffic():
         return count, score
     except: return 0, 0
 
-# --- 메인 UI ---
+# --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")
 st.title("📍 LG 라이프 큐레이션")
 
@@ -79,31 +80,30 @@ if loc:
 
     st.info(f"✅ 현재 위치 감지: **{gu_name} {current_dong}**")
 
-    # --- 상권 기상도 (디자인 보정 버전) ---
+    # --- 상권 기상도 (글꼴 두께 및 밸런스 최종 보정) ---
     st.divider()
     st.subheader(f"☀️ {current_dong} 상권 기상도")
     c1, c2 = st.columns(2)
     
     with c1:
-        # 상태에 따른 색상 정의 (배경색, 글자색)
         if real_traffic >= 100: bg_c, txt_c, status = "#d4edda", "#155724", "활발"
         elif real_traffic >= 50: bg_c, txt_c, status = "#fff3cd", "#856404", "보통"
         else: bg_c, txt_c, status = "#f8d7da", "#721c24", "낮음"
         
-        # [디자인 복구 및 개선] 화살표 없이 색상 박스(Badge) 형태로 구현
+        # [글꼴 두께 보정] font-weight를 700 이상으로 설정하여 오른쪽 메트릭과 통일
         st.markdown(f"""
             <div style="margin-bottom: 10px;">
-                <p style="font-size: 14px; color: #666; margin-bottom: 0px;">상권 활력 점수</p>
-                <p style="font-size: 38px; font-weight: bold; margin: 0px;">{vitality_score}점</p>
+                <p style="font-size: 14px; color: #4F4F4F; font-weight: 500; margin-bottom: 0px;">상권 활력 점수</p>
+                <p style="font-size: 42px; font-weight: 700; color: #1A1C1E; margin: 0px; line-height: 1.2;">{vitality_score}점</p>
                 <div style="display: inline-block; background-color: {bg_c}; color: {txt_c}; 
-                            padding: 2px 10px; border-radius: 15px; font-size: 13px; font-weight: bold;">
+                            padding: 3px 12px; border-radius: 4px; font-size: 14px; font-weight: 600; margin-top: 4px;">
                     상태: {status} (유동 {real_traffic}명)
                 </div>
             </div>
         """, unsafe_allow_html=True)
         
     with c2:
-        # 이사 지수 (기존 화살표 박스 유지)
+        # 이사 지수 (기존 메트릭 유지)
         st.metric(
             label=f"이사 지수 ({datetime.now().month}월)", 
             value=f"{cnt_now}건", 
@@ -124,7 +124,5 @@ if loc:
     elif vitality_score >= 40: st.warning(f"⛅ **현장 분위기:** 유동인구 {real_traffic}명으로 보통 수준입니다.")
     else: st.error(f"🌑 **현장 분위기:** 유동인구가 적어 한산한 상태입니다.")
 
-    if st.button(f"🚀 {current_dong} 리포트 데이터 전송"):
-        st.write("전송 완료!")
 else:
     st.info("🛰️ GPS 수신 중...")

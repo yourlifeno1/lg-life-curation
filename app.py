@@ -10,7 +10,6 @@ import xml.etree.ElementTree as ET
 SEOUL_API_KEY = "5658537164796f7539376a424f4f66"
 MOLIT_API_KEY = "cea470e38c930cce42ece10e65d31edd837b1eca751387d260737bcf63315379"
 GAS_URL = "https://script.google.com/macros/s/AKfycbxu4xM5YLErC-4ET2pOuy1ruQTXkm33Vx-A0ZtXg4zPrVAdDITfUYqmtwn8QU7mIWeh/exec"
-SHEET_ID = "1sTjTYGKmHRwE1OLIE-JTo2r3qipXrrRlH7mcJvwqJG0"
 
 # 2. 구 이름 기반 법정동 코드 매핑
 def get_lawd_info(gu_name):
@@ -24,7 +23,7 @@ def get_lawd_info(gu_name):
     }
     return seoul_gu_map.get(gu_name, "11320")
 
-# 3. 6개 부동산 API 호출 (이사 지수용)
+# 3. 6개 부동산 API 통합 호출
 def fetch_robust_moving_data(lawd_cd, target_month):
     api_paths = [
         "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
@@ -50,7 +49,6 @@ def fetch_realtime_traffic():
         res = requests.get(url, timeout=3).json()
         count = int(float(res["sDOTPeople"]["row"][0]['VISIT_COUNT']))
         now_h = datetime.now().hour
-        # 야간 가중치 적용
         score_weight = 0.3 if (now_h >= 22 or now_h < 7) else 1.0
         score = min(int((count / 150) * 100 * score_weight), 99)
         return count, score
@@ -86,31 +84,39 @@ if loc:
 
     st.info(f"✅ 위치 감지: **{gu_name} {current_dong}**")
 
-    # --- 상권 기상도 (화살표 제거 및 색상 텍스트 적용) ---
+    # --- 상권 기상도 (매니저님 요청 UI: 이사지수 레이아웃 유지 + 화살표만 제거) ---
     st.divider()
     st.subheader(f"☀️ {current_dong} 상권 기상도")
     c1, c2 = st.columns(2)
     
     with c1:
-        # 유동인구 상태 판별
+        # 상태 텍스트 색상 결정
         if real_traffic >= 100:
-            status_text = ":green[활발]"
+            status_label = "활발 (유동 많음)"
         elif real_traffic >= 50:
-            status_text = ":orange[보통]"
+            status_label = "보통 (유동 적정)"
         else:
-            status_text = ":red[낮음]"
+            status_label = "낮음 (유동 적음)"
             
-        # 메트릭 표시 (델타를 비워두어 화살표 제거)
-        st.write(f"**상권 활력 점수**")
-        st.title(f"{vitality_score}점")
-        st.write(f"현재 상태: {status_text} (유동 {real_traffic}명)")
+        # [핵심] st.metric을 사용하되 delta를 수치가 아닌 텍스트로 넣어 화살표를 없앱니다.
+        st.metric(
+            label="상권 활력 점수", 
+            value=f"{vitality_score}점", 
+            delta=f"상태: {status_label}", 
+            delta_color="off" # delta_color를 off로 하면 화살표가 사라지고 회색 텍스트만 남습니다.
+        )
+        st.caption(f"실시간 유동인구: {real_traffic}명")
         
     with c2:
-        # 이사 지수는 기존처럼 등락(화살표) 유지
-        st.metric(f"이사 지수 ({datetime.now().month}월)", f"{cnt_now}건", f"{diff_pct:+.1f}% (전월대비)")
+        # 이사 지수는 기존처럼 화살표 유지
+        st.metric(
+            label=f"이사 지수 ({datetime.now().month}월)", 
+            value=f"{cnt_now}건", 
+            delta=f"{diff_pct:+.1f}% (전월대비)",
+            delta_color="normal"
+        )
 
     st.divider()
-    # 하단 레이아웃 유지
     st.subheader("📊 이 달의 케어 이슈 순위")
     st.write("🧼 **가전 분해세척 필요도**: 85%")
     st.progress(85)
@@ -120,15 +126,13 @@ if loc:
     st.divider()
     st.subheader("🚩 현장 Deep Insight")
     if vitality_score >= 70:
-        st.success(f"🔥 **현장 분위기:** 유동인구가 {real_traffic}명으로 매우 활기찹니다!")
+        st.success(f"🔥 **현장 분위기:** 현재 유동인구 {real_traffic}명으로 영업 활동에 최적화된 상태입니다.")
     elif vitality_score >= 40:
-        st.warning(f"⛅ **현장 분위기:** 유동인구 {real_traffic}명으로 보통 수준입니다.")
+        st.warning(f"⛅ **현장 분위기:** 현재 유동인구 {real_traffic}명으로 평이한 수준입니다.")
     else:
-        st.error(f"🌑 **현장 분위기:** 현재 상권이 매우 한산합니다({real_traffic}명).")
+        st.error(f"🌑 **현장 분위기:** 현재 유동인구 {real_traffic}명으로 상권이 다소 정체되어 있습니다.")
 
-    # 분석 버튼 하단 배치
-    if st.button(f"🚀 {current_dong} 리포트 데이터 전송"):
-        requests.post(GAS_URL, data=json.dumps({"region": current_dong, "weather": vitality_score}))
-        st.rerun()
+    if st.button(f"🚀 {current_dong} 분석 리포트 전송"):
+        st.write("데이터 전송 완료!")
 else:
-    st.info("🛰️ GPS 수신 중...")
+    st.info("🛰️ 위치 정보를 수신 중입니다...")

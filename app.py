@@ -42,7 +42,7 @@ if loc:
     lon = loc['coords']['longitude']
     dong_name = get_clean_address(lat, lon)
     
-    st.info(f"현재 분석 지역: **{dong_name}**")
+    st.info(f"현재 분석 지역: **{_name}**")
     
     # 구글 시트 데이터 가져오기
     try:

@@ -12,13 +12,12 @@ SEOUL_API_KEY = "5658537164796f7539376a424f4f66"
 CITY_DATA_KEY = "444d537a57796f7537385949716278"
 MOLIT_API_KEY = "cea470e38c930cce42ece10e65d31edd837b1eca751387d260737bcf63315379"
 
-# 2. 서울 전역 121개 공식 거점 리스트 (핵심 지점)
+# 2. 공식 거점 데이터
 CITY_POINTS = [
     {"name": "쌍문역", "lat": 37.6486, "lon": 127.0347, "gu": "도봉구", "code": "11320"},
     {"name": "수유역", "lat": 37.6380, "lon": 127.0257, "gu": "강북구", "code": "11305"},
     {"name": "강남역", "lat": 37.4979, "lon": 127.0276, "gu": "강남구", "code": "11680"},
     {"name": "홍대입구역(2호선)", "lat": 37.5576, "lon": 126.9245, "gu": "마포구", "code": "11440"},
-    {"name": "잠실역", "lat": 37.5133, "lon": 127.1001, "gu": "송파구", "code": "11710"},
     {"name": "성수카페거리", "lat": 37.5445, "lon": 127.0560, "gu": "성동구", "code": "11200"}
 ]
 
@@ -43,7 +42,7 @@ def fetch_moving_all(lawd_cd, year_month):
         except: continue
     return total
 
-# --- UI 시작 ---
+# --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")
 st.title("📍 LG 라이프 큐레이션")
 
@@ -52,7 +51,6 @@ loc = get_geolocation()
 if loc:
     u_lat, u_lon = loc['coords']['latitude'], loc['coords']['longitude']
     
-    # [1] 실시간 위치 기반 동네 이름
     try:
         addr = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={u_lat}&lon={u_lon}", headers={'User-Agent':'LG_App'}).json()
         u_dong = addr.get('address', {}).get('suburb') or addr.get('address', {}).get('neighbourhood') or "서울시"
@@ -60,7 +58,7 @@ if loc:
     
     target = get_nearest_point(u_lat, u_lon)
 
-    # [2] 데이터 수집
+    # 데이터 로드
     cnt_now = fetch_moving_all(target['code'], "202404")
     cnt_last = fetch_moving_all(target['code'], "202403")
     diff = cnt_now - cnt_last
@@ -73,8 +71,7 @@ if loc:
         v_score = min(int((traffic / 150) * 100), 99)
     except: pass
 
-    # [3] 도시데이터 분석
-    cong_lvl, male_r, fem_r, sales_rank = "분석 중", 50.0, 50.0, "분석 중"
+    cong_lvl, male_r, fem_r, sales_rank = "보통", 50.0, 50.0, "분석 중"
     age_rates = {"10대":0, "20대":0, "30대":0, "40대":0, "50대":0, "60대+":0}
     
     try:
@@ -99,33 +96,28 @@ if loc:
             sales_rank = f"1위 {r1} / 2위 {r2} / 3위 {r3}"
     except: pass
 
-    # --- 시각화 영역 ---
+    # --- 화면 구성 ---
     st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")
     st.divider()
     
-    weather_icon = "☀️" if v_score >= 70 else "☁️" if v_score >= 35 else "☔"
-    st.subheader(f"{weather_icon} {u_dong} 상권 기상도")
-    
-    col_u1, col_u2 = st.columns(2)
-    with col_u1:
+    st.subheader(f"☀️ {u_dong} 상권 기상도")
+    c1, c2 = st.columns(2)
+    with c1:
         st.markdown(f'<p style="color:#666; font-size:16px;">상권 활력 점수</p><p style="font-size:56px; font-weight:800;">{v_score}점</p>', unsafe_allow_html=True)
-        b_c = "#D1FAE5" if v_score >= 70 else "#FEF3C7" if v_score >= 35 else "#FEE2E2"
-        t_c = "#065F46" if v_score >= 70 else "#92400E" if v_score >= 35 else "#991B1B"
-        st.markdown(f'<span style="background:{b_c}; color:{t_c}; padding:4px 14px; border-radius:20px; font-weight:700;">분석 결과: {"활발" if v_score >= 70 else "보통" if v_score >= 35 else "한산"}</span>', unsafe_allow_html=True)
-    with col_u2:
+        st.markdown(f'<span style="background:#D1FAE5; color:#065F46; padding:4px 14px; border-radius:20px; font-weight:700;">분석 결과: 활동적</span>', unsafe_allow_html=True)
+    with c2:
         st.markdown(f'<p style="color:#666; font-size:16px;">4월 이사 지수</p><p style="font-size:56px; font-weight:800;">{cnt_now}건</p>', unsafe_allow_html=True)
-        m_bg = "#D1FAE5" if diff > 0 else "#F1F3F5" if diff == 0 else "#FEE2E2"
-        arrow = "↑" if diff > 0 else "↓" if diff < 0 else ""
-        txt = "상승" if diff > 0 else "하락" if diff < 0 else "변동 없음"
-        st.markdown(f'<span style="background:{m_bg}; padding:4px 14px; border-radius:20px; font-weight:700;">{arrow} {abs(diff_pct):.1f}% {txt}</span>', unsafe_allow_html=True)
+        m_bg = "#D1FAE5" if diff > 0 else "#F1F3F5"
+        st.markdown(f'<span style="background:{m_bg}; padding:4px 14px; border-radius:20px; font-weight:700;">전월 대비 {abs(diff_pct):.1f}% 변동</span>', unsafe_allow_html=True)
 
     st.write("")
     st.subheader(f"📊 실시간 주요 현황 (거점: {target['name']})")
     
-    box_css = "background:#F8F9FA; padding:15px; border-radius:8px; border:1px solid #E9ECEF; text-align:center;"
-    cong_color = "#059669" if "여유" in cong_lvl else "#D97706" if "보통" in cong_lvl else "#DC2626"
+    # 공통 스타일
+    box_style = "background:#F8F9FA; padding:15px; border-radius:8px; border:1px solid #E9ECEF;"
+    cong_color = "#059669" if "여유" in cong_lvl else "#D97706"
 
-    # [핵심 수정] 가독성을 위해 상/하 2단 레이아웃으로 변경
+    # [수정된 카드 레이아웃]
     st.markdown(f"""
     <div style="background:white; border:1px solid #E9ECEF; border-radius:12px; padding:20px; margin-bottom:15px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -134,14 +126,14 @@ if loc:
         </div>
         
         <div style="display:flex; gap:10px; margin-top:15px;">
-            <div style="{box_css} flex:1;">
+            <div style="{box_style} flex:1; text-align:center;">
                 <p style="margin:0; font-size:13px; color:#868E96;">오늘의 인기 시간대</p>
                 <p style="margin:5px 0 0 0; font-size:18px; font-weight:700;">오후 1시</p>
             </div>
-            <div style="{box_css} flex:1.5;">
-                <p style="margin:0; font-size:13px; color:#868E96;">성별 비중 분석</p>
+            <div style="{box_style} flex:1.5;">
+                <p style="margin:0; font-size:13px; color:#868E96; text-align:center;">성별 비중 분석</p>
                 <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
-                    <span style="font-size:12px; font-weight:700; color:#495057;">♂️ {male_r:.0f}%</span>
+                    <span style="font-size:12px; font-weight:700;">♂️ {male_r:.0f}%</span>
                     <div style="flex:1; background:#E9ECEF; height:12px; border-radius:6px; overflow:hidden; display:flex;">
                         <div style="width:{male_r}%; background:#3B82F6; height:100%;"></div>
                         <div style="width:{fem_r}%; background:#EC4899; height:100%;"></div>
@@ -151,8 +143,8 @@ if loc:
             </div>
         </div>
 
-        <div style="{box_css} margin-top:10px; background:#F1F3F5;">
-            <p style="margin:0; font-size:13px; color:#868E96;">연령대별 비중 분석</p>
+        <div style="{box_style} margin-top:10px; background:#F1F3F5;">
+            <p style="margin:0; font-size:13px; color:#868E96; text-align:center;">연령대별 비중 분석</p>
             <div style="display:flex; background:#E9ECEF; height:12px; border-radius:6px; overflow:hidden; margin-top:10px;">
                 <div style="width:{age_rates['10대']}%; background:#94a3b8;"></div>
                 <div style="width:{age_rates['20대']}%; background:#60a5fa;"></div>
@@ -177,11 +169,12 @@ if loc:
             <span style="font-size:18px; font-weight:700; color:#495057;">💳 실시간 상권 정보</span>
             <span style="color:#059669; font-weight:800; font-size:18px;">한산한 시간대</span>
         </div>
-        <div style="{box_css} margin-top:15px; text-align:left; background:#F1F3F5;">
+        <div style="{box_style} margin-top:15px; background:#F1F3F5;">
             <p style="margin:0; font-size:13px; color:#868E96;">결제 금액 Top 3 업종</p>
             <p style="margin:5px 0 0 0; font-size:15px; font-weight:700;">{sales_rank}</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
+
 else:
-    st.info("🛰️ 정확한 실시간 리포트를 위해 GPS 위치 정보를 확인 중입니다...")
+    st.info("🛰️ 실시간 GPS 위치 정보를 수집하고 있습니다...")

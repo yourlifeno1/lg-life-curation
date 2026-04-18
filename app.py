@@ -9,7 +9,7 @@ st.set_page_config(page_title="LG 라이프 큐레이션", layout="centered")
 # 2. 구글 시트 읽어오기 함수
 def load_data():
     # 매니저님의 시트 ID를 아래 따옴표 안에 넣어주세요
-    sheet_id = "yourlifeno1" 
+    sheet_id = "1sTjTYGKmHRwE1OLIE-JTo2r3qipXrrRlH7mcJvwqJG0" 
     sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv"
     return pd.read_csv(sheet_url)
 

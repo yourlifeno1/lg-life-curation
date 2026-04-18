@@ -175,12 +175,14 @@ if loc:
             <b style="font-size:18px; color:#495057;">💳 실시간 상권 정보</b>
             <span style="color:{shop_color}; font-weight:800; font-size:20px;">{shop_lvl} 시간대 ●○○○</span>
         </div>
-        <div style="{box_style} background:#F1F3F5;">
-            <p style="font-size:12px; color:#868E96; margin:0;">결제 금액 Top 3 업종</p>
-            <p style="font-size:18px; font-weight:bold; margin:5px 0 0 0; color:#1A1C1E;">{sales_rank}</p>
+<p style="margin:15px 0 5px 0; font-size:14px; color:#868E96;">최근 10분 매출 총액 <span style="font-size:24px; font-weight:800; color:#1A1C1E; margin-left:10px;">1 미만</span> 미만 만원</p>
+        <div style="{box_css} margin-top:10px; text-align:left; background:#F1F3F5;">
+            <p style="margin:0; font-size:13px; color:#868E96;">결제 금액 Top 3 업종</p>
+            <p style="margin:5px 0 0 0; font-size:15px; font-weight:700;">{sales_rank}</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
+
 
     st.divider()
     st.caption("※ 서울 실시간 도시데이터 V8.5 API 기반 | 데이터 갱신: 실시간")

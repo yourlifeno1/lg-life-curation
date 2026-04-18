@@ -57,3 +57,22 @@ if loc:
     
     # 동네 이름을 분석해서 특정 단어가 포함되면 해당 지표 보여주기
     if "쌍문동" in display_address:
+        st.subheader("☀️ 쌍문동 세일즈 기상도")
+        st.warning("🚧 **특이사항:** 쌍문삼성래미안 지하주차장 공사 중")
+    else:
+        st.subheader(f"☀️ {display_address} 지역 기상도")
+        st.write("실시간 상권 데이터를 분석하고 있습니다...")
+
+    # --- 서비스 게이지 (시각화) ---
+    st.divider()
+    st.subheader("📊 서비스 우선순위 (실시간 VOC)")
+    care_val = 75 
+    as_val = 55
+    
+    st.write(f"분해세척 케어 필요도: {care_val}%")
+    st.progress(care_val)
+    st.write(f"무상 AS 보장 필요도: {as_val}%")
+    st.progress(as_val)
+
+else:
+    st.warning("위치 정보를 가져오는 중입니다. 잠시만 기다려주세요.")

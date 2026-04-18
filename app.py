@@ -6,12 +6,12 @@ import json
 from datetime import datetime, timedelta
 import xml.etree.ElementTree as ET
 
-# 1. 인증키 설정 (매니저님이 주신 키 적용)
-SEOUL_API_KEY = "5658537164796f7539376a424f4f66" # 기존 S-DoT용
-CITY_DATA_KEY = "444d537a57796f7537385949716278" # [NEW] 실시간 도시데이터용
+# 1. 인증키 설정
+SEOUL_API_KEY = "5658537164796f7539376a424f4f66"
+CITY_DATA_KEY = "444d537a57796f7537385949716278"
 MOLIT_API_KEY = "cea470e38c930cce42ece10e65d31edd837b1eca751387d260737bcf63315379"
 
-# 2. 자치구 코드 매핑
+# 2. 실시간 구/동 판별 및 법정동 코드 매핑
 def get_lawd_info(gu_name):
     seoul_gu_map = {
         "종로구": "11110", "중구": "11140", "용산구": "11170", "성동구": "11200",
@@ -23,7 +23,7 @@ def get_lawd_info(gu_name):
     }
     return seoul_gu_map.get(gu_name, "11320")
 
-# 3. 데이터 호출 함수 (이사 지수)
+# 3. 데이터 호출 함수 (부동산/도시데이터)
 def fetch_moving_data(lawd_cd, month):
     total = 0
     for path in ["RTMSDataSvcAptRent/getRTMSDataSvcAptRent", "RTMSDataSvcRhRent/getRTMSDataSvcRhRent"]:
@@ -35,20 +35,7 @@ def fetch_moving_data(lawd_cd, month):
         except: continue
     return total
 
-# 4. 실시간 유동인구 (기존 S-DoT 유지)
-def fetch_traffic():
-    url = f"http://openapi.seoul.go.kr:8088/{SEOUL_API_KEY}/json/sDOTPeople/1/1/"
-    try:
-        res = requests.get(url, timeout=3).json()
-        count = int(float(res["sDOTPeople"]["row"][0]['VISIT_COUNT']))
-        now_h = datetime.now().hour
-        weight = 0.3 if (now_h >= 22 or now_h < 7) else 1.0
-        score = min(int((count / 150) * 100 * weight), 99)
-        return count, score
-    except: return 0, 0
-
-# 5. [핵심] 실시간 도시데이터 기반 인구 분석
-def fetch_city_pop_analysis(gu_name):
+def fetch_city_analysis(gu_name):
     url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{gu_name}"
     try:
         r = requests.get(url, timeout=5)
@@ -58,91 +45,110 @@ def fetch_city_pop_analysis(gu_name):
             lvl = stts.find("AREA_CONGEST_LVL").text
             fem_rate = float(stts.find("FEMALE_PPLTN_RATE").text)
             gender = "여성" if fem_rate > 50 else "남성"
-            # 연령대 분석 (20~50대 중 최고 비중 추출)
-            ages = {"20대": float(stts.find("PPLTN_RATE_20").text), 
-                    "30대": float(stts.find("PPLTN_RATE_30").text), 
-                    "40대": float(stts.find("PPLTN_RATE_40").text), 
-                    "50대": float(stts.find("PPLTN_RATE_50").text)}
+            ages = {"20대": float(stts.find("PPLTN_RATE_20").text), "30대": float(stts.find("PPLTN_RATE_30").text), 
+                    "40대": float(stts.find("PPLTN_RATE_40").text), "50대": float(stts.find("PPLTN_RATE_50").text)}
             top_age = max(ages, key=ages.get)
-            return lvl, f"{gender} {top_age} 중심"
-        return "데이터 확인중", "전연령 고루 분포"
+            return lvl, f"{gender} {top_age} ({ages[top_age]}%)"
+        return "데이터 확인중", "분석 중"
     except: return "보통", "실시간 분석 중"
 
 # --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")
 st.title("📍 LG 라이프 큐레이션")
 
+# [GPS 실시간 수신]
 loc = get_geolocation()
 
 if loc:
     lat, lon = loc['coords']['latitude'], loc['coords']['longitude']
+    
+    # 1. GPS 기반 실시간 주소 파악 (고정값 없음)
     try:
-        addr = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}", headers={'User-Agent':'LG_App'}).json()
-        address = addr.get('address', {})
-        gu_name = address.get('city_district') or address.get('borough') or "도봉구"
-        current_dong = address.get('suburb') or address.get('neighbourhood') or "인근지역"
+        addr_res = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}", headers={'User-Agent':'LG_App'}).json()
+        addr_data = addr_res.get('address', {})
+        gu_name = addr_data.get('city_district') or addr_data.get('borough') or "도봉구"
+        current_dong = addr_data.get('suburb') or addr_data.get('neighbourhood') or "현재위치"
         lawd_cd = get_lawd_info(gu_name)
     except:
         gu_name, current_dong, lawd_cd = "도봉구", "인근지역", "11320"
 
-    # 데이터 로드
+    # 2. 데이터 수집
     this_m = datetime.now().strftime("%Y%m")
-    last_m = (datetime.now().replace(day=1) - timedelta(days=1)).strftime("%Y%m")
+    last_m = (datetime.now().replace(day=1)-timedelta(days=1)).strftime("%Y%m")
     
-    real_traffic, vitality_score = fetch_traffic()
+    # 상권 활력 (S-DoT)
+    try:
+        sdot_res = requests.get(f"http://openapi.seoul.go.kr:8088/{SEOUL_API_KEY}/json/sDOTPeople/1/1/").json()
+        traffic = int(float(sdot_res["sDOTPeople"]["row"][0]['VISIT_COUNT']))
+        v_score = min(int((traffic / 150) * 100), 99)
+    except: traffic, v_score = 0, 0
+
     cnt_now = fetch_moving_data(lawd_cd, this_m)
     cnt_prev = fetch_moving_data(lawd_cd, last_m)
     diff_pct = ((cnt_now - cnt_prev) / cnt_prev * 100) if cnt_prev > 0 else 0
-    cong_lvl, pop_analysis = fetch_city_pop_analysis(gu_name)
+    cong_lvl, pop_analysis = fetch_city_analysis(gu_name)
 
-    st.info(f"🛰️ **실시간 현장 분석:** {gu_name} {current_dong}")
+    st.info(f"🛰️ **실시간 GPS 수신 중:** {gu_name} {current_dong} 주변")
 
-    # --- 상권 기상도 (3단 대시보드) ---
+    # --- [상단] 상권 기상도 (2대 지표) ---
     st.divider()
     st.subheader(f"☀️ {current_dong} 상권 기상도")
-    col1, col2, col3 = st.columns(3)
+    c1, c2 = st.columns(2)
     
-    # 공통 디자인 스타일
-    val_s = "font-size: 38px; font-weight: 700; color: #1A1C1E; margin: 0px;"
-    lab_s = "font-size: 14px; color: #4F4F4F; font-weight: 500; margin-bottom: 2px;"
-    box_s = "display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 13px; font-weight: 700; margin-top: 6px;"
+    v_style = "font-size: 48px; font-weight: 700; color: #1A1C1E; margin: 0px;"
+    l_style = "font-size: 16px; color: #666; font-weight: 500; margin-bottom: 5px;"
+    p_style = "display: inline-block; padding: 4px 15px; border-radius: 20px; font-size: 14px; font-weight: 700; margin-top: 10px;"
 
-    with col1:
+    with c1:
         st.markdown(f"""
-            <div style="margin-bottom: 15px;">
-                <p style="{lab_s}">상권 활력 점수</p><p style="{val_s}">{vitality_score}점</p>
-                <div style="{box_s} background-color: #f1f3f5; color: #495057;">상태: 유동 {real_traffic}명</div>
+            <div style="margin-bottom: 20px;">
+                <p style="{l_style}">상권 활력 점수</p>
+                <p style="{v_style}">{v_score}점</p>
+                <div style="{p_style} background-color: #e9ecef; color: #495057;">실시간 유동: {traffic}명</div>
             </div>
         """, unsafe_allow_html=True)
 
-    with col2:
-        move_bg = "#d4edda" if diff_pct >= 0 else "#f8d7da"
-        move_tx = "#155724" if diff_pct >= 0 else "#721c24"
+    with c2:
+        m_bg = "#d4edda" if diff_pct >= 0 else "#f8d7da"
+        m_tx = "#155724" if diff_pct >= 0 else "#721c24"
         st.markdown(f"""
-            <div style="margin-bottom: 15px;">
-                <p style="{lab_s}">{datetime.now().month}월 이사 지수</p><p style="{val_s}">{cnt_now}건</p>
-                <div style="{box_s} background-color: {move_bg}; color: {move_tx};">
+            <div style="margin-bottom: 20px;">
+                <p style="{l_style}">{datetime.now().month}월 이사 지수</p>
+                <p style="{v_style}">{cnt_now}건</p>
+                <div style="{p_style} background-color: {m_bg}; color: {m_tx};">
                     {'↑' if diff_pct >= 0 else '↓'} {abs(diff_pct):.1f}% (전월대비)
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
-    with col3:
-        # [NEW] 실시간 도시데이터 기반 혼잡도 & 인구분석
-        cong_bg = "#f8d7da" if "붐빔" in cong_lvl else "#d4edda" if "여유" in cong_lvl else "#fff3cd"
-        cong_tx = "#721c24" if "붐빔" in cong_lvl else "#155724" if "여유" in cong_lvl else "#856404"
+    # --- [하단] 실시간 주요 현황 (이미지 스타일 카드) ---
+    st.write("")
+    st.subheader(f"📊 실시간 주요 현황")
+    box1, box2 = st.columns(2)
+    
+    card_s = "background-color: #F8F9FA; padding: 25px; border-radius: 12px; border: 1px solid #E9ECEF;"
+    card_l = "font-size: 14px; color: #888; margin: 0;"
+    card_v = "font-size: 24px; font-weight: 700; color: #1A1C1E; margin: 8px 0 0 0;"
+
+    with box1:
         st.markdown(f"""
-            <div style="margin-bottom: 15px;">
-                <p style="{lab_s}">상권 혼잡도</p><p style="{val_s}">{cong_lvl}</p>
-                <div style="{box_s} background-color: {cong_bg}; color: {cong_tx};">분석: {pop_analysis}</div>
+            <div style="{card_s}">
+                <p style="{card_l}">실시간 인구 분석</p>
+                <p style="{card_v}">{pop_analysis}</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with box2:
+        c_tx_box = "#D9534F" if "붐빔" in cong_lvl else "#5CB85C" if "여유" in cong_lvl else "#F0AD4E"
+        st.markdown(f"""
+            <div style="{card_s}">
+                <p style="{card_l}">실시간 상권 혼잡도</p>
+                <p style="{card_v} color: {c_tx_box};">{cong_lvl}</p>
             </div>
         """, unsafe_allow_html=True)
 
     st.divider()
-    st.subheader("📊 현장 Deep Insight")
-    st.success(f"🔥 **현장 실시간 브리핑:** 현재 {gu_name} 일대는 **{cong_lvl}** 수준으로 활동이 감지되며, **{pop_analysis}** 층의 비중이 높습니다. 타겟 가전 제안이 용이한 시점입니다.")
-
-    if st.button(f"🚀 {current_dong} 리포트 전송"):
-        st.write("분석 데이터가 안전하게 서버로 전송되었습니다.")
+    if st.button(f"🚀 {current_dong} 데이터 전송"):
+        st.write("리포트가 정상적으로 서버에 전송되었습니다.")
 else:
-    st.info("🛰️ 실시간 GPS 데이터를 수신하고 있습니다...")
+    st.info("🛰️ 정확한 현장 분석을 위해 GPS 좌표를 수신하고 있습니다...")

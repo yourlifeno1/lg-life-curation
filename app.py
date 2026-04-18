@@ -12,7 +12,7 @@ MOLIT_API_KEY = "cea470e38c930cce42ece10e65d31edd837b1eca751387d260737bcf6331537
 GAS_URL = "https://script.google.com/macros/s/AKfycbxu4xM5YLErC-4ET2pOuy1ruQTXkm33Vx-A0ZtXg4zPrVAdDITfUYqmtwn8QU7mIWeh/exec"
 SHEET_ID = "1sTjTYGKmHRwE1OLIE-JTo2r3qipXrrRlH7mcJvwqJG0"
 
-# 2. 자치구 코드 매핑
+# 2. 구 이름 기반 법정동 코드 매핑
 def get_lawd_info(gu_name):
     seoul_gu_map = {
         "종로구": "11110", "중구": "11140", "용산구": "11170", "성동구": "11200",
@@ -24,7 +24,7 @@ def get_lawd_info(gu_name):
     }
     return seoul_gu_map.get(gu_name, "11320")
 
-# 3. 6개 부동산 API 호출
+# 3. 6개 부동산 API 호출 (이사 지수용)
 def fetch_robust_moving_data(lawd_cd, target_month):
     api_paths = [
         "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
@@ -82,41 +82,35 @@ if loc:
     real_traffic, vitality_score = fetch_realtime_traffic()
     cnt_now = fetch_robust_moving_data(lawd_cd, this_m)
     cnt_prev = fetch_robust_moving_data(lawd_cd, last_m)
-    
     diff_pct = ((cnt_now - cnt_prev) / cnt_prev * 100) if cnt_prev > 0 else 0
 
     st.info(f"✅ 위치 감지: **{gu_name} {current_dong}**")
 
-    if st.button(f"🚀 {current_dong} 리포트 생성 및 전송"):
-        st.write("분석 중...")
-        st.rerun()
-
-    # --- 상권 기상도 (색상 보정 로직 포함) ---
+    # --- 상권 기상도 (화살표 제거 및 색상 텍스트 적용) ---
     st.divider()
     st.subheader(f"☀️ {current_dong} 상권 기상도")
     c1, c2 = st.columns(2)
     
     with c1:
-        # [수정] 유동인구 수에 따라 Delta 색상 제어
-        # normal: 수치 크면 초록 / inverse: 수치 크면 빨강 / off: 회색
-        # 여기서는 if문을 쓰지 않고 점수에 따라 상담 멘트와 함께 노출합니다.
-        
-        traffic_status = "낮음"
-        t_color = "inverse" # 빨간색 계열
+        # 유동인구 상태 판별
         if real_traffic >= 100:
-            traffic_status = "활발"
-            t_color = "normal" # 녹색 계열
+            status_text = ":green[활발]"
         elif real_traffic >= 50:
-            traffic_status = "보통"
-            t_color = "off" # 회색(노랑 느낌)
+            status_text = ":orange[보통]"
+        else:
+            status_text = ":red[낮음]"
             
-        st.metric("상권 활력 점수", f"{vitality_score}점", f"{traffic_status} (유동 {real_traffic}명)", delta_color=t_color)
+        # 메트릭 표시 (델타를 비워두어 화살표 제거)
+        st.write(f"**상권 활력 점수**")
+        st.title(f"{vitality_score}점")
+        st.write(f"현재 상태: {status_text} (유동 {real_traffic}명)")
         
     with c2:
-        # 이사 지수 (상승시 녹색)
-        st.metric(f"이사 지수 ({datetime.now().month}월)", f"{cnt_now}건", f"{diff_pct:+.1f}% (전월대비)", delta_color="normal")
+        # 이사 지수는 기존처럼 등락(화살표) 유지
+        st.metric(f"이사 지수 ({datetime.now().month}월)", f"{cnt_now}건", f"{diff_pct:+.1f}% (전월대비)")
 
     st.divider()
+    # 하단 레이아웃 유지
     st.subheader("📊 이 달의 케어 이슈 순위")
     st.write("🧼 **가전 분해세척 필요도**: 85%")
     st.progress(85)
@@ -125,15 +119,16 @@ if loc:
 
     st.divider()
     st.subheader("🚩 현장 Deep Insight")
-    st.info(f"**이사 분석:** 현재 {cnt_now}건의 거래가 감지되었습니다.")
-    
-    # 활력도 점수에 따른 상태 메시지 자동화
     if vitality_score >= 70:
-        st.success(f"🔥 **현장 분위기:** 유동인구가 {real_traffic}명으로 매우 활기찹니다! 즉각적인 대면 영업을 추천합니다.")
+        st.success(f"🔥 **현장 분위기:** 유동인구가 {real_traffic}명으로 매우 활기찹니다!")
     elif vitality_score >= 40:
-        st.warning(f"⛅ **현장 분위기:** 유동인구 {real_traffic}명으로 보통 수준입니다. 예약 고객 위주의 케어를 추천합니다.")
+        st.warning(f"⛅ **현장 분위기:** 유동인구 {real_traffic}명으로 보통 수준입니다.")
     else:
-        st.error(f"🌑 **현장 분위기:** 현재 상권이 매우 한산합니다({real_traffic}명). 내실 있는 리포트 정리 시간을 가지세요.")
+        st.error(f"🌑 **현장 분위기:** 현재 상권이 매우 한산합니다({real_traffic}명).")
 
+    # 분석 버튼 하단 배치
+    if st.button(f"🚀 {current_dong} 리포트 데이터 전송"):
+        requests.post(GAS_URL, data=json.dumps({"region": current_dong, "weather": vitality_score}))
+        st.rerun()
 else:
     st.info("🛰️ GPS 수신 중...")

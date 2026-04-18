@@ -44,7 +44,7 @@ def fetch_moving_all(lawd_cd, year_month):
 
 # --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")
-st.title("📍 LG 라이프 큐레이션")
+st.title("📍 LG Life Curation")
 
 loc = get_geolocation()
 

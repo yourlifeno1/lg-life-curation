@@ -30,7 +30,7 @@ def get_nearest_point(u_lat, u_lon):
     return min(CITY_POINTS, key=lambda p: haversine(u_lat, u_lon, p['lat'], p['lon']))
 
 def fetch_moving_all(lawd_cd, year_month):
-    """모든 주택 유형 합산 (이사지수 정합성 확보)"""
+    """아파트+연립다세대+오피스텔 합산 로직"""
     total = 0
     paths = ["RTMSDataSvcAptRent/getRTMSDataSvcAptRent", "RTMSDataSvcRhRent/getRTMSDataSvcRhRent", "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent"]
     for path in paths:
@@ -59,31 +59,32 @@ if loc:
     
     target = get_nearest_point(u_lat, u_lon)
 
-    # [2] 이사 지수 (자치구 코드 기반 합산)
+    # [2] 이사 지수 (4월 vs 3월 합산 데이터)
     this_m, last_m = "202404", "202403"
     cnt_now = fetch_moving_all(target['code'], this_m)
     cnt_last = fetch_moving_all(target['code'], last_m)
     diff = cnt_now - cnt_last
     diff_pct = (diff / cnt_last * 100) if cnt_last > 0 else 0
 
-    # [3] 도시데이터 및 인구/상권 매출 분석
-    pop_info, sales_info, cong_lvl = "데이터 확인 중", "매출 분석 중", "보통"
+    # [3] 도시데이터 분석 (인구/연령대/매출)
+    pop_info, sales_info, cong_lvl = "데이터 확인 중", "주거 밀착형 상권", "보통"
     try:
         c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{target['name']}"
         root = ET.fromstring(requests.get(c_url).text)
         
-        # 인구/연령층 분석 복구
+        # 연령층 데이터 상세화
         fem_rate = float(root.find('.//FEMALE_PPLTN_RATE').text)
         ages = {f"{i}0대": float(root.find(f'.//PPLTN_RATE_{i}').text) for i in range(2, 6)}
         top_age = max(ages, key=ages.get)
         pop_info = f"{'여성' if fem_rate > 50 else '남성'} {top_age} 중심"
         
-        # 혼잡도
+        # 혼잡도 및 매출 특성
         cong_lvl = root.find(".//AREA_CONGEST_LVL").text
-        
-        # [신규] 상권 매출 현황 (매뉴얼 기반)
-        sales_msg = root.find(".//REALT_TIM_CAFE_SALES_STTS") # 예시로 카페 매출 비중 활용
-        sales_info = "식음료/생활가전 수요 높음" if sales_msg is not None else "주거 밀착형 상권"
+        # 매출 특성 (간이 로직: 인구 연령대와 혼잡도 기반 추정 또는 API 필드 매핑)
+        if "20대" in top_age or "30대" in top_age:
+            sales_info = "식음료 및 트렌드 가전 수요"
+        else:
+            sales_info = "생활 밀착형 가전 수요 높음"
     except: pass
 
     # [4] S-DoT 유동인구
@@ -97,7 +98,7 @@ if loc:
     st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (분석 거점: {target['name']})")
     st.divider()
     
-    # 상권 기상도
+    # 상권 기상도 제목
     weather_icon = "☀️" if v_score >= 70 else "☁️" if v_score >= 40 else "☔"
     st.subheader(f"{weather_icon} {u_dong} 상권 기상도")
     
@@ -112,9 +113,15 @@ if loc:
 
     with col2:
         st.markdown(f'<p style="{lab_s}">4월 이사 지수</p><p style="{val_s}">{cnt_now}건</p>', unsafe_allow_html=True)
-        m_c = "#DBEAFE" if diff >= 0 else "#FEE2E2"
-        m_t = f"↑ {abs(diff_pct):.1f}% 상승" if diff >= 0 else f"↓ {abs(diff_pct):.1f}% 하락"
-        st.markdown(f'<span style="background:{m_c}; padding:4px 12px; border-radius:15px; font-weight:700;">{m_t} (전월 {cnt_last}건 대비)</span>', unsafe_allow_html=True)
+        # [수정] 0%일 때 회색 박스 처리 로직
+        if diff == 0:
+            m_c, m_t = "#F1F3F5", f"변동 없음 (전월 {cnt_last}건 동일)"
+        else:
+            m_c = "#DBEAFE" if diff > 0 else "#FEE2E2"
+            arrow = "↑" if diff > 0 else "↓"
+            m_t = f"{arrow} {abs(diff_pct):.1f}% {'상승' if diff > 0 else '하락'} (전월 {cnt_last}건 대비)"
+        
+        st.markdown(f'<span style="background:{m_c}; padding:4px 12px; border-radius:15px; font-weight:700;">{m_t}</span>', unsafe_allow_html=True)
 
     # 실시간 주요 현황 (3단 박스)
     st.write("")
@@ -131,5 +138,7 @@ if loc:
         c_fg = "#991B1B" if "붐빔" in cong_lvl else "#065F46" if "여유" in cong_lvl else "#92400E"
         st.markdown(f'<div style="{card_s}"><p style="color:#888;">실시간 혼잡도</p><p style="font-size:22px; font-weight:700; color:{c_fg}; background:{c_bg}; display:inline-block; padding:2px 10px; border-radius:10px;">{cong_lvl}</p></div>', unsafe_allow_html=True)
 
+    st.divider()
+    st.success(f"현재 {u_dong} 일대는 **{pop_info}**의 인구 구성이 두드러집니다. **{sales_info}**를 고려한 제안이 효과적입니다.")
 else:
-    st.info("🛰️ GPS 좌표를 수신하여 기상도를 분석 중입니다...")
+    st.info("🛰️ GPS 좌표를 확인하고 있습니다. 잠시만 기다려 주세요...")

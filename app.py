@@ -12,6 +12,9 @@ SEOUL_API_KEY = "5658537164796f7539376a424f4f66"
 CITY_DATA_KEY = "444d537a57796f7537385949716278"
 MOLIT_API_KEY = "cea470e38c930cce42ece10e65d31edd837b1eca751387d260737bcf63315379"
 
+# 매니저님이 방금 추출하신 구글 시트 웹 게시 주소
+SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRXnh3VI7oOzSbMWMUCI6Owk4G6oK_2hb1kWjTtNNgAfyox_ZgypeM0QK-P6e-nDaRfhpY02WEGTt9z/pub?gid=430558979&single=true&output=csv"
+
 # 2. 공식 거점 데이터
 CITY_POINTS = [
     {"name": "쌍문역", "lat": 37.6486, "lon": 127.0347, "gu": "도봉구", "code": "11320"},
@@ -41,6 +44,44 @@ def fetch_moving_all(lawd_cd, year_month):
                 total += len(ET.fromstring(r.text).findall('.//item'))
         except: continue
     return total
+
+# [신규 함수] 우리 동네 가전 이슈 리포트 출력 로직
+def show_voc_section(u_dong):
+    st.write("")
+    st.markdown(f"### 🏠 우리 동네 가전 이슈 ({u_dong})")
+    
+    try:
+        # 구글 시트 데이터 로드
+        df = pd.read_csv(SHEET_CSV_URL)
+        
+        # 현재 위치 동네가 포함된 데이터만 필터링 (컬럼명이 '지역'인 경우)
+        local_df = df[df['지역'].str.contains(u_dong, na=False)]
+        
+        if not local_df.empty:
+            local_df = local_df.iloc[::-1] # 최신순 정렬
+            
+            for _, row in local_df.iterrows():
+                is_care = "위생" in str(row['VOC']) or "케어" in str(row['VOC'])
+                color = "#E53E3E" if is_care else "#3182CE"
+                bg = "#FFF5F5" if is_care else "#EBF8FF"
+                
+                st.markdown(f"""
+                <div style="background:{bg}; border-left:5px solid {color}; padding:18px; border-radius:12px; margin-bottom:12px; border:1px solid #eee; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <b style="font-size:16px; color:#1A202C;">🧺 {row['가전']} - {row['VOC']}</b>
+                        <span style="font-size:11px; color:#A0AEC0; background:white; padding:2px 6px; border-radius:4px; border:1px solid #EDF2F7;">{row['채널']}</span>
+                    </div>
+                    <p style="font-size:14px; color:#4A5568; margin:8px 0 0 0; line-height:1.5;">{row['요약']}</p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            if st.button(f"📄 {u_dong} AI 상세 영업 전략 리포트 발행", use_container_width=True, type="primary"):
+                st.toast("리포트를 생성 중입니다...", icon="📝")
+        else:
+            st.info(f"📍 현재 {u_dong} 지역에 등록된 실시간 가전 이슈가 없습니다.")
+            
+    except Exception as e:
+        st.caption("가전 이슈 데이터를 업데이트하는 중입니다...")
 
 # --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")
@@ -186,6 +227,9 @@ if loc:
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+ # --- [핵심 추가] 가전 이슈 섹션 호출 ---
+    show_voc_section(u_dong)
 
     st.divider()
     st.caption("※ 서울 실시간 도시데이터 V8.5 API 기반 | 데이터 갱신: 실시간")

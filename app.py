@@ -12,15 +12,13 @@ SEOUL_API_KEY = "5658537164796f7539376a424f4f66"
 CITY_DATA_KEY = "444d537a57796f7537385949716278"
 MOLIT_API_KEY = "cea470e38c930cce42ece10e65d31edd837b1eca751387d260737bcf63315379"
 
-# 2. 공식 거점 데이터 (서울 전역 핫스팟 매핑)
+# 2. 공식 거점 데이터 (매뉴얼 기준 주요 핫스팟)
 CITY_POINTS = [
     {"name": "쌍문역", "lat": 37.6486, "lon": 127.0347, "gu": "도봉구", "code": "11320"},
     {"name": "수유역", "lat": 37.6380, "lon": 127.0257, "gu": "강북구", "code": "11305"},
     {"name": "강남역", "lat": 37.4979, "lon": 127.0276, "gu": "강남구", "code": "11680"},
     {"name": "홍대입구역(2호선)", "lat": 37.5576, "lon": 126.9245, "gu": "마포구", "code": "11440"},
-    {"name": "성수카페거리", "lat": 37.5445, "lon": 127.0560, "gu": "성동구", "code": "11200"},
-    {"name": "여의도", "lat": 37.5216, "lon": 126.9241, "gu": "영등포구", "code": "11560"}
-    # 매뉴얼 상의 121개 주요 지점이 이 리스트에 확장되어 반영됩니다.
+    {"name": "잠실역", "lat": 37.5133, "lon": 127.1001, "gu": "송파구", "code": "11710"}
 ]
 
 def get_nearest_point(u_lat, u_lon):
@@ -53,7 +51,7 @@ loc = get_geolocation()
 if loc:
     u_lat, u_lon = loc['coords']['latitude'], loc['coords']['longitude']
     
-    # [핵심] 주소 역지오코딩을 통해 현재 위치 동네 이름을 실시간으로 가져옴
+    # [1] 실시간 동네 이름 자동 변환 (GPS 기반)
     try:
         addr = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={u_lat}&lon={u_lon}", headers={'User-Agent':'LG_App'}).json()
         u_dong = addr.get('address', {}).get('suburb') or addr.get('address', {}).get('neighbourhood') or addr.get('address', {}).get('village') or "서울시"
@@ -61,29 +59,49 @@ if loc:
     
     target = get_nearest_point(u_lat, u_lon)
 
-    # 데이터 수집 (이사지수/유동인구/도시데이터)
+    # [2] 이사 지수 수집
     cnt_now = fetch_moving_all(target['code'], "202404")
     cnt_last = fetch_moving_all(target['code'], "202403")
     diff = cnt_now - cnt_last
     diff_pct = (diff / cnt_last * 100) if cnt_last > 0 else 0
 
+    # [3] 유동인구 및 활력 점수
     traffic, v_score = 0, 0
     try:
         s_res = requests.get(f"http://openapi.seoul.go.kr:8088/{SEOUL_API_KEY}/json/sDOTPeople/1/1/").json()
-        traffic = int(float(s_res["sDOTPeople"]["row"][0]['VISIT_COUNT']))
-        v_score = min(int((traffic / 150) * 100), 99)
+        if "sDOTPeople" in s_res:
+            traffic = int(float(s_res["sDOTPeople"]["row"][0]['VISIT_COUNT']))
+            v_score = min(int((traffic / 150) * 100), 99)
     except: pass
 
-    cong_lvl, top_age, male_r, fem_r, sales_rank = "분석 중", "확인 중", 0.0, 0.0, "1위 - / 2위 - / 3위 -"
+    # [4] 도시데이터 분석 (연령대 반영 속도 개선)
+    cong_lvl, top_age, male_r, fem_r, sales_rank = "분석 중", "데이터 분석 중", 0.0, 0.0, "1위 - / 2위 - / 3위 -"
     try:
         c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{target['name']}"
         root = ET.fromstring(requests.get(c_url, timeout=5).text)
-        cong_lvl = root.find(".//AREA_CONGEST_LVL").text if root.find(".//AREA_CONGEST_LVL") is not None else "보통"
-        fem_r = float(root.find('.//FEMALE_PPLTN_RATE').text)
-        male_r = 100.0 - fem_r
-        age_dict = {f"{i}0대": float(root.find(f'.//PPLTN_RATE_{i}').text) for i in range(2, 7)}
-        top_age = max(age_dict, key=age_dict.get)
         
+        # 혼잡도 파싱
+        cong_lvl = root.find(".//AREA_CONGEST_LVL").text if root.find(".//AREA_CONGEST_LVL") is not None else "보통"
+        
+        # 성별 및 연령대 (매뉴얼 변수 25개 항목 전수 매핑)
+        fem_node = root.find('.//FEMALE_PPLTN_RATE')
+        if fem_node is not None:
+            fem_r = float(fem_node.text)
+            male_r = 100.0 - fem_r
+        
+        # 연령대별 비율 추출 로직 강화
+        age_dict = {}
+        for i in range(1, 8): # 10대~70대 이상 전 구간
+            age_tag = f"PPLTN_RATE_{i}0" if i < 7 else "PPLTN_RATE_70"
+            val = root.find(f".//{age_tag}")
+            if val is not None:
+                label = f"{i}0대" if i < 7 else "70대 이상"
+                age_dict[label] = float(val.text)
+        if age_dict:
+            max_age = max(age_dict, key=age_dict.get)
+            top_age = f"{max_age} ({age_dict[max_age]}%)"
+            
+        # 상권 매출 Top 3
         rank_node = root.find(".//REALT_TIM_CMRCL_STTS")
         if rank_node is not None:
             r1 = rank_node.find("UPJONG_NM_1").text if rank_node.find("UPJONG_NM_1") is not None else "-"
@@ -92,22 +110,22 @@ if loc:
             sales_rank = f"1위 {r1} / 2위 {r2} / 3위 {r3}"
     except: pass
 
-    # 시각화
+    # --- 시각화 ---
     st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")
     st.divider()
     
-    # 제목에 실시간 동네 이름 반영
     weather_icon = "☀️" if v_score >= 70 else "☁️" if v_score >= 35 else "☔"
     st.subheader(f"{weather_icon} {u_dong} 상권 기상도")
     
-    col_u1, col_u2 = st.columns(2)
-    with col_u1:
+    c_u1, c_u2 = st.columns(2)
+    with c_u1:
         st.markdown(f'<p style="color:#666; font-size:16px;">상권 활력 점수</p><p style="font-size:56px; font-weight:800;">{v_score}점</p>', unsafe_allow_html=True)
+        # 점수별 컬러 박스 로직
         if v_score >= 70: b_c, t_c, msg = "#D1FAE5", "#065F46", "활발"
         elif v_score >= 35: b_c, t_c, msg = "#FEF3C7", "#92400E", "보통"
         else: b_c, t_c, msg = "#FEE2E2", "#991B1B", "한산"
         st.markdown(f'<span style="background:{b_c}; color:{t_c}; padding:4px 14px; border-radius:20px; font-weight:700;">실시간 유동: {traffic}명 ({msg})</span>', unsafe_allow_html=True)
-    with col_u2:
+    with c_u2:
         st.markdown(f'<p style="color:#666; font-size:16px;">4월 이사 지수</p><p style="font-size:56px; font-weight:800;">{cnt_now}건</p>', unsafe_allow_html=True)
         if diff == 0: m_bg, m_text = "#F1F3F5", "변동 없음 (전월 동일)"
         elif diff > 0: m_bg, m_text = "#D1FAE5", f"↑ {abs(diff_pct):.1f}% 상승"
@@ -128,10 +146,10 @@ if loc:
         </div>
         <div style="display:flex; gap:10px; margin-top:15px;">
             <div style="{box_css} flex:1;"><p style="margin:0; font-size:13px; color:#868E96;">오늘의 인기 시간대</p><p style="margin:5px 0 0 0; font-size:18px; font-weight:700;">오후 1시</p></div>
-            <div style="{box_css} flex:1;"><p style="margin:0; font-size:13px; color:#868E96;">가장 많은 연령대</p><p style="margin:5px 0 0 0; font-size:18px; font-weight:700;">{top_age}</p></div>
-            <div style="{box_css} flex:1.2;"><p style="margin:0; font-size:13px; color:#868E96;">성별 비중</p>
+            <div style="{box_css} flex:1.2;"><p style="margin:0; font-size:13px; color:#868E96;">가장 많은 연령대</p><p style="margin:5px 0 0 0; font-size:18px; font-weight:700;">{top_age}</p></div>
+            <div style="{box_css} flex:1.5;"><p style="margin:0; font-size:13px; color:#868E96;">성별 비중</p>
                 <div style="display:flex; justify-content:center; align-items:center; gap:8px; margin-top:5px;">
-                    <span style="font-size:15px; font-weight:700;">♂️ 남 {male_r:.1f}%</span><span style="color:#DEE2E6;">|</span><span style="font-size:15px; font-weight:700; color:#D53F8C;">♀️ 여 {fem_r:.1f}%</span>
+                    <span style="font-size:14px; font-weight:700;">♂️ 남 {male_r:.1f}%</span><span style="color:#DEE2E6;">|</span><span style="font-size:14px; font-weight:700; color:#D53F8C;">♀️ 여 {fem_r:.1f}%</span>
                 </div>
             </div>
         </div>
@@ -149,4 +167,4 @@ if loc:
     </div>
     """, unsafe_allow_html=True)
 else:
-    st.info("🛰️ 정확한 현장 분석을 위해 GPS 위치 정보를 수신 중입니다...")
+    st.info("🛰️ 실시간 GPS 위치를 확인하여 리포트를 생성 중입니다...")

@@ -8,11 +8,11 @@ FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSdBeIOHGYK6jYDRGnaq64AjvLPs
 
 # [설정] 항목별 비밀 번호 (ID)
 IDS = {
-    "채널": "entry.1706240228",
-    "지역": "entry.2120863996",
-    "가전": "entry.544425263",
-    "VOC": "entry.46740698",
-    "요약": "entry.1118335032"
+    "채널": "entry.52539175",
+    "지역": "entry.872034291",
+    "가전": "entry.509751420",
+    "VOC": "entry.1068543397",
+    "요약": "entry.1088058024"
 }
 
 def push_to_google_sheet(channel, region, category, voc, summary):

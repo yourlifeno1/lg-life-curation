@@ -1,0 +1,22 @@
+```yaml
+name: Daily Care Automation
+
+on:
+schedule:
+- cron: '0 21 * * *' # 한국 시간 매일 오전 6시 실행
+workflow_dispatch: # 직접 실행 버튼을 만들기 위한 코드
+
+jobs:
+build:
+runs-on: ubuntu-latest
+steps:
+- uses: actions/checkout@v3
+- name: Set up Python
+uses: actions/setup-python@v4
+with:
+python-version: '3.9'
+- name: Install dependencies
+run: |
+pip install requests beautifulsoup4
+- name: Run Crawler
+run: python crawler.py

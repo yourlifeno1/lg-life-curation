@@ -447,7 +447,7 @@ if loc:
         </div>
         <div style="display:flex; gap:10px;">
             <div style="{box_style} flex:1; text-align:center;">
-                <p style="font-size:12px; color:#868E96; margin:0;">오늘의 인기 시간대 전망</p>
+                <p style="font-size:12px; color:#868E96; margin:0;">오늘의 인기 시간대</p>
                 <p style="font-size:18px; font-weight:bold; margin:5px 0 0 0;">{pop_time}</p>
             </div>
             <div style="{box_style} flex:1.5;">

@@ -425,13 +425,16 @@ if loc:
             <b style="font-size:18px; color:#495057;">💳 실시간 상권</b>
             <span style="color:#059669; font-weight:800; font-size:20px;">{shop_lvl} ●○○○</span>
         </div>
-        <div style="{box_style} flex:1; text-align:center;">
-            <p style="font-size:12px; color:#868E96; margin:0; line-height:1.2;">
-                최근 10분 매출 총액<br>
-                <span style="font-size:9px; color:#ADB5BD; font-weight:normal;">(신한카드 내국인 기준)</span>
+        <div style="{box_style} flex:1; text-align:center; padding: 15px 5px;">
+            # 1. 메인 정보: 제목과 숫자, 단위를 한 줄로 크게 표시 (16px)
+            <p style="font-size:15px; font-weight:bold; color:#212529; margin:0; letter-spacing:-0.5px;">
+                최근 10분 매출 총액 <span style="font-size:22px; color:#007BFF;">{sales_total}</span>만원
             </p>
-            <p style="font-size:18px; font-weight:bold; margin:5px 0 0 0;">{sales_total}</p>
-            <p style="font-size:11px; color:#868E96; margin:0;">만원</p>
+            
+            # 2. 서브 정보: 출처를 아래에 아주 작게 배치
+            <p style="font-size:10px; color:#ADB5BD; margin:5px 0 0 0; font-weight:normal;">
+                (신한카드 내국인 기준)
+            </p>
         </div>
         <div style="{box_style}">
             <p style="font-size:12px; color:#868E96; margin:0;">결제 금액 Top 3 업종</p>

@@ -1,9 +1,8 @@
 import requests
 from bs4 import BeautifulSoup
 import time
-import random
 
-# [필수 확인] 매니저님의 구글 웹 앱 URL입니다.
+# [체크] 매니저님의 구글 웹 앱 URL입니다.
 GAS_URL = "https://script.google.com/macros/s/AKfycby8BS2nm_3pdr60Gt_OPv-tyaSmaN2t3BGwh-LTGB6FPnuRy1lmqQa9eUylEOoyXJwW/exec"
 
 def push_to_sheet(channel, region, category, voc, summary):
@@ -20,24 +19,36 @@ def push_to_sheet(channel, region, category, voc, summary):
     except Exception as e:
         print(f"❌ 전송 에러: {e}")
 
-def crawl_naver_kin(item):
-    print(f"🔍 {item} 관련 최신 VOC 수집 중...")
-    url = f"https://m.search.naver.com/search.naver?where=m_kin&query={item}+고장+수리"
-    headers = {'User-Agent': 'Mozilla/5.0'}
+def crawl_test_site():
+    print("🔍 뽐뿌 자유게시판 최신 글 수집 테스트 중...")
+    # 테스트용으로 차단이 적은 커뮤니티 게시판을 사용합니다.
+    url = "https://www.ppomppu.co.kr/zboard/zboard.php?id=freeboard"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+    }
     
     try:
         response = requests.get(url, headers=headers, timeout=10)
+        # 한글 깨짐 방지
+        response.encoding = 'euc-kr' 
         soup = BeautifulSoup(response.text, 'html.parser')
-        results = soup.select(".api_txt_lines.question_text") or soup.select(".tit_area")
         
-        for res in results[:2]: # 품목당 2개씩
-            push_to_sheet("네이버", "전국", item, "성능/수리", res.text.strip())
-            time.sleep(random.uniform(1, 2))
+        # 게시판 제목 태그 추출
+        titles = soup.select("font.list_title")
+        
+        if not titles:
+            print("⚠️ 제목을 찾지 못했습니다. 구조가 변경되었을 수 있습니다.")
+            return
+
+        for t in titles[:5]: # 최신 글 5개만 테스트
+            title_text = t.get_text().strip()
+            print(f"📌 수집된 제목: {title_text}")
+            push_to_sheet("뽐뿌", "커뮤니티", "테스트", "게시글", title_text)
+            time.sleep(1) # 전송 간격
+            
     except Exception as e:
-        print(f"❌ 크롤링 에러 ({item}): {e}")
+        print(f"❌ 크롤링 에러: {e}")
 
 if __name__ == "__main__":
-    target_items = ["세탁기", "에어컨", "냉장고", "건조기"]
-    for item in target_items:
-        crawl_naver_kin(item)
-    print("✨ 모든 수집 및 시트 기록이 완료되었습니다.")
+    crawl_test_site()
+    print("✨ 테스트 수집 작업 완료!")

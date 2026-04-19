@@ -225,46 +225,47 @@ if loc:
             root = ET.fromstring(c_res.text)
             
             # --- [인구 예측 데이터 분석] 진짜 인기 시간대 찾기 ---
-            # --- [인구 예측 데이터 통합 분석] 시점 + 수치 추출 ---
+            # --- [인구 예측 데이터 분석] 오늘 중 가장 붐비는 피크 타임 찾기 ---
             found_cong = root.find(".//AREA_CONGEST_LVL")
             if found_cong is not None:
                 cong_lvl = found_cong.text
                 
-                # 1. 인구 예측 섹션(FCST_PPLTN) 전체 로드
-                fcst_rows = root.findall(".//FCST_PPLTN")
+                # 1. 인구 예측(FCST_PPLTN) 전체 데이터를 가져옵니다.
+                fcst_all = root.findall(".//FCST_PPLTN")
                 
                 max_ppltn = -1
-                best_time = ""
+                peak_time = ""
                 
-                # 2. 향후 12시간 중 가장 인구가 많은 '골든타임'과 '최대 인구수' 찾기
-                for row in fcst_rows:
-                    f_time = row.findtext("FCST_TIME", "")
-                    # 예측 인구의 최대값(PPLTN_HIGH)을 기준으로 잡습니다.
-                    f_high = int(row.findtext("FCST_PPLTN_HIGH", 0))
-                    
-                    if f_high > max_ppltn:
-                        max_ppltn = f_high
-                        best_time = f_time
-                
-                # 3. 데이터 가공 (오전/오후 시점 + 최대 인구수)
-                if best_time and max_ppltn > 0:
+                # 2. 전체 예측 데이터를 비교하여 인구수가 가장 높은 시점을 찾습니다.
+                for fcst in fcst_all:
                     try:
-                        dt_obj = datetime.strptime(best_time, "%Y-%m-%d %H:%M")
-                        hh = dt_obj.hour
-                        ampm = "오전" if hh < 12 else "오후"
-                        hh_12 = hh if hh <= 12 else hh - 12
+                        f_max = int(fcst.findtext("FCST_PPLTN_HIGH", "0"))
+                        f_time = fcst.findtext("FCST_TIME", "")
+                        
+                        # 더 많은 인구가 예측되는 시점이 나오면 정보를 갱신합니다.
+                        if f_max > max_ppltn:
+                            max_ppltn = f_max
+                            peak_time = f_time
+                    except:
+                        continue
+                
+                # 3. 찾은 피크 타임을 오전/오후 형식으로 변환합니다.
+                if peak_time and max_ppltn > 0:
+                    try:
+                        dt_obj = datetime.strptime(peak_time, "%Y-%m-%d %H:%M")
+                        ampm = "오전" if dt_obj.hour < 12 else "오후"
+                        hh_12 = dt_obj.hour if dt_obj.hour <= 12 else dt_obj.hour - 12
                         if hh_12 == 0: hh_12 = 12
                         
-                        # 최종 결과: "오후 6시 (최대 1.2만명)" 형태로 구성
+                        # 최종 결과: "오후 6시 (약 2.8만명)"
                         pop_time = f"{ampm} {hh_12}시 (약 {max_ppltn/10000:.1f}만명)"
                     except:
-                        pop_time = "분석 중"
+                        pop_time = "실시간 분석 중"
                 else:
-                    pop_time = "정보 미제공"
+                    pop_time = "데이터 확인 중"
                 
                 fem_r = float(root.findtext(".//FEMALE_PPLTN_RATE", "50"))
                 male_r = 100.0 - fem_r
-
             
                 # 연령대 데이터 (키 이름을 하단 출력부와 100% 일치)
                 age_rates["10대"] = float(root.findtext(".//PPLTN_RATE_10", "0"))

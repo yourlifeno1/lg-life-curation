@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 # ==========================================
-# 1. 설정값 (매니저님의 환경에 맞게 확인)
+# 1. 설정값 (매니저님의 GAS 및 시트 URL)
 # ==========================================
 GAS_URL = "https://script.google.com/macros/s/AKfycbzpK7rIiLukrOcJXeLBJ2iCdW6FQ7p-6EydJl2xyQRKVK7CLii8rCNWRutJDauwr70G/exec"
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSGEDlHeWG2PHspcMEtlO74lWt9UWdeIzwL9A9fpV6nTY5eSvYTUfeNOFlWvh8qHXFnNwHBsaKKG6cp/pub?gid=189297044&single=true&output=csv"
@@ -16,18 +16,23 @@ HEADERS = {
 }
 
 # ==========================================
-# 2. 유틸리티 함수 (중복 방지 및 정제)
+# 2. 유틸리티 및 데이터 정제 함수
 # ==========================================
 def get_existing_titles():
-    """현재 시트에 저장된 제목 리스트를 가져와 중복 수집을 방지합니다."""
     try:
         df = pd.read_csv(SHEET_CSV_URL)
         return df['제목(VOC)'].tolist()
     except:
         return []
 
+def extract_brand(text):
+    """텍스트를 분석하여 제조사를 판별합니다."""
+    text = text.upper()
+    if 'LG' in text or '엘지' in text: return "LG"
+    if '삼성' in text or 'SAMSUNG' in text: return "삼성"
+    return "기타"
+
 def refine_category(title, summary, initial_item):
-    """제목과 본문을 분석하여 가전 카테고리를 정확하게 재분류합니다."""
     combined = (title + " " + summary).replace(" ", "")
     category_map = {
         "에어컨": ["에어컨", "시스템에어컨", "벽걸이", "스탠드"],
@@ -42,39 +47,49 @@ def refine_category(title, summary, initial_item):
     return initial_item
 
 def push_to_sheet(channel, region, category, title, summary, post_date, issue_tag, brand):
-    """수집된 데이터를 구글 시트로 전송합니다."""
+    """시트로 데이터를 전송합니다. 변수 이름을 시트 수신부와 일치시켰습니다."""
     payload = {
-        "channel": channel, "region": region, "category": category,
-        "voc": title, "summary": summary, "postDate": post_date,
-        "issueTag": issue_tag, "brand": brand
+        "channel": channel, 
+        "region": region, 
+        "category": category,
+        "voc": title, 
+        "summary": summary, 
+        "postDate": post_date,
+        "issueTag": issue_tag, 
+        "brand": brand
     }
     try:
         requests.post(GAS_URL, data=payload, timeout=15)
-        print(f"✅ 전송 완료: [{channel}] {title[:20]}...")
+        print(f"✅ 전송성공: [{category}] {issue_tag} | {brand}")
     except:
-        print("❌ 전송 실패")
+        print("❌ 전송실패")
 
 # ==========================================
-# 3. 채널별 수집 함수
+# 3. 핵심 공통 로직 (제조사 및 이슈 키워드 처리)
 # ==========================================
-
 def process_item(item, sub, title, summary, date_txt, channel, existing_titles):
-    """공통 데이터 정제 및 전송 로직"""
     if title in existing_titles:
         return False
     
-    # 가전 재분류
+    # 1. 가전 카테고리 재분류
     real_category = refine_category(title, summary, item)
     
-    # TV/에어컨 배터리 -> 리모컨 이슈 전환
+    # 2. 제조사 판별 (기존 "기타" 고정에서 자동 추출로 변경)
+    brand = extract_brand(title + " " + summary)
+    
+    # 3. 이슈 키워드 정제 (배터리 -> 리모컨 이슈 전환)
     current_issue = sub
     if real_category in ["TV", "에어컨"] and sub == "배터리":
         if "리모컨" in title + summary or "리모콘" in title + summary:
             current_issue = "리모컨 이슈"
     
-    push_to_sheet(channel, "전체", real_category, title, summary, date_txt, current_issue, "기타")
+    # 4. 시트로 최종 전송
+    push_to_sheet(channel, "전체", real_category, title, summary, date_txt, current_issue, brand)
     return True
 
+# ==========================================
+# 4. 채널별 수집 함수 (날짜 추출 보강)
+# ==========================================
 def crawl_naver_kin(item, sub, existing_titles):
     query = f"{item} {sub}"
     url = f"https://kin.naver.com/search/list.naver?query={query}&sort=date"
@@ -85,7 +100,9 @@ def crawl_naver_kin(item, sub, existing_titles):
         for li in items[:3]:
             title = li.select_one("dt > a").get_text(strip=True)
             summary = li.select("dd")[1].get_text(strip=True) if len(li.select("dd")) > 1 else ""
-            date_txt = li.select_one(".sub_txt").get_text(strip=True) if li.select_one(".sub_txt") else "최신"
+            # 날짜가 없으면 오늘 날짜 입력
+            date_tag = li.select_one(".sub_txt")
+            date_txt = date_tag.get_text(strip=True) if date_tag else datetime.now().strftime("%Y.%m.%d")
             process_item(item, sub, title, summary, date_txt, "네이버 지식iN", existing_titles)
     except: pass
 
@@ -101,7 +118,10 @@ def crawl_naver_cafe(item, sub, existing_titles):
             if not title_tag: continue
             title = title_tag.get_text(strip=True)
             summary = li.select_one(".api_txt_lines.dsc_txt").get_text(strip=True) if li.select_one(".api_txt_lines.dsc_txt") else ""
-            process_item(item, sub, title, summary, "최신", "네이버 카페", existing_titles)
+            # 날짜 추출
+            date_tag = li.select_one(".sub") or li.select_one(".date")
+            date_txt = date_tag.get_text(strip=True) if date_tag else datetime.now().strftime("%Y.%m.%d")
+            process_item(item, sub, title, summary, date_txt, "네이버 카페", existing_titles)
     except: pass
 
 def crawl_daum_blog(item, sub, existing_titles):
@@ -115,16 +135,17 @@ def crawl_daum_blog(item, sub, existing_titles):
             title_tag = li.select_one(".tit_main") or li.select_one(".item-title")
             if not title_tag: continue
             title = title_tag.get_text(strip=True)
-            summary = li.select_one(".desc") or li.select_one(".item-contents")
-            summary_txt = summary.get_text(strip=True) if summary else ""
-            process_item(item, sub, title, summary_txt, "최신", "다음 블로그", existing_titles)
+            summary_tag = li.select_one(".desc") or li.select_one(".item-contents")
+            summary = summary_tag.get_text(strip=True) if summary_tag else ""
+            date_txt = datetime.now().strftime("%Y.%m.%d") # 다음 블로그는 오늘 날짜로 대체
+            process_item(item, sub, title, summary, date_txt, "다음 블로그", existing_titles)
     except: pass
 
 # ==========================================
-# 4. 실행 메인 루프
+# 5. 실행 메인 루프
 # ==========================================
 if __name__ == "__main__":
-    print("🚀 가전 이슈 트리플 수집기 가동 시작...")
+    print("🚀 가전 이슈 수집 엔진 가동 (제조사/이슈키워드 보강판)")
     existing_titles = get_existing_titles()
     
     appliance_list = ["세탁기", "에어컨", "냉장고", "TV", "청소기"]
@@ -132,10 +153,10 @@ if __name__ == "__main__":
     
     for product in appliance_list:
         for sub in sub_keywords:
-            print(f"🔍 {product} x {sub} 수집 중...")
+            print(f"🔍 {product} x {sub} 분석 중...")
             crawl_naver_kin(product, sub, existing_titles)
             crawl_naver_cafe(product, sub, existing_titles)
             crawl_daum_blog(product, sub, existing_titles)
-            time.sleep(random.uniform(2, 4)) # 차단 방지용 지연
+            time.sleep(random.uniform(2, 4))
 
-    print("✨ 수집 완료! 중복 데이터는 자동으로 제외되었습니다.")
+    print("✨ 모든 데이터 수집 및 시트 전송이 완료되었습니다.")

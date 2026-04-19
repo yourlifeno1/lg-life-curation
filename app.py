@@ -228,7 +228,15 @@ if loc:
             found_cong = root.find(".//AREA_CONGEST_LVL")
             if found_cong is not None:
                 cong_lvl = found_cong.text
-                pop_time = root.findtext(".//PPLTN_TIME", "데이터 수집 중")
+                # [수정] 날짜 전체 문장에서 '시간'만 추출하여 깔끔하게 만듭니다.
+                raw_time = root.findtext(".//PPLTN_TIME", "")
+                try:
+                    # "2024-04-19 11:00" -> 11시 만 추출
+                    dt_obj = datetime.strptime(raw_time, "%Y-%m-%d %H:%M")
+                    pop_time = dt_obj.strftime("%H시") # "11시"로 출력
+                except:
+                    pop_time = "데이터 없음"
+                
                 fem_r = float(root.findtext(".//FEMALE_PPLTN_RATE", "50"))
                 male_r = 100.0 - fem_r
                 

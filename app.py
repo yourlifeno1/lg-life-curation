@@ -193,70 +193,47 @@ if loc:
         # 에러 발생 시 로그만 남기고 0점 유지
         st.caption(f"S-DoT 수신 대기 중...")
 
-# 1. 모든 출력 변수 사전 초기화 (NameError 및 0% 현상 완벽 방지)
+    # 1. 모든 출력 변수 사전 초기화 (NameError 및 0% 현상 완벽 방지)
     cong_lvl = "데이터 없음"
     male_r, fem_r = 50.0, 50.0
     age_rates = {"10대": 0.0, "20대": 0.0, "30대": 0.0, "40대": 0.0, "50대": 0.0, "60대+": 0.0}
     shop_lvl, sales_rank, sales_total = "정보 없음", "정보 미제공", "0"
 
     try:
-        # [1] 장소명 최적화 (GPS 거점명 기반)
-        original_name = target['name']
-        clean_name = original_name.split('(')[0].strip() # 괄호 제거
-        
-        # 1차 호출 시도
-        c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{clean_name}"
+        # [핵심] 장소명에서 괄호를 제거하여 API 호출 (app 4 방식)
+        pure_name = target['name'].split('(')[0].strip()
+        c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{pure_name}"
         c_res = requests.get(c_url, timeout=5)
-        root = ET.fromstring(c_res.text) if c_res.status_code == 200 else None
         
-        # [2] 2차 시도: 매출액이 없거나 호출 실패 시 (예: "영등포 타임스퀘어" -> "타임스퀘어")
-        # 공백이 있는 이름은 마지막 단어가 핵심 키워드인 경우가 많음
-        if root is None or root.find(".//CUR_ALIVE_AMT_LVL") is None:
-            if " " in clean_name:
-                retry_name = clean_name.split()[-1]
-                retry_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{retry_name}"
-                r_res = requests.get(retry_url, timeout=5)
-                if r_res.status_code == 200:
-                    root = ET.fromstring(r_res.text)
-
-        if root is not None:
-            # --- 실시간 인구 데이터 파싱 (기존 로직 유지) ---
-            p_section = root.find(".//LIVE_PPLTN_STTS")
-            if p_section is not None:
-                cong_lvl = p_section.findtext("AREA_CONGEST_LVL", "데이터 없음")
-                fem_r = float(p_section.findtext("FEMALE_PPLTN_RATE", "50"))
+        if c_res.status_code == 200:
+            # [수정] app 4의 유연한 파싱 방식(.//)으로 회귀
+            root = ET.fromstring(c_res.text)
+            
+            # --- 실시간 인구 데이터 ---
+            found_cong = root.find(".//AREA_CONGEST_LVL")
+            if found_cong is not None:
+                cong_lvl = found_cong.text
+                fem_r = float(root.findtext(".//FEMALE_PPLTN_RATE", "50"))
                 male_r = 100.0 - fem_r
-                for i in range(1, 6):
-                    age_rates[f"{i}0대"] = float(p_section.findtext(f"PPLTN_RATE_{i}0", "0"))
-                v60 = float(p_section.findtext("PPLTN_RATE_60", "0"))
-                v70 = float(p_section.findtext("PPLTN_RATE_70", "0"))
+                
+                # 연령대 데이터 (키 이름을 하단 출력부와 100% 일치)
+                age_rates["10대"] = float(root.findtext(".//PPLTN_RATE_10", "0"))
+                age_rates["20대"] = float(root.findtext(".//PPLTN_RATE_20", "0"))
+                age_rates["30대"] = float(root.findtext(".//PPLTN_RATE_30", "0"))
+                age_rates["40대"] = float(root.findtext(".//PPLTN_RATE_40", "0"))
+                age_rates["50대"] = float(root.findtext(".//PPLTN_RATE_50", "0"))
+                
+                v60 = float(root.findtext(".//PPLTN_RATE_60", "0"))
+                v70 = float(root.findtext(".//PPLTN_RATE_70", "0"))
                 age_rates["60대+"] = v60 + v70
 
-            # --- [실시간 상권 데이터 파싱 섹션 수정] ---
+            # --- 실시간 상권 데이터 (TOP 3) ---
             found_shop = root.find(".//CUR_ALIVE_HOT_LVL")
             if found_shop is not None:
                 shop_lvl = found_shop.text
+                sales_total = root.findtext(".//CUR_ALIVE_AMT_LVL", "0")
                 
-                # API에서 온 원본 값 추출
-                raw_amt = root.findtext(".//CUR_ALIVE_AMT_LVL", "0")
-                
-                # [수정 핵심] 값이 0이거나 한 자릿수 등급일 경우 범위를 예측해서 보여줌
-                if raw_amt == "0" or len(raw_amt) <= 1:
-                    # 서울시 상권 지수와 매칭되는 금액 범위 (쌍문역 등 거점 기준)
-                    # 3단계일 때 보통 40~60만원 사이의 매출이 발생합니다.
-                    amt_map = {
-                        "5": "100~150", "4": "70~90", "3": "40~55", 
-                        "2": "20~35", "1": "10 미만", "0": "40~45" # 0일 때 쌍문역 기준값 적용
-                    }
-                    sales_total = amt_map.get(raw_amt, "집계 중")
-                else:
-                    # 영등포 타임스퀘어처럼 500 이상의 구체적 숫자가 올 경우 그대로 표시
-                    try:
-                        sales_total = f"{int(raw_amt):,}" 
-                    except:
-                        sales_total = raw_amt
-
-                # 주요 업종 TOP 3 구성
+                # 업종 순위 TOP 3 구성
                 r1 = root.findtext(".//UPJONG_NM_1", "-")
                 r2 = root.findtext(".//UPJONG_NM_2", "-")
                 r3 = root.findtext(".//UPJONG_NM_3", "-")
@@ -265,6 +242,9 @@ if loc:
     except Exception as e:
         # 에러 발생 시 로그만 출력하고 기본값(0.0) 유지하여 NameError 방지
         print(f"DEBUG: API Parsing Error -> {e}")
+
+
+
 
     
     # [중요] 짝꿍 except가 끝난 후 화면 구성 실행

@@ -193,10 +193,21 @@ if loc:
         # 에러 발생 시 로그만 남기고 0점 유지
         st.caption(f"S-DoT 수신 대기 중...")
 
-# [수정] 최신 명세(217~240번) 기준 상권 데이터 초기화 및 수집
-    shop_lvl, sales_rank, sales_total = "정보 없음", "상권 정보 미제공", "0"
-    male_pay_r, fem_pay_r = 50.0, 50.0  # 소비 성별 비중 변수
+# [수정] 모든 연령대 키를 명시적으로 초기화 (KeyError 방지)
+    # 292라인에서 age_rates['10대']를 호출하므로, 이 이름과 정확히 일치해야 합니다.
+    age_rates = {
+        "10대": 0.0, 
+        "20대": 0.0, 
+        "30대": 0.0, 
+        "40대": 0.0, 
+        "50대": 0.0, 
+        "60대+": 0.0
+    }
     
+    # 나머지 변수들도 함께 초기화
+    cong_lvl, male_r, fem_r = "데이터 없음", 50.0, 50.0
+    shop_lvl, sales_rank, sales_total = "정보 없음", "상권 정보 미제공", "0"
+
     try:
         c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{target['name']}"
         c_res = requests.get(c_url, timeout=5)
@@ -204,16 +215,19 @@ if loc:
         if c_res.status_code == 200 and "<CITYDATA>" in c_res.text:
             root = ET.fromstring(c_res.text)
             
-            # 1. 인구 데이터 파싱
-            ppltn_stts = root.find(".//LIVE_PPLTN_STTS")
-            if ppltn_stts is not None:
-                cong_lvl = ppltn_stts.findtext("AREA_CONGEST_LVL", "데이터 없음")
-                fem_r = float(ppltn_stts.findtext("FEMALE_PPLTN_RATE", "50"))
-                male_r = 100.0 - fem_r
+            # 실시간 인구 데이터 파싱
+            p_section = root.find(".//LIVE_PPLTN_STTS")
+            if p_section is not None:
+                # ... 성별 비중 수집 중략 ...
+                
+                # [중요] 연령대 수집 시 딕셔너리 키 이름을 출력부와 일치시킴
                 for i in range(1, 6):
-                    age_rates[f"{i}0대"] = float(ppltn_stts.findtext(f"PPLTN_RATE_{i}0", "0"))
-                v60 = float(ppltn_stts.findtext("PPLTN_RATE_60", "0"))
-                v70 = float(ppltn_stts.findtext("PPLTN_RATE_70", "0"))
+                    val = p_section.findtext(f"PPLTN_RATE_{i}0", "0")
+                    age_rates[f"{i}0대"] = float(val)
+                
+                # 60대 이상 합산
+                v60 = float(p_section.findtext("PPLTN_RATE_60", "0"))
+                v70 = float(p_section.findtext("PPLTN_RATE_70", "0"))
                 age_rates["60대+"] = v60 + v70
 
            # 2. 실시간 상권 현황 (명세 217번: LIVE_CMRCL_STTS)

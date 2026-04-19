@@ -194,8 +194,7 @@ if loc:
         st.caption(f"S-DoT 수신 대기 중...")
 
 # [수정] 모든 연령대 키를 명시적으로 초기화 (KeyError 방지)
-    # 292라인에서 age_rates['10대']를 호출하므로, 이 이름과 정확히 일치해야 합니다.
-    age_rates = {
+age_rates = {
         "10대": 0.0, 
         "20대": 0.0, 
         "30대": 0.0, 
@@ -204,7 +203,7 @@ if loc:
         "60대+": 0.0
     }
     
-    # 나머지 변수들도 함께 초기화
+    # 나머지 변수 초기화 (NameError 방지용)
     cong_lvl, male_r, fem_r = "데이터 없음", 50.0, 50.0
     shop_lvl, sales_rank, sales_total = "정보 없음", "상권 정보 미제공", "0"
 
@@ -215,45 +214,22 @@ if loc:
         if c_res.status_code == 200 and "<CITYDATA>" in c_res.text:
             root = ET.fromstring(c_res.text)
             
-            # 실시간 인구 데이터 파싱
             p_section = root.find(".//LIVE_PPLTN_STTS")
             if p_section is not None:
-                # ... 성별 비중 수집 중략 ...
+                # 성별 비율 (서울시 화면 데이터 연동)
+                fem_r = float(p_section.findtext("FEMALE_PPLTN_RATE", "50"))
+                male_r = 100.0 - fem_r
                 
-                # [중요] 연령대 수집 시 딕셔너리 키 이름을 출력부와 일치시킴
+                # 2. [데이터 매칭] API에서 가져온 값을 위에서 정의한 키에 저장
                 for i in range(1, 6):
+                    # API 태그는 PPLTN_RATE_10, 20... 형식임
                     val = p_section.findtext(f"PPLTN_RATE_{i}0", "0")
                     age_rates[f"{i}0대"] = float(val)
                 
-                # 60대 이상 합산
+                # 60대 및 70대 합산 처리 (60대+ 키로 통합)
                 v60 = float(p_section.findtext("PPLTN_RATE_60", "0"))
                 v70 = float(p_section.findtext("PPLTN_RATE_70", "0"))
                 age_rates["60대+"] = v60 + v70
-
-           # 2. 실시간 상권 현황 (명세 217번: LIVE_CMRCL_STTS)
-            c_section = root.find(".//LIVE_CMRCL_STTS")
-            if c_section is not None:
-                # 장소 실시간 상권 현황 (명세 218번)
-                shop_lvl = c_section.findtext("AREA_CMRCL_LVL", "정보 없음")
-                
-                # 실시간 결제 건수 (명세 219번) - 이를 sales_total 변수에 할당하여 에러 방지
-                sales_total = c_section.findtext("AREA_SH_PAYMENT_CNT", "0")
-                
-                # 소비 성별 비중 (명세 230~231번)
-                male_pay_r = float(c_section.findtext("CMRCL_MALE_RATE", "50"))
-                fem_pay_r = float(c_section.findtext("CMRCL_FEMALE_RATE", "50"))
-                
-                # 업종별 정보 (명세 222~224번 활용하여 rank 구성)
-                cat_l = c_section.findtext("RSB_LRG_CTGR", "-") # 업종 대분류
-                cat_m = c_section.findtext("RSB_MID_CTGR", "-") # 업종 중분류
-                sales_rank = f"주요 소비 업종: {cat_l} > {cat_m}"
-            else:
-                shop_lvl = "상권 데이터 미제공"
-                sales_rank = "해당 거점은 상권 분석 제외 지역입니다."
-                sales_total = "0"
-
-    except Exception as e:
-        print(f"상권 데이터 수집 에러: {e}")
         
     # --- 화면 구성 ---
     st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")

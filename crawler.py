@@ -11,7 +11,7 @@ from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 
 # ==========================================
-# 1. 설정값 (매니저님 기존 정보 유지) 
+# 1. 설정값
 # ==========================================
 GAS_URL = "https://script.google.com/macros/s/AKfycbzu-9NF957LyR36tM6vNsGZ-NeXPwGllZyRqlGV878HpZ1lVFK8TplVv-7_RsyJFdKA/exec"
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSGEDlHeWG2PHspcMEtlO74lWt9UWdeIzwL9A9fpV6nTY5eSvYTUfeNOFlWvh8qHXFnNwHBsaKKG6cp/pub?gid=189297044&single=true&output=csv"
@@ -21,7 +21,7 @@ HEADERS = {
 }
 
 # ==========================================
-# 2. 데이터 처리 및 전송 (매니저님 규격 100% 반영) 
+# 2. 데이터 처리 및 전송 (매니저님 규격 준수)
 # ==========================================
 def refine_category(title, summary, initial_item):
     combined = (title + " " + title + " " + summary).replace(" ", "")
@@ -48,33 +48,28 @@ def extract_brand(text):
     if "삼성" in text or "SAMSUNG" in text: return "삼성전자"
     return "기타/미분류"
 
-def get_existing_titles():
-    try:
-        df = pd.read_csv(SHEET_CSV_URL)
-        return df['제목(VOC)'].tolist() # 시트 컬럼명에 맞춰 확인 필요
-    except:
-        return []
-
 def push_to_sheet(channel, region, category, title, summary, post_date, issue_tag, brand):
-    """매니저님 payload 규격 그대로 전송"""
+    # summary가 비어있을 경우를 대비한 방어 로직
+    safe_summary = summary if summary and len(summary.strip()) > 0 else "본문 요약 없음"
+    
     payload = {
         "channel": channel, 
         "region": region, 
         "category": category,
         "voc": title, 
-        "summary": summary, 
+        "summary": safe_summary[:300], # 최대 300자 제한
         "postDate": post_date,
         "issueTag": issue_tag, 
         "brand": brand
     }
     try:
         res = requests.post(GAS_URL, data=payload, timeout=15)
-        print(f"✅ 전송성공: [{category}] {issue_tag} | {brand}")
-    except:
-        print("❌ 전송실패")
+        print(f"✅ 전송성공: [{category}] {title[:15]}... | 요약({len(safe_summary)}자)")
+    except Exception as e:
+        print(f"❌ 전송실패: {e}")
 
 # ==========================================
-# 3. 셀레니움 및 수집 로직 
+# 3. 크롤링 엔진 (Selenium)
 # ==========================================
 def setup_driver():
     chrome_options = Options()
@@ -100,15 +95,23 @@ def crawl_naver_cafe(item, sub, existing_titles, driver):
                 title_tag.click()
                 time.sleep(3)
                 driver.switch_to.window(driver.window_handles[-1])
+                
+                # iframe 내부로 진입
                 driver.switch_to.frame("cafe_main")
                 
-                content = driver.find_element(By.CSS_SELECTOR, ".se-main-container").text
+                # 본문 추출 (여러 클래스 대응)
+                try:
+                    content = driver.find_element(By.CSS_SELECTOR, ".se-main-container, .ContentRenderer").text
+                except:
+                    content = "본문 추출 실패 (권한 혹은 구조 변경)"
+                
                 date_txt = driver.find_element(By.CSS_SELECTOR, ".date").text
                 
-                # 데이터 정제 및 전송
                 final_cat = refine_category(title, content, item)
                 brand = extract_brand(title + content)
-                push_to_sheet("네이버 카페", "전국", final_cat, title, content[:200], date_txt, sub, brand)
+                
+                # [수정] 추출된 content를 summary 매개변수로 정확히 전달
+                push_to_sheet("네이버 카페", "전국", final_cat, title, content, date_txt, sub, brand)
                 
                 driver.close()
                 driver.switch_to.window(driver.window_handles[0])
@@ -123,7 +126,8 @@ def crawl_naver_kin(item, sub, existing_titles):
         soup = BeautifulSoup(res.text, 'html.parser')
         for it in soup.select('ul.basic1 > li')[:2]:
             title = it.select_one('._searchListTitleAnchor').text.strip()
-            summary = it.select_one('.txt_inline').next_sibling.strip()
+            # 지식iN은 본문 요약 태그가 별도로 존재함
+            summary = it.select_one('.answer_content, .txt_inline + dl dt + dd, .txt_inline').text.strip()
             date_txt = it.select_one('.txt_inline').text
             
             final_cat = refine_category(title, summary, item)
@@ -132,10 +136,15 @@ def crawl_naver_kin(item, sub, existing_titles):
     except: pass
 
 # ==========================================
-# 4. 메인 실행 (키워드 완벽 복구) 
+# 4. 메인 실행
 # ==========================================
 if __name__ == "__main__":
-    existing_titles = get_existing_titles()
+    try:
+        df_existing = pd.read_csv(SHEET_CSV_URL)
+        existing_titles = df_existing['제목(VOC)'].tolist()
+    except:
+        existing_titles = []
+
     driver = setup_driver()
     
     appliance_settings = {
@@ -154,10 +163,9 @@ if __name__ == "__main__":
     
     for item, subs in appliance_settings.items():
         for sub in subs:
-            print(f"🚀 {item}-{sub} 수집 중...")
+            print(f"📡 수집 중: {item} > {sub}")
             crawl_naver_cafe(item, sub, existing_titles, driver)
             crawl_naver_kin(item, sub, existing_titles)
-            time.sleep(random.uniform(1.0, 2.0))
+            time.sleep(random.uniform(1.2, 2.8))
 
     driver.quit()
-    print("✨ 크롤링 완료")

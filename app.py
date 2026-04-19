@@ -126,63 +126,49 @@ if loc:
         # 에러 발생 시 로그만 남기고 0점 유지
         st.caption(f"S-DoT 수신 대기 중...")
 
-  # [매뉴얼 명세 100% 반영] 데이터 초기값 설정
-    cong_lvl, male_r, fem_r, sales_rank, shop_lvl, sales_total = "데이터 수신 중", 50.0, 50.0, "상권 정보 없음", "정보 없음", "0"
+  # [수정] 매뉴얼 계층 구조 반영 데이터 수집
+    cong_lvl, male_r, fem_r, sales_rank, shop_lvl = "데이터 없음", 50.0, 50.0, "상권 정보 없음", "정보 없음"
     age_rates = {"10대":0, "20대":0, "30대":0, "40대":0, "50대":0, "60대+":0}
     
     try:
-        # 매뉴얼 가이드 주소 체계
+        # 공식 API 호출
         c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{target['name']}"
         c_res = requests.get(c_url, timeout=5)
         
         if c_res.status_code == 200 and "<CITYDATA>" in c_res.text:
             root = ET.fromstring(c_res.text)
             
-            # 1. 실시간 인구 정보 파싱 (매뉴얼: LIVE_PPLTN_STTS 내부)
+            # 1. 실시간 인구 구성 (출력 명세: LIVE_PPLTN_STTS 내부)
+            # 이미지 1~12번 항목
             ppltn_stts = root.find(".//LIVE_PPLTN_STTS")
             if ppltn_stts is not None:
-                # 혼잡도 (AREA_CONGEST_LVL)
-                node = ppltn_stts.find("AREA_CONGEST_LVL")
-                if node is not None: cong_lvl = node.text
+                cong_lvl = ppltn_stts.findtext("AREA_CONGEST_LVL", "데이터 없음") # 1번 항목
+                fem_r = float(ppltn_stts.findtext("FEMALE_PPLTN_RATE", "50"))   # 4번 항목
+                male_r = 100.0 - fem_r                                       # 3번 항목 계산
                 
-                # 성별 비율
-                fem_node = ppltn_stts.find('FEMALE_PPLTN_RATE')
-                if fem_node is not None:
-                    fem_r = float(fem_node.text)
-                    male_r = 100.0 - fem_r
-                
-                # 연령대별 비율 (10대~50대)
+                # 연령대별 비중 (5~11번 항목)
                 for i in range(1, 6):
-                    age_node = ppltn_stts.find(f"PPLTN_RATE_{i}0")
-                    if age_node is not None: age_rates[f"{i}0대"] = float(age_node.text)
-                
-                # 60대 및 70대 합산 (매뉴얼 기준)
-                r60 = ppltn_stts.find("PPLTN_RATE_60")
-                r70 = ppltn_stts.find("PPLTN_RATE_70")
-                v60 = float(r60.text) if r60 is not None and r60.text else 0
-                v70 = float(r70.text) if r70 is not None and r70.text else 0
+                    age_rates[f"{i}0대"] = float(ppltn_stts.findtext(f"PPLTN_RATE_{i}0", "0"))
+                v60 = float(ppltn_stts.findtext("PPLTN_RATE_60", "0"))
+                v70 = float(ppltn_stts.findtext("PPLTN_RATE_70", "0"))
                 age_rates["60대+"] = v60 + v70
 
-            # 2. 실시간 상권 정보 파싱 (매뉴얼: REALT_TIM_CMRCL_STTS 내부)
+            # 2. 실시간 상권 현황 (출력 명세: REALT_TIM_CMRCL_STTS 내부)
+            # 이미지 13~18번 항목
             commerce_stts = root.find(".//REALT_TIM_CMRCL_STTS")
             if commerce_stts is not None:
-                # 상권 활밀도 (CUR_ALIVE_HOT_LVL)
-                hot_node = commerce_stts.find("CUR_ALIVE_HOT_LVL")
-                if hot_node is not None: shop_lvl = hot_node.text
+                # 상권 활밀도 (15번 항목)
+                shop_lvl = commerce_stts.findtext("CUR_ALIVE_HOT_LVL", "정보 없음") 
                 
-                # 업종별 순위 (UPJONG_NM_1~3)
-                r1 = commerce_stts.find("UPJONG_NM_1").text if commerce_stts.find("UPJONG_NM_1") is not None else "-"
-                r2 = commerce_stts.find("UPJONG_NM_2").text if commerce_stts.find("UPJONG_NM_2") is not None else "-"
-                r3 = commerce_stts.find("UPJONG_NM_3").text if commerce_stts.find("UPJONG_NM_3") is not None else "-"
+                # 업종 순위 (16~18번 항목)
+                r1 = commerce_stts.findtext("UPJONG_NM_1", "-")
+                r2 = commerce_stts.findtext("UPJONG_NM_2", "-")
+                r3 = commerce_stts.findtext("UPJONG_NM_3", "-")
                 sales_rank = f"1위 {r1} / 2위 {r2} / 3위 {r3}"
-                
-                # 상권 매출 총액 (있을 경우)
-                total_node = commerce_stts.find("CUR_ALIVE_AMT_LVL") # 매뉴얼상 금액 등급
-                if total_node is not None: sales_total = total_node.text
             else:
                 shop_lvl = "상권 데이터 미제공 장소"
-                sales_rank = "주변 발달상권 데이터를 확인하세요"
-                
+                sales_rank = "주변 발달 상권 정보를 참고하세요"
+
     except Exception as e:
         st.error(f"🌐 데이터 파싱 오류: {e}")
         

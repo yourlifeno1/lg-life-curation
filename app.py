@@ -228,6 +228,7 @@ if loc:
             found_cong = root.find(".//AREA_CONGEST_LVL")
             if found_cong is not None:
                 cong_lvl = found_cong.text
+                pop_time = root.findtext(".//PPLTN_TIME", "데이터 수집 중")
                 fem_r = float(root.findtext(".//FEMALE_PPLTN_RATE", "50"))
                 male_r = 100.0 - fem_r
                 

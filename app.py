@@ -105,12 +105,25 @@ if loc:
     diff = cnt_now - cnt_last
     diff_pct = (diff / cnt_last * 100) if cnt_last > 0 else 0
 
+    # [수정] S-DoT(IotVdata018) 실시간 유동인구 연동
     traffic, v_score = 0, 0
     try:
-        s_res = requests.get(f"http://openapi.seoul.go.kr:8088/{SEOUL_API_KEY}/json/sDOTPeople/1/1/").json()
-        traffic = int(float(s_res["sDOTPeople"]["row"][0]['VISIT_COUNT']))
-        v_score = min(int((traffic / 150) * 100), 99)
-    except: pass
+        # S-DoT 유동인구 XML API 호출
+        sdot_url = f"http://openapi.seoul.go.kr:8088/{SEOUL_API_KEY}/xml/IotVdata018/1/5/"
+        s_res = requests.get(sdot_url, timeout=5)
+        
+        if s_res.status_code == 200:
+            s_root = ET.fromstring(s_res.text)
+            row = s_root.find(".//row") # 최신 데이터 행 찾기
+            if row is not None:
+                # S-DoT 태그명 'v_data'에서 숫자 추출
+                v_node = row.find("v_data")
+                if v_node is not None:
+                    traffic = int(float(v_node.text))
+                    # 150명 기준 활력 점수 계산
+                    v_score = min(int((traffic / 150) * 100), 99)
+    except Exception as e:
+        pass
 
     cong_lvl, male_r, fem_r, sales_rank, shop_lvl, sales_total = "여유", 50.0, 50.0, "1위 - / 2위 - / 3위 -", "한산한 시간대", "1 미만"
     age_rates = {"10대":0, "20대":0, "30대":0, "40대":0, "50대":0, "60대+":0}

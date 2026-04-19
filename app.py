@@ -542,8 +542,22 @@ if loc:
     # ==========================================
     if st.session_state.get('page_mode') == 'detail':
         st.write("---") 
-        st.markdown("<h2 style='text-align: center; color: #212529;'>📊 가전 이슈 심층 분석</h2>", unsafe_allow_html=True)
-        st.caption(f"분석 기준: {datetime.now().strftime('%Y년 %m월')} 실시간 VOC 데이터")
+        st.markdown(f"""
+            <div style="text-align: center; margin-bottom: 15px;">
+                <h3 style="
+                    color: #212529; 
+                    margin: 0; 
+                    font-size: clamp(18px, 5.5vw, 22px); 
+                    font-weight: 800;
+                    letter-spacing: -1px;
+                ">
+                    📊 이슈 심층 분석
+                </h3>
+                <div style="font-size: 12px; color: #6C757D; margin-top: 5px;">
+                    분석 기준: {datetime.now().strftime('%Y년 %m월')} 실시간 VOC 데이터
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
         
         if st.button("⬅️ 메인 화면으로 돌아가기"):
             st.session_state['page_mode'] = 'main'

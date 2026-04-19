@@ -160,24 +160,29 @@ def show_voc_section(u_dong):
                 issue_counts = issue_counts.sort_values(by=['count', 'keyword'], ascending=[False, True])
                 
                 # 상위 3개 키워드 추출 (따옴표 없이 쉼표 구분)
+                # [수정 시작] 상위 키워드 추출 및 줄바꿈 리스트 생성
                 top_3_keywords = issue_counts['keyword'].head(3).tolist()
-                keywords_str = ", ".join(top_3_keywords)
                 
                 if not top_3_keywords:
                     continue
 
-                # 3. 카드 출력
+                # 1. 키워드별로 줄바꿈 태그 생성 (불렛 포인트 포함)
+                formatted_keywords = "".join([f"<div style='font-size:13px; color:#495057; margin-top:3px;'>• {k}</div>" for k in top_3_keywords])
+
+                # 2. 카드 출력 (기존 keywords_str 대신 formatted_keywords 사용)
                 st.markdown(f"""
                 <div style="{box_style}">
-                    <div style="display:flex; align-items:center;">
-                        <span style="font-size:18px; font-weight:900; color:#007BFF; margin-right:12px;">{i}위</span>
+                    <div style="display:flex; align-items:flex-start;">
+                        <span style="font-size:18px; font-weight:900; color:#007BFF; margin-right:12px; margin-top:2px;">{i}위</span>
                         <div style="flex:1;">
-                            <span style="font-size:16px; font-weight:bold; color:#212529;">{appliance}</span>
-                            <span style="font-size:14px; color:#495057;"> {keywords_str} 언급이 많아요</span>
+                            <div style="font-size:16px; font-weight:bold; color:#212529; margin-bottom:5px;">{appliance}</div>
+                            {formatted_keywords}
+                            <div style="font-size:13px; color:#6C757D; margin-top:8px; font-style:italic;">위 키워드 언급이 많아요</div>
                         </div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
+                # [수정 끝]
             
             st.write("")
             if st.button("🔍 지역 가전 이슈 심층 리포트 보기", use_container_width=True):

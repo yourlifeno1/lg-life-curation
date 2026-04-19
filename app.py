@@ -194,7 +194,7 @@ def show_voc_section(u_dong):
         
 # --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")
-st.title("📍 LG Life Curation")
+st.title("LG Life Curation")
 
 loc = get_geolocation()
 

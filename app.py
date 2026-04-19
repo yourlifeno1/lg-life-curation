@@ -568,7 +568,15 @@ if loc:
             df = pd.read_csv(SHEET_CSV_URL)
             df['이슈 키워드'] = df['이슈 키워드'].replace(['냄새', '곰팡이'], '위생(곰팡이/냄새)')
             
-            st.subheader("💡 가전별 주요 분석")
+            st.markdown(f"""
+                <div style="display: flex; align-items: baseline; margin-top: 15px; margin-bottom: 10px;">
+                    <span style="font-size: 22px; margin-right: 8px;">💡</span>
+                    <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px;">
+                        가전별 주요 분석
+                    </span>
+                </div>
+            """, unsafe_allow_html=True)
+
             top_apps = df['가전'].value_counts().head(3).index.tolist()
             
             cols = st.columns(len(top_apps))

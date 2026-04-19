@@ -224,34 +224,46 @@ if loc:
             # [수정] app 4의 유연한 파싱 방식(.//)으로 회귀
             root = ET.fromstring(c_res.text)
             
-            # --- 실시간 인구 데이터 ---
+            # --- [인구 예측 데이터 분석] 진짜 인기 시간대 찾기 ---
             found_cong = root.find(".//AREA_CONGEST_LVL")
             if found_cong is not None:
                 cong_lvl = found_cong.text
                 
-                # 1. API가 뿌려주는 원본 시간 데이터를 가져옵니다 (예: 2024-04-19 13:00)
-                raw_time = root.findtext(".//PPLTN_TIME", "")
+                # 1. 인구 예측 섹션(FCST_PPLTN)의 모든 행을 가져옵니다.
+                fcst_rows = root.findall(".//FCST_PPLTN")
                 
-                try:
-                    # 2. 글자 형식을 분석하여 파이썬 시간 객체로 변환
-                    dt_obj = datetime.strptime(raw_time, "%Y-%m-%d %H:%M")
+                max_ppltn = -1
+                best_time = ""
+                
+                # 2. 향후 12시간의 예측치를 비교하여 가장 인구가 많은 시점을 찾습니다.
+                for row in fcst_rows:
+                    f_time = row.findtext("FCST_TIME", "")
+                    # 예측 인구수의 중간값(PPLTN_HIGH + PPLTN_LOW) / 2 로 계산
+                    f_high = int(row.findtext("FCST_PPLTN_HIGH", 0))
+                    f_low = int(row.findtext("FCST_PPLTN_LOW", 0))
+                    avg_ppltn = (f_high + f_low) / 2
                     
-                    # 3. 오전/오후 판별
-                    ampm = "오전" if dt_obj.hour < 12 else "오후"
-                    
-                    # 4. 12시간제 숫자로 변환 (13시 -> 1시)
-                    hour_12 = dt_obj.hour if dt_obj.hour <= 12 else dt_obj.hour - 12
-                    if hour_12 == 0: hour_12 = 12 # 00시는 오전 12시로 표시
-                    
-                    # 5. 최종 결과물: "오후 1시"
-                    pop_time = f"{ampm} {hour_12}시"
-                except:
-                    # 데이터가 없거나 형식이 틀릴 경우
-                    pop_time = "확인 중"
+                    if avg_ppltn > max_ppltn:
+                        max_ppltn = avg_ppltn
+                        best_time = f_time
+                
+                # 3. 찾은 시점(best_time)을 오전/오후 체계로 변환
+                if best_time:
+                    try:
+                        # 예: 2026-04-19 18:00 -> 18 추출
+                        dt_obj = datetime.strptime(best_time, "%Y-%m-%d %H:%M")
+                        hh = dt_obj.hour
+                        ampm = "오전" if hh < 12 else "오후"
+                        hh_12 = hh if hh <= 12 else hh - 12
+                        if hh_12 == 0: hh_12 = 12
+                        pop_time = f"{ampm} {hh_12}시"
+                    except:
+                        pop_time = "분석 중"
+                else:
+                    pop_time = "정보 미제공"
                 
                 fem_r = float(root.findtext(".//FEMALE_PPLTN_RATE", "50"))
                 male_r = 100.0 - fem_r
-            
                 # 연령대 데이터 (키 이름을 하단 출력부와 100% 일치)
                 age_rates["10대"] = float(root.findtext(".//PPLTN_RATE_10", "0"))
                 age_rates["20대"] = float(root.findtext(".//PPLTN_RATE_20", "0"))

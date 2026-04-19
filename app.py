@@ -527,7 +527,8 @@ if loc:
         # 가장 간단하게는 하단에 상세 분석 내용을 뿌려주는 방식입니다.
         
         st.write("---") # 구분선
-        st.markdown(f"## 📊 {u_dong} 가전 이슈 심층 분석")
+        # 1. 제목 수정: 동 이름 없이 출력
+        st.markdown("<h2 style='text-align: center; color: #212529;'>📊 가전 이슈 심층 분석</h2>", unsafe_allow_html=True)
         st.caption(f"분석 기준: {datetime.now().strftime('%Y년 %m월')} 실시간 VOC 데이터")
         
         if st.button("⬅️ 메인 화면으로 돌아가기"):
@@ -580,8 +581,9 @@ if loc:
             # 3. 대응 가이드
             st.info(f"""
             **📢 {u_dong} 지역 현장 대응 가이드**
-            - 현재 이 지역은 **{top_apps[0]}** 제품의 **{all_keywords.index[0]}** 이슈가 가장 지배적입니다.
+            - 현재 **{top_apps[0]}** 제품의 **{all_keywords.index[0]}** 이슈가 가장 지배적입니다.
             - 상담 시 이 부분을 먼저 체크하시면 고객 만족도를 크게 높일 수 있습니다.
+            - 이슈에 맞춰 LG전자 구독의 전문가 방문관리, 무상 A/s, 소모품 교체를 적절하게 언급하세요.
             """)
 
         except Exception as e:

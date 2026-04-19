@@ -193,12 +193,15 @@ if loc:
         # 에러 발생 시 로그만 남기고 0점 유지
         st.caption(f"S-DoT 수신 대기 중...")
 
-# 1. 초기화 (화면 하단 이름과 반드시 일치시켜야 0% 안 나옴)
+# 1. 모든 출력용 변수 사전 초기화 (NameError 방지 핵심!)
+    # try 문 안에서 에러가 나더라도 아래 변수들은 이미 '존재'하게 됩니다.
+    cong_lvl = "데이터 없음"
+    male_r, fem_r = 50.0, 50.0
     age_rates = {"10대": 0.0, "20대": 0.0, "30대": 0.0, "40대": 0.0, "50대": 0.0, "60대+": 0.0}
     shop_lvl, sales_rank, sales_total = "정보 없음", "정보 미제공", "0"
 
     try:
-        # [중요] 장소명에서 괄호를 제거하여 API 호출 (app 4 방식의 핵심)
+        # [중요] 장소명에서 괄호 제거 (API가 인식할 수 있는 이름으로 변환)
         pure_name = target['name'].split('(')[0].strip()
         c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{pure_name}"
         c_res = requests.get(c_url, timeout=5)
@@ -206,33 +209,36 @@ if loc:
         if c_res.status_code == 200:
             root = ET.fromstring(c_res.text)
             
-            # [인구] app 4의 유연한 검색 방식 적용
+            # [A] 인구 데이터 파싱
             p_section = root.find(".//LIVE_PPLTN_STTS")
             if p_section is not None:
+                cong_lvl = p_section.findtext("AREA_CONGEST_LVL", "데이터 없음")
                 fem_r = float(p_section.findtext("FEMALE_PPLTN_RATE", "50"))
                 male_r = 100.0 - fem_r
-                # 연령대 데이터 매핑
+                
+                # 연령대 데이터 매핑 (화면 하단 키값과 일치)
                 for i in range(1, 6):
                     age_rates[f"{i}0대"] = float(p_section.findtext(f"PPLTN_RATE_{i}0", "0"))
                 v60 = float(p_section.findtext("PPLTN_RATE_60", "0"))
                 v70 = float(p_section.findtext("PPLTN_RATE_70", "0"))
                 age_rates["60대+"] = v60 + v70
 
-            # [상권] TOP 3 업종 반영
+            # [B] 상권 데이터 파싱 (TOP 3 반영)
             c_section = root.find(".//REALT_TIM_CMRCL_STTS")
             if c_section is None: c_section = root.find(".//LIVE_CMRCL_STTS")
             
             if c_section is not None:
                 shop_lvl = c_section.findtext("CUR_ALIVE_HOT_LVL", "정보 없음")
                 sales_total = c_section.findtext("CUR_ALIVE_AMT_LVL", "0")
-                # TOP 3 구성
+                # 업종 순위 TOP 3
                 r1 = c_section.findtext("UPJONG_NM_1", "-")
                 r2 = c_section.findtext("UPJONG_NM_2", "-")
                 r3 = c_section.findtext("UPJONG_NM_3", "-")
                 sales_rank = f"1위 {r1} / 2위 {r2} / 3위 {r3}"
 
     except Exception as e:
-        print(f"Error: {e}")
+        # 에러 발생 시 로그만 찍고, 위에서 선언한 기본값으로 화면을 그림
+        print(f"API 수집 에러: {e}")
     
     # [1] 상권 기상도 영역 (숫자 크기 및 굵기 대폭 강화)
     st.markdown(f"### ☀️ {u_dong} 상권 기상도")

@@ -623,18 +623,18 @@ if loc:
             """, unsafe_allow_html=True)
 
             # --- 2) 연령대별 소비 비중 (세로 리스트) ---
-                st.write("")
-                st.write("**🎂 연령대별 소비 비중**")
-                for age, val in age_data.items():
-                    st.markdown(f"""
-                    <div style="display:flex; align-items:center; margin-bottom:8px;">
-                        <div style="width:55px; font-size:12px; color:#495057;">{age}</div>
-                        <div style="flex:1; background:#F1F3F5; height:12px; border-radius:6px; overflow:hidden; margin:0 10px;">
-                            <div style="width:{val}%; background:linear-gradient(90deg, #3B82F6, #2563EB); height:100%;"></div>
-                        </div>
-                        <div style="width:35px; font-size:12px; text-align:right; font-weight:bold; color:#212529;">{val:.0f}%</div>
+            st.write("")
+            st.write("**🎂 연령대별 소비 비중**")
+            for age, val in age_data.items():
+                st.markdown(f"""
+                <div style="display:flex; align-items:center; margin-bottom:8px;">
+                    <div style="width:55px; font-size:12px; color:#495057;">{age}</div>
+                    <div style="flex:1; background:#F1F3F5; height:12px; border-radius:6px; overflow:hidden; margin:0 10px;">
+                        <div style="width:{val}%; background:linear-gradient(90deg, #3B82F6, #2563EB); height:100%;"></div>
                     </div>
-                    """, unsafe_allow_html=True)
+                    <div style="width:35px; font-size:12px; text-align:right; font-weight:bold; color:#212529;">{val:.0f}%</div>
+                </div>
+                """, unsafe_allow_html=True)
                
             # (4) 상권 분석 요약
             max_age_key = max(age_data, key=age_data.get)

@@ -228,18 +228,30 @@ if loc:
             found_cong = root.find(".//AREA_CONGEST_LVL")
             if found_cong is not None:
                 cong_lvl = found_cong.text
-                # [수정] 날짜 전체 문장에서 '시간'만 추출하여 깔끔하게 만듭니다.
+                
+                # 1. API가 뿌려주는 원본 시간 데이터를 가져옵니다 (예: 2024-04-19 13:00)
                 raw_time = root.findtext(".//PPLTN_TIME", "")
+                
                 try:
-                    # "2024-04-19 11:00" -> 11시 만 추출
+                    # 2. 글자 형식을 분석하여 파이썬 시간 객체로 변환
                     dt_obj = datetime.strptime(raw_time, "%Y-%m-%d %H:%M")
-                    pop_time = dt_obj.strftime("%H시") # "11시"로 출력
+                    
+                    # 3. 오전/오후 판별
+                    ampm = "오전" if dt_obj.hour < 12 else "오후"
+                    
+                    # 4. 12시간제 숫자로 변환 (13시 -> 1시)
+                    hour_12 = dt_obj.hour if dt_obj.hour <= 12 else dt_obj.hour - 12
+                    if hour_12 == 0: hour_12 = 12 # 00시는 오전 12시로 표시
+                    
+                    # 5. 최종 결과물: "오후 1시"
+                    pop_time = f"{ampm} {hour_12}시"
                 except:
-                    pop_time = "데이터 없음"
+                    # 데이터가 없거나 형식이 틀릴 경우
+                    pop_time = "확인 중"
                 
                 fem_r = float(root.findtext(".//FEMALE_PPLTN_RATE", "50"))
                 male_r = 100.0 - fem_r
-                
+            
                 # 연령대 데이터 (키 이름을 하단 출력부와 100% 일치)
                 age_rates["10대"] = float(root.findtext(".//PPLTN_RATE_10", "0"))
                 age_rates["20대"] = float(root.findtext(".//PPLTN_RATE_20", "0"))

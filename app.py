@@ -114,41 +114,59 @@ def fetch_moving_all(lawd_cd, year_month):
 
 # [신규 함수] 우리 동네 가전 이슈 리포트 출력 로직
 def show_voc_section(u_dong):
-    st.write("")
-    st.markdown(f"### 🏠 우리 동네 가전 이슈 ({u_dong})")
+    # 1. 박스 디자인 스타일
+    box_style = """
+        background-color: #F8F9FA;
+        border: 1px solid #E9ECEF;
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 10px;
+    """
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # 2. 제목 설정 (동 이름 제외, 부제 추가)
+    st.markdown('<b style="font-size:18px; color:#495057;">🏠 우리 동네 가전 이슈</b>', unsafe_allow_html=True)
+    st.markdown('<p style="font-size:13px; color:#6C757D; margin-top:-5px;">고객 이슈 Top 3</p>', unsafe_allow_html=True)
     
     try:
-        # 구글 시트 데이터 로드
+        # 3. 구글 시트 데이터 로드
         df = pd.read_csv(SHEET_CSV_URL)
         
-        # 현재 위치 동네가 포함된 데이터만 필터링 (컬럼명이 '지역'인 경우)
-        local_df = df[df['지역'].str.contains(u_dong, na=False)]
+        # 가전별 언급 횟수 계산 및 상위 3개 추출
+        top_appliances = df['가전'].value_counts().head(3)
         
-        if not local_df.empty:
-            local_df = local_df.iloc[::-1] # 최신순 정렬
-            
-            for _, row in local_df.iterrows():
-                is_care = "위생" in str(row['VOC']) or "케어" in str(row['VOC'])
-                color = "#E53E3E" if is_care else "#3182CE"
-                bg = "#FFF5F5" if is_care else "#EBF8FF"
+        if not top_appliances.empty:
+            for i, (appliance, count) in enumerate(top_appliances.items(), 1):
+                # 해당 가전의 최빈 이슈 키워드 추출
+                try:
+                    top_issue = df[df['가전'] == appliance]['이슈 키워드'].mode()[0]
+                except:
+                    top_issue = "점검"
                 
+                # 순위별 카드 출력
                 st.markdown(f"""
-                <div style="background:{bg}; border-left:5px solid {color}; padding:18px; border-radius:12px; margin-bottom:12px; border:1px solid #eee; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <b style="font-size:16px; color:#1A202C;">🧺 {row['가전']} - {row['VOC']}</b>
-                        <span style="font-size:11px; color:#A0AEC0; background:white; padding:2px 6px; border-radius:4px; border:1px solid #EDF2F7;">{row['채널']}</span>
+                <div style="{box_style}">
+                    <div style="display:flex; align-items:center;">
+                        <span style="font-size:18px; font-weight:900; color:#007BFF; margin-right:12px;">{i}위</span>
+                        <div style="flex:1;">
+                            <span style="font-size:15px; font-weight:bold; color:#212529;">{appliance}</span>
+                            <span style="font-size:14px; color:#495057;"> "{top_issue}" 언급이 많아요</span>
+                        </div>
                     </div>
-                    <p style="font-size:14px; color:#4A5568; margin:8px 0 0 0; line-height:1.5;">{row['요약']}</p>
                 </div>
                 """, unsafe_allow_html=True)
             
-            if st.button(f"📄 {u_dong} AI 상세 영업 전략 리포트 발행", use_container_width=True, type="primary"):
-                st.toast("리포트를 생성 중입니다...", icon="📝")
+            # 다음 작업을 위한 상세 리포트 버튼 (우선 유지)
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("🔍 지역 가전 이슈 심층 리포트 보기", use_container_width=True):
+                st.session_state['page_mode'] = 'detail'
+                st.rerun()
         else:
-            st.info(f"📍 현재 {u_dong} 지역에 등록된 실시간 가전 이슈가 없습니다.")
+            st.caption("현재 수집된 가전 이슈 데이터가 없습니다.")
             
     except Exception as e:
-        st.caption("가전 이슈 데이터를 업데이트하는 중입니다...")
+        st.caption("데이터를 분석하여 트렌드를 계산 중입니다...")
 
 # --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")

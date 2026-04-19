@@ -137,13 +137,20 @@ def show_voc_section(u_dong):
         # 키워드 통합
         df['이슈 키워드'] = df['이슈 키워드'].replace(['냄새', '곰팡이'], '위생(곰팡이/냄새)')
         
+        # [핵심] 가전별 예외 키워드 처리 (세탁기, 냉장고 등에서 배터리 제외)
+        no_battery_appliances = ['세탁기', '냉장고', 'TV', '식기세척기', '건조기', '의류관리기']
+        
         # 가전별 전체 언급 횟수 상위 3개 추출
         top_appliances = df['가전'].value_counts().head(3)
         
         if not top_appliances.empty:
             for i, (appliance, total_count) in enumerate(top_appliances.items(), 1):
-                # 해당 가전의 데이터만 필터링
+                # 해당 가전 데이터 필터링
                 appliance_data = df[df['가전'] == appliance]
+                
+                # [필터링 로직] 배터리 이슈가 없는 가전은 해당 키워드 제거
+                if appliance in no_battery_appliances:
+                    appliance_data = appliance_data[appliance_data['이슈 키워드'] != '배터리']
                 
                 # 키워드별 빈도 계산
                 issue_counts = appliance_data['이슈 키워드'].value_counts().reset_index()
@@ -152,10 +159,13 @@ def show_voc_section(u_dong):
                 # 정렬 규칙: 1. 횟수 내림차순, 2. 가나다순 오름차순
                 issue_counts = issue_counts.sort_values(by=['count', 'keyword'], ascending=[False, True])
                 
-                # [매니저님 요청 반영] 상위 3개 키워드만 추출하고 따옴표 제거 후 쉼표 연결
+                # 상위 3개 키워드 추출 (따옴표 없이 쉼표 구분)
                 top_3_keywords = issue_counts['keyword'].head(3).tolist()
                 keywords_str = ", ".join(top_3_keywords)
                 
+                if not top_3_keywords:
+                    continue
+
                 # 3. 카드 출력
                 st.markdown(f"""
                 <div style="{box_style}">

@@ -8,10 +8,18 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    
+    # 모든 실행 단계를 naver_voc 폴더 안에서 수행하도록 설정합니다.
+    defaults:
+      run:
+        working-directory: ./naver_voc
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          # 폴더 구조 유지를 위해 최상위에서 체크아웃합니다.
+          path: '.'
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -21,9 +29,8 @@ jobs:
       - name: Install 필수 패키지 설치
         run: |
           python -m pip install --upgrade pip
-          pip install requests beautifulsoup4 lxml 
+          pip install requests beautifulsoup4 lxml
 
-      # 폴더 안으로 직접 들어가서 파일을 찾는 방식으로 변경했습니다.
       - name: Run Crawler
-        run: |
-          find . -name "crawler.py" -exec python {} \;
+        # working-directory 설정 덕분에 바로 파일명만 써도 작동합니다.
+        run: python crawler.py

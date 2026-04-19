@@ -396,12 +396,12 @@ if loc:
     
     # 1. 기상 아이콘 및 상단 제목
     weather_icon = "☀️" if v_score >= 70 else "☁️" if v_score >= 35 else "☔"
-    t.markdown(f"""
-        <div style="display: flex; align-items: center; margin-bottom: -10px;">
-            <span style="font-size: 22px; margin-right: 8px;">{weather_icon}</span>
-            <span style="font-size: 20px; font-weight: bold; color: #212529;">{u_dong} 상권 기상도</span>
-        </div>
-    """, unsafe_allow_html=True)
+        t.markdown(f"""
+            <div style="display: flex; align-items: center; margin-bottom: -10px;">
+                <span style="font-size: 22px; margin-right: 8px;">{weather_icon}</span>
+                <span style="font-size: 20px; font-weight: bold; color: #212529;">{u_dong} 상권 기상도</span>
+            </div>
+        """, unsafe_allow_html=True)
     
     # 2. 모든 표시 문구와 색상을 HTML 밖에서 문자열로 미리 완성 (박살 방지 핵심)
     # 왼쪽 박스용
@@ -443,12 +443,12 @@ if loc:
     """, unsafe_allow_html=True)
         
     st.write("") # 하단 여백 추가
-    st.markdown(f"""
-        <div style="display: flex; align-items: center; margin-top: 15px; margin-bottom: -10px;">
-            <span style="font-size: 22px; margin-right: 8px;">📊</span>
-            <span style="font-size: 20px; font-weight: bold; color: #212529;">실시간 주요 현황 <span style="font-size: 14px; color: #6C757D; font-weight: normal;">(거점: {target['name']})</span></span>
-        </div>
-    """, unsafe_allow_html=True)
+        st.markdown(f"""
+            <div style="display: flex; align-items: center; margin-top: 15px; margin-bottom: -10px;">
+                <span style="font-size: 22px; margin-right: 8px;">📊</span>
+                <span style="font-size: 20px; font-weight: bold; color: #212529;">실시간 주요 현황 <span style="font-size: 14px; color: #6C757D; font-weight: normal;">(거점: {target['name']})</span></span>
+            </div>
+        """, unsafe_allow_html=True)
 
     # [2] 실시간 인구 구성 카드
     cong_color = "#059669" if "여유" in cong_lvl else "#D97706"

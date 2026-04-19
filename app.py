@@ -127,7 +127,7 @@ def show_voc_section(u_dong):
     """
     
     st.write("")
-    st.markdown('<b style="font-size:20px; color:#212529;">🏠 우리 동네 가전 이슈</b>', unsafe_allow_html=True)
+    st.markdown('<b style="font-size:30px; color:#212529;">🏠 우리 동네 가전 이슈</b>', unsafe_allow_html=True)
     st.markdown('<p style="font-size:14px; color:#6C757D; margin-top:-5px;">고객 이슈 Top 3</p>', unsafe_allow_html=True)
     
     try:
@@ -444,7 +444,7 @@ if loc:
     <div style="background:white; border:1px solid #E9ECEF; border-radius:12px; padding:20px; margin-bottom:15px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
             <b style="font-size:18px; color:#495057;">👥 실시간 인구 구성</b>
-            <span style="color:{cong_color}; font-weight:800; font-size:22px;">{cong_lvl} ●●●○</span>
+            <span style="color:{cong_color}; font-weight:800; font-size:20px;">{cong_lvl} ●●●○</span>
         </div>
         <div style="display:flex; gap:10px;">
             <div style="{box_style} flex:1; text-align:center;">

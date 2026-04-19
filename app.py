@@ -236,11 +236,14 @@ if loc:
                     v60 = float(p_section.findtext("PPLTN_RATE_60", "0"))
                     v70 = float(p_section.findtext("PPLTN_RATE_70", "0"))
                     age_rates["60대+"] = v60 + v70
-            except Exception as e:
-                print(f"연령대 데이터 변환 에러: {e}")
+                    
+    except Exception as e:
+        # [중요] 이 except 블록이 있어야 SyntaxError가 사라집니다!
+        print(f"데이터 수집 중 오류 발생: {e}")
 
-    # --- 화면 구성 ---
+    # --- 화면 구성 (try-except 블록 밖) ---
     st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")
+    st.divider()
     
     # [1] 상권 기상도 영역 (숫자 크기 및 굵기 대폭 강화)
     st.markdown(f"### ☀️ {u_dong} 상권 기상도")

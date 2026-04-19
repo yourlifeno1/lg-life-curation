@@ -708,4 +708,13 @@ if loc:
 
     # 공통 하단 구분선
     st.divider()
-    st.caption("※ 서울 실시간 도시데이터 V8.5 API 기반 | 데이터 갱신: 실시간")
+    st.markdown("""
+        <div style="text-align: center; padding-bottom: 20px;">
+            <div style="font-size: 11px; color: #868E96; line-height: 1.6;">
+                ※ 서울 실시간 도시데이터 V8.5 API 기반<br>
+                ※ 이사 지수: <b>국토교통부</b> 실거래가 오픈 API 자료 활용<br>
+                ※ 가전 VOC: <b>네이버 지식iN</b> 및 주요 커뮤니티 실시간 크롤링 분석<br>
+                <span style="color: #ADB5BD;">데이터 갱신: 실시간 (Live Update)</span>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)

@@ -495,7 +495,7 @@ if loc:
         <div style="{box_style} flex:1; text-align:center; padding: 12px 5px;">
             <p style="font-size:13px; color:#495057; font-weight:bold; margin:0;">최근 10분 매출 총액</p>
             <p style="margin:8px 0;">
-                <span style="font-size:28px; font-weight:900; color:#007BFF; letter-spacing:-1px;">{sales_total}</span>
+                <span style="font-size:34px; font-weight:900; color:#007BFF; letter-spacing:-1px;">{sales_total}</span>
                 <span style="font-size:14px; color:#212529; font-weight:bold; margin-left:2px;">만원</span>
             </p>
             <p style="font-size:9px; color:#ADB5BD; margin:0; font-weight:normal;">

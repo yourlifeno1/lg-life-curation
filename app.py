@@ -175,23 +175,37 @@ if loc:
    # [수정] S-DoT(IotVdata018) 실시간 유동인구 연동 로직
     traffic, v_score = 0, 0
     try:
-        # 명세서에 따른 S-DoT 유동인구 XML API 주소 (IotVdata018)
-        sdot_url = f"http://openapi.seoul.go.kr:8088/{SEOUL_API_KEY}/xml/IotVdata018/1/5/"
+        # 1. 주변 센서를 훑기 위해 데이터 수신 범위를 100개로 넓힙니다.
+        sdot_url = f"http://openapi.seoul.go.kr:8088/{SEOUL_API_KEY}/xml/IotVdata018/1/100/"
         s_res = requests.get(sdot_url, timeout=5)
         
         if s_res.status_code == 200:
             s_root = ET.fromstring(s_res.text)
-            row = s_root.find(".//row") # 최신 데이터 행 추출
-            if row is not None:
-                # 명세서 8번 항목: 방문자수는 'VISITOR_COUNT' 태그입니다.
-                v_node = row.find("VISITOR_COUNT")
+            rows = s_root.findall(".//row")
+            
+            # 2. [핵심] 내 현재 GPS 좌표와 각 센서 간의 거리를 계산하여 가장 가까운 것 선택
+            def get_distance(node):
+                try:
+                    # 센서의 위도/경도 좌표 추출
+                    s_lat = float(node.findtext("COORD_Y", 0))
+                    s_lon = float(node.findtext("COORD_X", 0))
+                    # 내 위치(u_lat, u_lon)와의 직선 거리 계산
+                    return (u_lat - s_lat)**2 + (u_lon - s_lon)**2
+                except: return 999999
+            
+            # 내 위치에서 가장 가까운 S-DoT 센서 행 찾기
+            nearest_row = min(rows, key=get_distance) if rows else None
+            
+            if nearest_row is not None:
+                v_node = nearest_row.find("VISITOR_COUNT")
                 if v_node is not None and v_node.text:
+                    # 실제 측정된 유동인구 수
                     traffic = int(float(v_node.text))
-                    # 150명 기준 상권 활력 점수 계산
+                    # 유동인구 150명 기준 활력 점수(0~99점) 계산
                     v_score = min(int((traffic / 150) * 100), 99)
     except Exception as e:
-        # 에러 발생 시 로그만 남기고 0점 유지
-        st.caption(f"S-DoT 수신 대기 중...")
+        # 에러 시 기본값 0 유지
+        pass
 
     # 1. 모든 출력 변수 사전 초기화 (NameError 및 0% 현상 완벽 방지)
     cong_lvl = "데이터 없음"

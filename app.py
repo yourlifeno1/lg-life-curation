@@ -126,35 +126,52 @@ if loc:
         # 에러 발생 시 로그만 남기고 0점 유지
         st.caption(f"S-DoT 수신 대기 중...")
 
-    cong_lvl, male_r, fem_r, sales_rank, shop_lvl, sales_total = "여유", 50.0, 50.0, "1위 - / 2위 - / 3위 -", "한산한 시간대", "1 미만"
+    # [수정] 서울시 도시데이터(실시간 인구/상권) 연동 강화
+    cong_lvl, male_r, fem_r, sales_rank, shop_lvl, sales_total = "데이터 없음", 50.0, 50.0, "분석 중...", "분석 중...", "0"
     age_rates = {"10대":0, "20대":0, "30대":0, "40대":0, "50대":0, "60대+":0}
     
     try:
+        # 도시데이터 API 호출 (인구 구성 및 상권 정보 포함)
         c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{target['name']}"
-        root = ET.fromstring(requests.get(c_url, timeout=5).text)
-        cong_lvl = root.find(".//AREA_CONGEST_LVL").text if root.find(".//AREA_CONGEST_LVL") is not None else "여유"
-        fem_r = float(root.find('.//FEMALE_PPLTN_RATE').text)
-        male_r = 100.0 - fem_r
+        c_res = requests.get(c_url, timeout=5)
         
-        for i in range(1, 6):
-            node = root.find(f".//PPLTN_RATE_{i}0")
-            if node is not None: age_rates[f"{i}0대"] = float(node.text)
-        r60 = float(root.find(".//PPLTN_RATE_60").text or 0)
-        r70 = float(root.find(".//PPLTN_RATE_70").text or 0)
-        age_rates["60대+"] = r60 + r70
-
-        rank_node = root.find(".//REALT_TIM_CMRCL_STTS")
-        if rank_node is not None:
-            # 매출 총액 등급 (1 미만 등)
-            amt_node = rank_node.find("CUR_ALIVE_HOT_LVL")
-            if amt_node is not None: shop_lvl = f"{amt_node.text} 시간대"
+        if c_res.status_code == 200:
+            root = ET.fromstring(c_res.text)
             
-            # 업종 순위
-            r1 = rank_node.find("UPJONG_NM_1").text if rank_node.find("UPJONG_NM_1") is not None else "-"
-            r2 = rank_node.find("UPJONG_NM_2").text if rank_node.find("UPJONG_NM_2") is not None else "-"
-            r3 = rank_node.find("UPJONG_NM_3").text if rank_node.find("UPJONG_NM_3") is not None else "-"
-            sales_rank = f"1위 {r1} / 2위 {r2} / 3위 {r3}"
-    except: pass
+            # 1. 실시간 인구 혼잡도 (AREA_CONGEST_LVL)
+            cong_node = root.find(".//AREA_CONGEST_LVL")
+            if cong_node is not None: cong_lvl = cong_node.text
+
+            # 2. 성별 비중 (FEMALE_PPLTN_RATE)
+            fem_node = root.find('.//FEMALE_PPLTN_RATE')
+            if fem_node is not None:
+                fem_r = float(fem_node.text)
+                male_r = 100.0 - fem_r
+            
+            # 3. 연령대별 비중 (PPLTN_RATE_10 ~ 70)
+            for i in range(1, 6):
+                age_node = root.find(f".//PPLTN_RATE_{i}0")
+                if age_node is not None: age_rates[f"{i}0대"] = float(age_node.text)
+            
+            # 60대 이상 합산
+            r60 = root.find(".//PPLTN_RATE_60")
+            r70 = root.find(".//PPLTN_RATE_70")
+            age_rates["60대+"] = float(r60.text if r60 is not None else 0) + float(r70.text if r70 is not None else 0)
+
+            # 4. 실시간 상권 정보 (REALT_TIM_CMRCL_STTS)
+            rank_node = root.find(".//REALT_TIM_CMRCL_STTS")
+            if rank_node is not None:
+                # 상권 활밀도 (CUR_ALIVE_HOT_LVL)
+                hot_node = rank_node.find("CUR_ALIVE_HOT_LVL")
+                if hot_node is not None: shop_lvl = hot_node.text
+                
+                # 업종별 매출 순위
+                r1 = rank_node.find("UPJONG_NM_1").text if rank_node.find("UPJONG_NM_1") is not None else "-"
+                r2 = rank_node.find("UPJONG_NM_2").text if rank_node.find("UPJONG_NM_2") is not None else "-"
+                r3 = rank_node.find("UPJONG_NM_3").text if rank_node.find("UPJONG_NM_3") is not None else "-"
+                sales_rank = f"1위 {r1} / 2위 {r2} / 3위 {r3}"
+    except Exception as e:
+        st.caption("실시간 상권 정보를 불러오는 중입니다...")
 
     # --- 화면 구성 ---
     st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")

@@ -11,32 +11,70 @@ from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 
 # ==========================================
-# 1. 설정값 (매니저님 기존 정보 유지)
+# 1. 설정값
 # ==========================================
 GAS_URL = "https://script.google.com/macros/s/AKfycbzu-9NF957LyR36tM6vNsGZ-NeXPwGllZyRqlGV878HpZ1lVFK8TplVv-7_RsyJFdKA/exec"
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSGEDlHeWG2PHspcMEtlO74lWt9UWdeIzwL9A9fpV6nTY5eSvYTUfeNOFlWvh8qHXFnNwHBsaKKG6cp/pub?gid=189297044&single=true&output=csv"
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'}
-
-# 수집 기간 설정 (오늘부터 1년 전까지)
 ONE_YEAR_AGO = datetime.now() - timedelta(days=365)
 
+# 전역 중복 체크 리스트 (프로그램 실행 중 실시간 업데이트)
+GLOBAL_TITLES = []
+
 # ==========================================
-# 2. 데이터 처리 및 중복 방지 로직
+# 2. 정밀 분석 및 중복 체크 로직
 # ==========================================
+
 def get_existing_titles():
-    """시트에서 기존 제목 목록을 가져와 공백 제거 후 리스트화"""
+    """시트에서 기존 데이터를 가져와 중복 체크용 리스트 생성"""
+    global GLOBAL_TITLES
     try:
+        # 캐시 방지를 위해 타임스탬프 추가
         url = f"{SHEET_CSV_URL}&t={int(time.time())}"
         df = pd.read_csv(url)
-        return [str(t).replace(" ", "").strip() for t in df['제목(VOC)'].tolist()]
-    except:
-        return []
+        # 제목의 공백을 제거하고 대문자로 통일하여 비교 정확도 극대화
+        GLOBAL_TITLES = [str(t).replace(" ", "").upper().strip() for t in df['제목(VOC)'].tolist()]
+        print(f"📊 기존 데이터 {len(GLOBAL_TITLES)}건 로드 완료")
+    except Exception as e:
+        print(f"⚠️ 기존 데이터 로드 실패(첫 실행일 수 있음): {e}")
+        GLOBAL_TITLES = []
+
+def extract_region(text):
+    region_map = {
+        "서울": ["서울", "강남", "강북", "송파", "강서"],
+        "경기": ["경기", "경기도", "수원", "용인", "고양", "성남", "부천", "안산", "화성", "남양주", "안양"],
+        "인천": ["인천", "송도", "부평"],
+        "부산": ["부산", "해운대"],
+        "대구": ["대구", "수성구"],
+        "광주": ["광주광역시", "광주"],
+        "대전": ["대전"],
+        "울산": ["울산"],
+        "세종": ["세종"],
+        "강원": ["강원", "춘천", "원주", "강릉"],
+        "충북": ["충북", "청주", "충주"],
+        "충남": ["충남", "천안", "아산"],
+        "전북": ["전북", "전주", "익산"],
+        "전남": ["전남", "목포", "여수"],
+        "경북": ["경북", "포항", "구미", "경주"],
+        "경남": ["경남", "창원", "김해", "진주"],
+        "제주": ["제주", "서귀포"]
+    }
+    for region, keywords in region_map.items():
+        if any(key in text for key in keywords):
+            return region
+    return "전국"
+
+def extract_brand(text):
+    text = text.upper()
+    if "LG" in text or "엘지" in text: return "LG전자"
+    if "삼성" in text or "SAMSUNG" in text: return "삼성전자"
+    return "기타/미분류"
 
 def refine_category(title, summary, initial_item):
-    combined = (title + " " + summary).replace(" ", "")
+    combined = (title + " " + summary).replace(" ", "").upper()
     category_map = {
-        "에어컨": ["에어컨", "시스템에어컨", "벽걸이", "스탠드", "2IN1"],
+        "에어컨": ["에어컨", "시스템에어컨", "벽걸이", "스탠드", "2IN1", "무풍"],
         "세탁기": ["세탁기", "통돌이", "드럼세탁", "워시타워"],
         "건조기": ["건조기", "히트펌프건조"],
         "냉장고": ["냉장고", "김치냉장고", "비스포크", "오브제"],
@@ -52,9 +90,14 @@ def refine_category(title, summary, initial_item):
             return category
     return initial_item
 
-def push_to_sheet(channel, region, category, title, summary, post_date, issue_tag, brand, existing_titles):
-    clean_title = title.replace(" ", "").strip()
-    if clean_title in existing_titles:
+def push_to_sheet(channel, region, category, title, summary, post_date, issue_tag, brand):
+    global GLOBAL_TITLES
+    
+    # 중복 체크용 정규화 (공백제거, 대문자화)
+    check_title = title.replace(" ", "").upper().strip()
+    
+    if check_title in GLOBAL_TITLES:
+        print(f"⏭️ 중복 스킵: {title[:15]}...")
         return False
 
     payload = {
@@ -62,17 +105,22 @@ def push_to_sheet(channel, region, category, title, summary, post_date, issue_ta
         "voc": title, "summary": summary, "postDate": post_date,
         "issueTag": issue_tag, "brand": brand
     }
+    
     try:
         res = requests.post(GAS_URL, data=payload, timeout=15)
         if res.status_code == 200:
-            existing_titles.append(clean_title)
-            print(f"✅ 전송: {title[:15]}...")
+            # 전송 성공 시 실시간으로 리스트에 추가하여 현재 실행 중에도 중복 방지
+            GLOBAL_TITLES.append(check_title)
+            print(f"✅ 전송성공: [{region}/{brand}] {title[:12]}...")
             return True
-    except: return False
+    except Exception as e:
+        print(f"❌ 전송오류: {e}")
+        return False
 
 # ==========================================
-# 3. 크롤링 엔진 (Selenium & Requests)
+# 3. 크롤링 엔진
 # ==========================================
+
 def setup_driver():
     options = Options()
     options.add_argument("--headless")
@@ -80,27 +128,23 @@ def setup_driver():
     options.add_argument("--disable-dev-shm-usage")
     return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
-def crawl_naver_cafe_1year(item, sub, existing_titles, driver):
-    """1년치 네이버 카페 데이터를 수집 (기간 필터링 URL 사용)"""
-    query = f"{item} {sub}"
-    # 네이버 검색 기간 설정 파라미터 (1년치 필터링)
+def crawl_naver_cafe(item, sub, driver):
     end_date = datetime.now().strftime("%Y%m%d")
     start_date = ONE_YEAR_AGO.strftime("%Y%m%d")
+    query = f"{item} {sub}"
     url = f"https://search.naver.com/search.naver?where=article&query={query}&st=rel&date_option=8&date_from={start_date}&date_to={end_date}"
     
     try:
         driver.get(url)
         time.sleep(3)
-        # 1년치는 데이터가 많으므로 스크롤을 2번 정도 내려줍니다
-        driver.execute_script("window.scrollTo(0, 1000);")
-        time.sleep(1)
-        
         articles = driver.find_elements(By.CSS_SELECTOR, "li.bx")
-        for li in articles[:5]: # 키워드당 상위 5개 수집
+        for li in articles[:5]:
             try:
                 title_tag = li.find_element(By.CSS_SELECTOR, ".api_txt_lines.total_tit")
                 title = title_tag.text
-                if title.replace(" ", "").strip() in existing_titles: continue
+                
+                # 전송 전 로컬에서 먼저 체크
+                if title.replace(" ", "").upper().strip() in GLOBAL_TITLES: continue
                 
                 title_tag.click()
                 time.sleep(3)
@@ -111,17 +155,17 @@ def crawl_naver_cafe_1year(item, sub, existing_titles, driver):
                 date_txt = driver.find_element(By.CSS_SELECTOR, ".date").text
                 
                 final_cat = refine_category(title, content, item)
-                brand = "LG" if any(kw in (title+content).upper() for kw in ["LG", "엘지"]) else "삼성" if "삼성" in (title+content) else "기타"
+                brand_name = extract_brand(title + content)
+                region_name = extract_region(title + content)
                 
-                push_to_sheet("네이버 카페", "전국", final_cat, title, content, date_txt, sub, brand, existing_titles)
+                push_to_sheet("네이버 카페", region_name, final_cat, title, content, date_txt, sub, brand_name)
                 
                 driver.close()
                 driver.switch_to.window(driver.window_handles[0])
             except: continue
     except: pass
 
-def crawl_naver_kin_1year(item, sub, existing_titles):
-    """지식iN 1년치 수집"""
+def crawl_naver_kin(item, sub):
     query = f"{item} {sub}"
     url = f"https://kin.naver.com/search/list.naver?query={query}&sort=date"
     try:
@@ -129,31 +173,28 @@ def crawl_naver_kin_1year(item, sub, existing_titles):
         soup = BeautifulSoup(res.text, 'html.parser')
         for it in soup.select('ul.basic1 > li')[:5]:
             title = it.select_one('._searchListTitleAnchor').text.strip()
-            if title.replace(" ", "").strip() in existing_titles: continue
+            
+            if title.replace(" ", "").upper().strip() in GLOBAL_TITLES: continue
             
             summary = it.select_one('.answer_content, .txt_inline + dl dt + dd')
             summary_txt = summary.text.strip() if summary else "내용 없음"
             date_txt = it.select_one('.txt_inline').text
             
-            # 날짜가 1년 전보다 이전이면 수집 중단 (지식iN은 날짜 정렬이므로 효율적)
-            try:
-                if "전" not in date_txt and "." in date_txt:
-                    post_date = datetime.strptime(date_txt.strip('.'), "%Y.%m.%d")
-                    if post_date < ONE_YEAR_AGO: break
-            except: pass
-
             final_cat = refine_category(title, summary_txt, item)
-            brand = "LG" if any(kw in (title+summary_txt).upper() for kw in ["LG", "엘지"]) else "삼성" if "삼성" in (title+summary_txt) else "기타"
-            push_to_sheet("네이버 지식iN", "전국", final_cat, title, summary_txt, date_txt, sub, brand, existing_titles)
+            brand_name = extract_brand(title + summary_txt)
+            region_name = extract_region(title + summary_txt)
+            
+            push_to_sheet("네이버 지식iN", region_name, final_cat, title, summary_txt, date_txt, sub, brand_name)
     except: pass
 
 # ==========================================
 # 4. 메인 실행
 # ==========================================
 if __name__ == "__main__":
-    existing_titles = get_existing_titles()
-    driver = setup_driver()
+    # 1. 기존 데이터 제목 로드 (중복 원천 차단 시작)
+    get_existing_titles()
     
+    driver = setup_driver()
     appliance_settings = {
         "세탁기": ["분해세척", "냄새", "곰팡이", "고장수리", "파손" , "소음"],
         "에어컨": ["분해세척", "냄새", "곰팡이", "고장수리", "배터리"],
@@ -162,7 +203,6 @@ if __name__ == "__main__":
         "건조기": ["분해세척", "냄새", "곰팡이", "고장수리", "소음", "먼지"],
         "의류관리기": ["분해세척", "냄새", "곰팡이", "고장수리", "소음"],
         "청소기": ["분해세척", "냄새", "배터리", "고장수리", "파손"],
-        "로봇청소기": ["분해세척", "냄새", "배터리", "고장수리", "소음"],
         "노트북": ["배터리", "파손", "고장수리", "액정", "발열"],
         "TV": ["배터리", "파손", "고장수리", "액정", "소음"],
         "사운드바": ["고장수리", "파손", "소음", "연결오류"]
@@ -170,9 +210,10 @@ if __name__ == "__main__":
     
     for item, subs in appliance_settings.items():
         for sub in subs:
-            print(f"📡 {item}-{sub} 1년치 분석...")
-            crawl_naver_cafe_1year(item, sub, existing_titles, driver)
-            crawl_naver_kin_1year(item, sub, existing_titles)
+            print(f"📡 수집 중: {item} - {sub}")
+            crawl_naver_cafe(item, sub, driver)
+            crawl_naver_kin(item, sub)
             time.sleep(random.uniform(2, 4))
 
     driver.quit()
+    print("✨ 전체 크롤링 및 중복 방지 처리 완료")

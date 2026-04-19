@@ -622,25 +622,20 @@ if loc:
             </div>
             """, unsafe_allow_html=True)
 
-            # (3) 연령대별 소비 비중
+            # --- (3) 연령대별 소비 비중 (한 줄 통합 막대 그래프) ---
             st.write("**🎂 연령대별 소비 비중**")
-            age_colors = ["#D1E9FF", "#A5D8FF", "#74C0FC", "#339AF0", "#1C7ED6", "#1864AB"]
-            age_items_html = ""
-            for idx, (label, val) in enumerate(age_data.items()):
-                if val > 0:
-                    text_color = "white" if idx >= 3 else "#212529"
-                    age_items_html += f"""
-                    <div style="width:{val}%; background:{age_colors[idx]}; color:{text_color}; text-align:center; line-height:35px; font-size:10px; font-weight:bold; min-width:max-content; padding:0 5px;">
-                        {label.replace('대', '')} ({val:.0f}%)
-                    </div>
-                    """
-            st.markdown(f"""
-            <div style="display:flex; height:35px; border-radius:10px; overflow:hidden; border:1px solid #E9ECEF; margin-bottom:10px; background:#F8F9FA;">
-                {age_items_html if age_items_html else '<div style="width:100%; text-align:center; line-height:35px; color:#ADB5BD;">데이터 없음</div>'}
-            </div>
-            """, unsafe_allow_html=True)
-            st.caption("※ 왼쪽부터 10대↓, 20대, 30대, 40대, 50대, 60대↑ 순서입니다.")
 
+            # 중략 (age_items_html 생성 로직)
+
+            # [수정 포인트] 반드시 st.markdown과 unsafe_allow_html=True를 사용해야 합니다.
+            st.markdown(f"""
+                <div style="display:flex; height:35px; border-radius:10px; overflow:hidden; border:1px solid #E9ECEF; margin-bottom:10px; background:#F8F9FA;">
+                    {age_items_html if age_items_html else '<div style="width:100%; text-align:center; line-height:35px; color:#ADB5BD;">데이터 없음</div>'}
+                </div>
+            """, unsafe_allow_html=True)
+
+            st.caption("※ 왼쪽부터 10대↓, 20대, 30대, 40대, 50대, 60대↑ 순서입니다.")
+               
             # (4) 상권 분석 요약
             max_age_key = max(age_data, key=age_data.get)
             dominant_g = "남성" if m_pay_r > f_pay_r else "여성"

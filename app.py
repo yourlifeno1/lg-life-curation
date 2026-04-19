@@ -193,51 +193,44 @@ if loc:
         # 에러 발생 시 로그만 남기고 0점 유지
         st.caption(f"S-DoT 수신 대기 중...")
 
-  # [수정] 매뉴얼 계층 구조 반영 데이터 수집
-    cong_lvl, male_r, fem_r, sales_rank, shop_lvl = "데이터 없음", 50.0, 50.0, "상권 정보 없음", "정보 없음"
+  # [수정] 모든 변수 사전 초기화 (NameError 방지)
+    cong_lvl, male_r, fem_r = "데이터 없음", 50.0, 50.0
+    shop_lvl, sales_rank, sales_total = "정보 없음", "상권 정보 미제공", "0" # sales_total 초기화 추가
     age_rates = {"10대":0, "20대":0, "30대":0, "40대":0, "50대":0, "60대+":0}
     
     try:
-        # 공식 API 호출
         c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{target['name']}"
         c_res = requests.get(c_url, timeout=5)
         
         if c_res.status_code == 200 and "<CITYDATA>" in c_res.text:
             root = ET.fromstring(c_res.text)
             
-            # 1. 실시간 인구 구성 (출력 명세: LIVE_PPLTN_STTS 내부)
-            # 이미지 1~12번 항목
+            # 1. 인구 데이터 파싱
             ppltn_stts = root.find(".//LIVE_PPLTN_STTS")
             if ppltn_stts is not None:
-                cong_lvl = ppltn_stts.findtext("AREA_CONGEST_LVL", "데이터 없음") # 1번 항목
-                fem_r = float(ppltn_stts.findtext("FEMALE_PPLTN_RATE", "50"))   # 4번 항목
-                male_r = 100.0 - fem_r                                       # 3번 항목 계산
-                
-                # 연령대별 비중 (5~11번 항목)
+                cong_lvl = ppltn_stts.findtext("AREA_CONGEST_LVL", "데이터 없음")
+                fem_r = float(ppltn_stts.findtext("FEMALE_PPLTN_RATE", "50"))
+                male_r = 100.0 - fem_r
                 for i in range(1, 6):
                     age_rates[f"{i}0대"] = float(ppltn_stts.findtext(f"PPLTN_RATE_{i}0", "0"))
                 v60 = float(ppltn_stts.findtext("PPLTN_RATE_60", "0"))
                 v70 = float(ppltn_stts.findtext("PPLTN_RATE_70", "0"))
                 age_rates["60대+"] = v60 + v70
 
-            # 2. 실시간 상권 현황 (출력 명세: REALT_TIM_CMRCL_STTS 내부)
-            # 이미지 13~18번 항목
+            # 2. 상권 데이터 파싱 (sales_total 포함)
             commerce_stts = root.find(".//REALT_TIM_CMRCL_STTS")
             if commerce_stts is not None:
-                # 상권 활밀도 (15번 항목)
-                shop_lvl = commerce_stts.findtext("CUR_ALIVE_HOT_LVL", "정보 없음") 
-                
-                # 업종 순위 (16~18번 항목)
+                shop_lvl = commerce_stts.findtext("CUR_ALIVE_HOT_LVL", "정보 없음")
                 r1 = commerce_stts.findtext("UPJONG_NM_1", "-")
                 r2 = commerce_stts.findtext("UPJONG_NM_2", "-")
                 r3 = commerce_stts.findtext("UPJONG_NM_3", "-")
                 sales_rank = f"1위 {r1} / 2위 {r2} / 3위 {r3}"
-            else:
-                shop_lvl = "상권 데이터 미제공 장소"
-                sales_rank = "주변 발달 상권 정보를 참고하세요"
-
+                # 매출 등급/금액 데이터 (명세서 14번 항목)
+                sales_total = commerce_stts.findtext("CUR_ALIVE_AMT_LVL", "0") 
+    
     except Exception as e:
-        st.error(f"🌐 데이터 파싱 오류: {e}")
+        # 에러 발생 시에도 변수는 이미 위에서 선언되었으므로 NameError는 나지 않음
+        pass
         
     # --- 화면 구성 ---
     st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")

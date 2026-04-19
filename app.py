@@ -515,8 +515,7 @@ if loc:
     </div>
     """, unsafe_allow_html=True)
 
- # --- [핵심 추가] 가전 이슈 섹션 호출 ---
-    # --- [삽입 위치] 가전 이슈 섹션 바로 아래 ---
+    # --- [핵심 추가] 가전 이슈 섹션 호출 ---
     show_voc_section(u_dong)
 
     # ==========================================
@@ -586,8 +585,79 @@ if loc:
             - 이슈에 맞춰 LG전자 구독의 전문가 방문관리, 무상 A/s, 소모품 교체를 적절하게 언급하세요.
             """)
 
+        # ==========================================================
+            # [여기에 삽입] 4. 실시간 소비 인구 비율 분석 시작
+            # ==========================================================
+            st.write("---")
+            st.subheader("💳 실시간 소비 인구 비율")
+            
+            try:
+                # 성별 소비 비율 (매니저님 지정 태그)
+                m_pay_r = float(root.findtext(".//CMRCL_MALE_RATE", "0"))
+                f_pay_r = float(root.findtext(".//CMRCL_FEMALE_RATE", "0"))
+
+                # 개인/법인 소비 비율 (매니저님 지정 태그)
+                p_pay_r = float(root.findtext(".//CMRCL_PERSONAL_RATE", "0"))
+                c_pay_r = float(root.findtext(".//CMRCL_CORPORATION_RATE", "0"))
+
+                # 연령대별 소비 비율 (매니저님 지정 태그)
+                age_data = {
+                    "10대↓": float(root.findtext(".//CMRCL_10_RATE", "0")),
+                    "20대": float(root.findtext(".//CMRCL_20_RATE", "0")),
+                    "30대": float(root.findtext(".//CMRCL_30_RATE", "0")),
+                    "40대": float(root.findtext(".//CMRCL_40_RATE", "0")),
+                    "50대": float(root.findtext(".//CMRCL_50_RATE", "0")),
+                    "60대↑": float(root.findtext(".//CMRCL_60_RATE", "0"))
+                }
+
+                # 시각화 레이아웃 (성별/법인)
+                col_s1, col_s2 = st.columns(2)
+                with col_s1:
+                    st.write("**👫 성별 소비 비중**")
+                    t_g = m_pay_r + f_pay_r
+                    m_p = (m_pay_r / t_g * 100) if t_g > 0 else 50
+                    f_p = (f_pay_r / t_g * 100) if t_g > 0 else 50
+                    st.markdown(f"""
+                    <div style="display:flex; height:30px; border-radius:15px; overflow:hidden; border:1px solid #E9ECEF;">
+                        <div style="width:{m_p}%; background:#3B82F6; color:white; text-align:center; line-height:30px; font-size:11px; font-weight:bold;">남 {m_pay_r:.0f}%</div>
+                        <div style="width:{f_p}%; background:#EC4899; color:white; text-align:center; line-height:30px; font-size:11px; font-weight:bold;">여 {f_pay_r:.0f}%</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                with col_s2:
+                    st.write("**🏢 개인/법인 비중**")
+                    t_c = p_pay_r + c_pay_r
+                    p_p = (p_pay_r / t_c * 100) if t_c > 0 else 90
+                    c_p = (c_pay_r / t_c * 100) if t_c > 0 else 10
+                    st.markdown(f"""
+                    <div style="display:flex; height:30px; border-radius:15px; overflow:hidden; border:1px solid #E9ECEF;">
+                        <div style="width:{p_p}%; background:#475467; color:white; text-align:center; line-height:30px; font-size:11px; font-weight:bold;">개인 {p_pay_r:.0f}%</div>
+                        <div style="width:{c_p}%; background:#ADB5BD; color:white; text-align:center; line-height:30px; font-size:11px; font-weight:bold;">법인 {c_pay_r:.0f}%</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                st.write("")
+                st.write("**🎂 연령대별 소비 비중**")
+                for age, val in age_data.items():
+                    st.markdown(f"""
+                    <div style="display:flex; align-items:center; margin-bottom:8px;">
+                        <div style="width:55px; font-size:12px; color:#495057;">{age}</div>
+                        <div style="flex:1; background:#F1F3F5; height:12px; border-radius:6px; overflow:hidden; margin:0 10px;">
+                            <div style="width:{val}%; background:linear-gradient(90deg, #3B82F6, #2563EB); height:100%;"></div>
+                        </div>
+                        <div style="width:35px; font-size:12px; text-align:right; font-weight:bold; color:#212529;">{val:.0f}%</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                max_age_key = max(age_data, key=age_data.get)
+                st.success(f"📌 **상권 분석 요약**: 현재 이 지역은 **{max_age_key}** 고객의 소비가 가장 활발하며, **{'개인' if p_pay_r > c_pay_r else '법인'}** 중심의 상권입니다.")
+
+            except Exception as e:
+                st.caption("실시간 소비 데이터를 불러오는 중입니다...")
+            # ==========================================================
+
         except Exception as e:
             st.caption("상세 데이터를 불러오는 중입니다...")
 
     st.divider()
-    st.caption("※ 서울 실시간 도시데이터 V8.5 API 기반 | 데이터 갱신: 실시간") 
+    st.caption("※ 서울 실시간 도시데이터 V8.5 API 기반 | 데이터 갱신: 실시간")

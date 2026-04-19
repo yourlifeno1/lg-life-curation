@@ -137,34 +137,37 @@ def crawl_daum_blog(item, sub, existing_titles):
     except: pass
 
 if __name__ == "__main__":
-    print("🚀 가전별 특성을 고려한 정밀 크롤링을 시작합니다...")
+    print("🚀 가전별 개별 맞춤 키워드로 정밀 수집을 시작합니다...")
     existing_titles = get_existing_titles()
     
-    # 1. 가전별 수집 그룹 정의
-    # 그룹 A: 위생(냄새/곰팡이/세척)이 핵심인 가전 (+ 청소기, 로봇청소기 추가)
-    hygiene_group = ["냉장고", "세탁기", "에어컨", "식기세척기", "건조기", "의류관리기", "청소기", "로봇청소기"]
-    hygiene_keywords = ["분해세척", "냄새", "곰팡이", "고장수리", "파손"]
-    
-    # 그룹 B: 성능 및 하드웨어 이슈가 핵심인 가전
-    tech_group = ["노트북", "TV", "사운드바"]
-    tech_keywords = ["배터리", "파손", "고장수리", "액정", "소음"]
+    # 1. 가전별 수집 키워드 개별 정의 (매니저님 피드백 완벽 반영)
+    appliance_settings = {
+        # 위생 + 성능 모두 중요한 품목
+        "세탁기": ["분해세척", "냄새", "곰팡이", "고장수리", "파손" , "소음"],
+        "에어컨": ["분해세척", "냄새", "곰팡이", "고장수리", "배터리"],
+        "냉장고": ["냄새", "곰팡이", "고장수리", "파손", "소음"],
+        "식기세척기": ["분해세척", "냄새", "곰팡이", "고장수리", "소음"],
+        "건조기": ["분해세척", "냄새", "곰팡이", "고장수리", "소음", "먼지"],
+        "의류관리기": ["분해세척", "냄새", "곰팡이", "고장수리", "소음"],
+        
+        # 청소기류: 위생 + 배터리 합치기
+        "청소기": ["분해세척", "냄새", "배터리", "고장수리", "파손"],
+        "로봇청소기": ["분해세척", "냄새", "배터리", "고장수리", "소음"],
+        
+        # IT/디스플레이 중심 품목 (위생 제외)
+        "노트북": ["배터리", "파손", "고장수리", "액정", "발열"],
+        "TV": ["배터리", "파손", "고장수리", "액정", "소음"],
+        "사운드바": ["고장수리", "파손", "소음", "연결오류"]
+    }
 
-    # 2. 위생/케어 중심 가전 수집
-    for product in hygiene_group:
-        for sub in hygiene_keywords:
-            print(f"🔍 [Care] {product} x {sub} 분석...")
+    # 2. 통합 수집 루프
+    for product, keywords in appliance_settings.items():
+        for sub in keywords:
+            print(f"🔍 [정밀수집] {product} x {sub} 분석 중...")
             crawl_naver_kin(product, sub, existing_titles)
             crawl_naver_cafe(product, sub, existing_titles)
             crawl_daum_blog(product, sub, existing_titles)
-            time.sleep(random.uniform(1.2, 2.5))
+            # 차단 방지를 위해 랜덤 지연 유지
+            time.sleep(random.uniform(1.2, 2.8))
 
-    # 3. IT/디스플레이 중심 가전 수집
-    for product in tech_group:
-        for sub in tech_keywords:
-            print(f"🔍 [Tech] {product} x {sub} 분석...")
-            crawl_naver_kin(product, sub, existing_titles)
-            crawl_naver_cafe(product, sub, existing_titles)
-            crawl_daum_blog(product, sub, existing_titles)
-            time.sleep(random.uniform(1.2, 2.5))
-
-    print("✨ 모든 맞춤형 데이터 수집이 완료되었습니다!")
+    print("✨ 모든 가전의 맞춤형 키워드 수집이 완료되었습니다!")

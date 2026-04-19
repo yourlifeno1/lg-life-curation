@@ -145,16 +145,16 @@ def show_voc_section(u_dong):
                 # 해당 가전의 데이터만 필터링
                 appliance_data = df[df['가전'] == appliance]
                 
-                # [핵심 로직] 키워드별 빈도 계산
+                # 키워드별 빈도 계산
                 issue_counts = appliance_data['이슈 키워드'].value_counts().reset_index()
                 issue_counts.columns = ['keyword', 'count']
                 
-                # 정렬 규칙: 1. 횟수(count) 내림차순, 2. 키워드(keyword) 오름차순(가나다)
+                # 정렬 규칙: 1. 횟수 내림차순, 2. 가나다순 오름차순
                 issue_counts = issue_counts.sort_values(by=['count', 'keyword'], ascending=[False, True])
                 
-                # 상위 키워드들을 "키워드1", "키워드2" 형식으로 묶기
-                sorted_keywords = [f'"{row["keyword"]}"' for _, row in issue_counts.iterrows()]
-                keywords_str = ", ".join(sorted_keywords)
+                # [매니저님 요청 반영] 상위 3개 키워드만 추출하고 따옴표 제거 후 쉼표 연결
+                top_3_keywords = issue_counts['keyword'].head(3).tolist()
+                keywords_str = ", ".join(top_3_keywords)
                 
                 # 3. 카드 출력
                 st.markdown(f"""

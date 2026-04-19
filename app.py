@@ -127,8 +127,17 @@ def show_voc_section(u_dong):
     """
     
     st.write("")
-    st.markdown('<b style="font-size:30px; color:#212529;">🏠 우리 동네 가전 이슈</b>', unsafe_allow_html=True)
-    st.markdown('<p style="font-size:14px; color:#6C757D; margin-top:-5px;">고객 이슈 Top 3</p>', unsafe_allow_html=True)
+    st.markdown(f"""
+        <div style="margin-top: 10px; margin-bottom: 5px;">
+            <span style="font-size: 22px; margin-right: 8px;">🏠</span>
+            <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px;">
+                우리 동네 가전 이슈
+            </span>
+            <div style="font-size: 13px; color: #6C757D; margin-top: 2px; margin-left: 30px;">
+                고객 이슈 Top 3
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
     
     try:
         # 2. 데이터 로드 및 전처리

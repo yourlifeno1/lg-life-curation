@@ -137,24 +137,34 @@ def crawl_daum_blog(item, sub, existing_titles):
     except: pass
 
 if __name__ == "__main__":
-    print("🚀 확장된 가전 리스트로 수집을 시작합니다...")
+    print("🚀 가전별 특성을 고려한 정밀 크롤링을 시작합니다...")
     existing_titles = get_existing_titles()
     
-    # [수정] 성공했던 가전 리스트 전체 반영
-    appliance_list = [
-        "노트북", "식기세척기", "건조기", "의류관리기", 
-        "사운드바", "로봇청소기", "세탁기", "에어컨", "냉장고", "TV"
-    ]
+    # 1. 가전별 수집 그룹 정의
+    # 그룹 A: 위생(냄새/곰팡이/세척)이 핵심인 가전 (+ 청소기, 로봇청소기 추가)
+    hygiene_group = ["냉장고", "세탁기", "에어컨", "식기세척기", "건조기", "의류관리기", "청소기", "로봇청소기"]
+    hygiene_keywords = ["분해세척", "냄새", "곰팡이", "고장수리", "파손"]
     
-    sub_keywords = ["분해세척", "냄새", "곰팡이", "고장수리", "배터리", "파손"]
-    
-    for product in appliance_list:
-        for sub in sub_keywords:
-            print(f"🔍 {product} x {sub} 수집 중...")
+    # 그룹 B: 성능 및 하드웨어 이슈가 핵심인 가전
+    tech_group = ["노트북", "TV", "사운드바"]
+    tech_keywords = ["배터리", "파손", "고장수리", "액정", "소음"]
+
+    # 2. 위생/케어 중심 가전 수집
+    for product in hygiene_group:
+        for sub in hygiene_keywords:
+            print(f"🔍 [Care] {product} x {sub} 분석...")
             crawl_naver_kin(product, sub, existing_titles)
             crawl_naver_cafe(product, sub, existing_titles)
             crawl_daum_blog(product, sub, existing_titles)
-            # 수집 대상이 늘어났으므로 차단 방지를 위해 랜덤 지연을 유지합니다
-            time.sleep(random.uniform(1.5, 3.5))
+            time.sleep(random.uniform(1.2, 2.5))
 
-    print("✨ 모든 가전(10종) 수집이 완료되었습니다!")
+    # 3. IT/디스플레이 중심 가전 수집
+    for product in tech_group:
+        for sub in tech_keywords:
+            print(f"🔍 [Tech] {product} x {sub} 분석...")
+            crawl_naver_kin(product, sub, existing_titles)
+            crawl_naver_cafe(product, sub, existing_titles)
+            crawl_daum_blog(product, sub, existing_titles)
+            time.sleep(random.uniform(1.2, 2.5))
+
+    print("✨ 모든 맞춤형 데이터 수집이 완료되었습니다!")

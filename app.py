@@ -310,17 +310,38 @@ if loc:
                 except:
                     sales_total = "0"
                 
-                # 업종 순위 데이터 (기존 유지)
-                r1 = found_shop.findtext("UPJONG_NM_1", "-")
-                r2 = found_shop.findtext("UPJONG_NM_2", "-")
-                r3 = found_shop.findtext("UPJONG_NM_3", "-")
-                sales_rank = f"1위 {r1} / 2위 {r2} / 3위 {r3}"
+               # --- [실시간 결제 건수 기반 업종 순위 로직] ---
+                upjong_list = []
+                # 1위부터 5위까지 이름(NM)과 건수(CNT)를 짝지어 리스트에 담습니다.
+                for i in range(1, 6):
+                    nm = found_shop.findtext(f"UPJONG_NM_{i}", "-")
+                    # 업종별 결제 건수(RSB_SH_PAYMENT_CNT) 데이터를 가져옵니다.
+                    cnt_text = found_shop.findtext(f"RSB_SH_PAYMENT_CNT_{i}", "0")
+                    
+                    if nm != "-" and nm is not None:
+                        try:
+                            # 건수를 숫자로 변환 (값이 없을 경우 0)
+                            cnt_val = int(cnt_text)
+                            upjong_list.append({"name": nm, "count": cnt_val})
+                        except:
+                            continue
+
+                # 1. 건수(count)가 높은 순서대로 데이터를 정렬합니다.
+                sorted_list = sorted(upjong_list, key=lambda x: x['count'], reverse=True)
+
+                # 2. 상위 3개만 골라 "1위 업종명(00건)" 형식으로 만듭니다.
+                rank_parts = []
+                for idx, item in enumerate(sorted_list[:3]):
+                    rank_parts.append(f"{idx+1}위 {item['name']}({item['count']}건)")
+                
+                # 3. 최종적으로 sales_rank 변수에 담아 화면에 출력합니다.
+                sales_rank = " / ".join(rank_parts) if rank_parts else "정보 없음"
                 
             else:
                 shop_lvl = "데이터 미제공"
                 sales_total = "0"
                 sales_rank = "정보 없음"
-
+                
     except Exception as e:
         # 에러 발생 시 로그만 출력하고 기본값(0.0) 유지하여 NameError 방지
         print(f"DEBUG: API Parsing Error -> {e}")
@@ -435,9 +456,11 @@ if loc:
                 (신한카드 내국인 기준)
             </p>
         </div>
-        <div style="{box_style}">
-            <p style="font-size:12px; color:#868E96; margin:0;">결제 금액 Top 3 업종</p>
-            <p style="font-size:18px; font-weight:bold; margin:5px 0 0 0; color:#1A1C1E;">{sales_rank}</p>
+        <div style="{box_style} margin-top:10px;">
+            <p style="font-size:12px; color:#868E96; margin:0;">실시간 결제 Top 3 업종 (10분 기준)</p>
+            <p style="font-size:15px; font-weight:bold; margin:8px 0 0 0; color:#1A1C1E; letter-spacing:-0.5px;">
+                {sales_rank}
+            </p>
         </div>
     </div>
     """, unsafe_allow_html=True)

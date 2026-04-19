@@ -34,11 +34,16 @@ def extract_brand(text):
 def refine_category(title, summary, initial_item):
     combined = (title + " " + title + " " + summary).replace(" ", "")
     category_map = {
-        "에어컨": ["시스템에어컨", "벽걸이에어컨", "스탠드에어컨", "2IN1", "무풍에어컨", "에어컨"],
-        "세탁기": ["워시타워", "드럼세탁기", "통돌이세탁기", "트롬세탁기", "건조기", "세탁기"],
-        "냉장고": ["김치냉장고", "비스포크", "오브제냉장고", "냉장고"],
-        "TV": ["올레드TV", "OLEDTV", "벽걸이TV", "티비", "TV"],
-        "청소기": ["로봇청소기", "코드제로", "다이슨", "청소기"]
+        "에어컨": ["에어컨", "시스템에어컨", "벽걸이", "스탠드", "2IN1"],
+        "세탁기": ["세탁기", "통돌이", "드럼세탁", "워시타워"],
+        "건조기": ["건조기", "히트펌프건조"],
+        "냉장고": ["냉장고", "김치냉장고", "비스포크", "오브제"],
+        "TV": ["TV", "티비", "올레드", "벽걸이TV"],
+        "청소기": ["청소기", "코드제로", "다이슨", "로봇청소기"],
+        "노트북": ["노트북", "그램", "GRAM", "맥북", "외장그래픽"],
+        "식기세척기": ["식기세척기", "식세기"],
+        "의류관리기": ["의류관리기", "스타일러", "에어드레서"],
+        "사운드바": ["사운드바", "홈시어터", "오디오"]
     }
     for category, keywords in category_map.items():
         if any(key in combined for key in keywords):
@@ -132,13 +137,24 @@ def crawl_daum_blog(item, sub, existing_titles):
     except: pass
 
 if __name__ == "__main__":
+    print("🚀 확장된 가전 리스트로 수집을 시작합니다...")
     existing_titles = get_existing_titles()
-    appliance_list = ["세탁기", "에어컨", "냉장고", "TV", "청소기"]
+    
+    # [수정] 성공했던 가전 리스트 전체 반영
+    appliance_list = [
+        "노트북", "식기세척기", "건조기", "의류관리기", 
+        "사운드바", "로봇청소기", "세탁기", "에어컨", "냉장고", "TV"
+    ]
+    
     sub_keywords = ["분해세척", "냄새", "곰팡이", "고장수리", "배터리", "파손"]
     
     for product in appliance_list:
         for sub in sub_keywords:
+            print(f"🔍 {product} x {sub} 수집 중...")
             crawl_naver_kin(product, sub, existing_titles)
             crawl_naver_cafe(product, sub, existing_titles)
             crawl_daum_blog(product, sub, existing_titles)
-            time.sleep(random.uniform(2, 4))
+            # 수집 대상이 늘어났으므로 차단 방지를 위해 랜덤 지연을 유지합니다
+            time.sleep(random.uniform(1.5, 3.5))
+
+    print("✨ 모든 가전(10종) 수집이 완료되었습니다!")

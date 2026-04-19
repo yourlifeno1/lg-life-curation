@@ -194,70 +194,55 @@ if loc:
         st.caption(f"S-DoT 수신 대기 중...")
 
 # 1. 모든 출력 변수 사전 초기화 (NameError 및 0% 현상 완벽 방지)
-    # 1. 모든 출력 변수 사전 초기화
     cong_lvl = "데이터 없음"
     male_r, fem_r = 50.0, 50.0
     age_rates = {"10대": 0.0, "20대": 0.0, "30대": 0.0, "40대": 0.0, "50대": 0.0, "60대+": 0.0}
     shop_lvl, sales_rank, sales_total = "정보 없음", "정보 미제공", "0"
 
     try:
-        # [GPS 기반 유연한 명칭 추출] 
-        # 리스트에 등록된 원래 이름(예: 영등포 타임스퀘어)을 가져옵니다.
-        original_name = target['name']
+        # [핵심] 장소명에서 괄호를 제거하여 API 호출 (app 4 방식)
+        pure_name = target['name'].split('(')[0].strip()
+        c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{pure_name}"
+        c_res = requests.get(c_url, timeout=5)
         
-        # 괄호를 제거한 순수 이름 (예: 홍대입구역(2호선) -> 홍대입구역)
-        clean_name = original_name.split('(')[0].strip()
-        
-        # API 호출 함수 (재사용을 위해 내부 정의)
-        def call_seoul_api(name):
-            url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{name}"
-            res = requests.get(url, timeout=5)
-            if res.status_code == 200 and "<CITYDATA>" in res.text:
-                return ET.fromstring(res.text)
-            return None
-
-        # [지능형 2단계 호출]
-        # 1차 시도: 괄호 제거된 이름으로 호출
-        root = call_seoul_api(clean_name)
-        
-        # 2차 시도: 만약 1차에서 실패했고, 이름에 공백이 있다면 (예: "영등포 타임스퀘어") 
-        # 가장 뒤의 핵심 단어("타임스퀘어")로 다시 한번 시도합니다.
-        if root is None and " " in clean_name:
-            keyword_name = clean_name.split()[-1] # 공백 기준 마지막 단어 추출
-            root = call_seoul_api(keyword_name)
-
-        if root is not None:
-            # --- [인구 데이터 파싱] ---
-            p_section = root.find(".//LIVE_PPLTN_STTS")
-            if p_section is not None:
-                cong_lvl = p_section.findtext("AREA_CONGEST_LVL", "데이터 없음")
-                fem_r = float(p_section.findtext("FEMALE_PPLTN_RATE", "50"))
+        if c_res.status_code == 200:
+            # [수정] app 4의 유연한 파싱 방식(.//)으로 회귀
+            root = ET.fromstring(c_res.text)
+            
+            # --- 실시간 인구 데이터 ---
+            found_cong = root.find(".//AREA_CONGEST_LVL")
+            if found_cong is not None:
+                cong_lvl = found_cong.text
+                fem_r = float(root.findtext(".//FEMALE_PPLTN_RATE", "50"))
                 male_r = 100.0 - fem_r
-                # 연령대 데이터 수집
-                for i in range(1, 6):
-                    age_rates[f"{i}0대"] = float(p_section.findtext(f"PPLTN_RATE_{i}0", "0"))
-                age_rates["60대+"] = float(p_section.findtext("PPLTN_RATE_60", "0")) + float(p_section.findtext("PPLTN_RATE_70", "0"))
-
-            # --- [상권 데이터 파싱] ---
-            c_section = root.find(".//REALT_TIM_CMRCL_STTS") or root.find(".//LIVE_CMRCL_STTS")
-            if c_section is not None:
-                shop_lvl = c_section.findtext("CUR_ALIVE_HOT_LVL", "정보 없음")
-                # 어제 보셨던 상세 매출액 수치(만원 단위)
-                raw_amt = c_section.findtext("CUR_ALIVE_AMT_LVL", "0")
-                if raw_amt and raw_amt != "0":
-                    try: sales_total = f"{int(raw_amt):,}"
-                    except: sales_total = raw_amt
-                else:
-                    sales_total = "집계 중"
                 
-                # TOP 3 업종
-                r1 = c_section.findtext("UPJONG_NM_1", "-")
-                r2 = c_section.findtext("UPJONG_NM_2", "-")
-                r3 = c_section.findtext("UPJONG_NM_3", "-")
+                # 연령대 데이터 (키 이름을 하단 출력부와 100% 일치)
+                age_rates["10대"] = float(root.findtext(".//PPLTN_RATE_10", "0"))
+                age_rates["20대"] = float(root.findtext(".//PPLTN_RATE_20", "0"))
+                age_rates["30대"] = float(root.findtext(".//PPLTN_RATE_30", "0"))
+                age_rates["40대"] = float(root.findtext(".//PPLTN_RATE_40", "0"))
+                age_rates["50대"] = float(root.findtext(".//PPLTN_RATE_50", "0"))
+                
+                v60 = float(root.findtext(".//PPLTN_RATE_60", "0"))
+                v70 = float(root.findtext(".//PPLTN_RATE_70", "0"))
+                age_rates["60대+"] = v60 + v70
+
+            # --- 실시간 상권 데이터 (TOP 3) ---
+            found_shop = root.find(".//CUR_ALIVE_HOT_LVL")
+            if found_shop is not None:
+                shop_lvl = found_shop.text
+                sales_total = root.findtext(".//CUR_ALIVE_AMT_LVL", "0")
+                
+                # 업종 순위 TOP 3 구성
+                r1 = root.findtext(".//UPJONG_NM_1", "-")
+                r2 = root.findtext(".//UPJONG_NM_2", "-")
+                r3 = root.findtext(".//UPJONG_NM_3", "-")
                 sales_rank = f"1위 {r1} / 2위 {r2} / 3위 {r3}"
 
     except Exception as e:
-        st.error(f"데이터 수집 중 오류: {e}")
+        # 에러 발생 시 로그만 출력하고 기본값(0.0) 유지하여 NameError 방지
+        print(f"DEBUG: API Parsing Error -> {e}")
+
     
     # [중요] 짝꿍 except가 끝난 후 화면 구성 실행
     st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")

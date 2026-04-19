@@ -269,25 +269,25 @@ if loc:
             if found_cong is not None:
                 cong_lvl = found_cong.text
                 
-                # 1. 인구 예측(FCST_PPLTN) 전체 데이터를 가져옵니다.
-                fcst_all = root.findall(".//FCST_PPLTN")
+                # 1. [변경] 예측(FCST) 대신 과거 인구 이력(PPLTN_TIME) 데이터를 가져옵니다.
+                past_all = root.findall(".//PPLTN_TIME")
                 
                 max_val = -1
                 peak_time = ""
                 
-                # 2. 제안하신 MIN/MAX 중 MAX(최대치)가 가장 높은 시점을 피크 타임으로 잡습니다.
-                for fcst in fcst_all:
+                # 2. 지난 12시간 데이터 중 실제 인구(MAX 기준)가 가장 높았던 시점을 찾습니다.
+                for ppltn in past_all:
                     try:
-                        f_max = int(fcst.findtext("FCST_PPLTN_MAX", "0"))
-                        f_time = fcst.findtext("FCST_TIME", "")
+                        p_max = int(ppltn.findtext("AREA_PPLTN_MAX", "0"))
+                        p_time = ppltn.findtext("PPLTN_TIME", "")
                         
-                        if f_max > max_val:
-                            max_val = f_max
-                            peak_time = f_time
+                        if p_max > max_val:
+                            max_val = p_max
+                            peak_time = p_time
                     except:
                         continue
                 
-                # 3. 시간 포맷팅: 숫자 제외, "오전/오후 X시"만 남기기
+                # 3. 시간 포맷팅: "오전/오후 X시"
                 if peak_time and max_val > 0:
                     try:
                         dt_obj = datetime.strptime(peak_time, "%Y-%m-%d %H:%M")
@@ -295,18 +295,19 @@ if loc:
                         hh_12 = dt_obj.hour if dt_obj.hour <= 12 else dt_obj.hour - 12
                         if hh_12 == 0: hh_12 = 12
                         
-                        # 최종 결과: "오후 6시" (글자가 짧아져서 가독성이 좋아집니다)
-                        pop_time = f"{ampm} {hh_12}시"
+                        # 최종 결과: "오후 2시" (지난 12시간 중 가장 붐볐던 시각)
+                        pop_time = f"{ampm} {hh_12}시경"
                     except:
                         pop_time = "분석 중"
                 else:
-                    # 예측 데이터가 없는 경우를 대비한 현재 시간 포맷팅
+                    # 데이터가 없을 경우 현재 시간 표시
                     now = datetime.now()
                     ampm = "오전" if now.hour < 12 else "오후"
                     hh_12 = now.hour if now.hour <= 12 else now.hour - 12
                     if hh_12 == 0: hh_12 = 12
                     pop_time = f"{ampm} {hh_12}시"
                 
+                # 성별 비중 로직 (기존과 동일)
                 fem_r = float(root.findtext(".//FEMALE_PPLTN_RATE", "50"))
                 male_r = 100.0 - fem_r
             

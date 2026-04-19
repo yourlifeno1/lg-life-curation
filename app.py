@@ -173,7 +173,7 @@ def show_voc_section(u_dong):
                         <span style="font-size:18px; font-weight:900; color:#007BFF; margin-right:12px;">{i}위</span>
                         <div style="flex:1;">
                             <span style="font-size:16px; font-weight:bold; color:#212529;">{appliance}</span>
-                            <span style="font-size:14px; color:#495057;"> {keywords_str} 순으로 언급이 많아요</span>
+                            <span style="font-size:14px; color:#495057;"> {keywords_str} 언급이 많아요</span>
                         </div>
                     </div>
                 </div>

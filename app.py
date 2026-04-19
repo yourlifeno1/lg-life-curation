@@ -19,7 +19,7 @@ SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRXnh3VI7oOzSbM
 CITY_POINTS = [
     # --- [1. 인구밀집지역] (42개) ---
     {"name": "강남역", "lat": 37.4979, "lon": 127.0276, "category": "인구밀집지역"},
-    {"name": "쌍문역", "lat": 37.6486, "lon": 127.0347, "category": "인구밀집지역"}, #
+    {"name": "쌍문역", "lat": 37.6486, "lon": 127.0347, "category": "인구밀집지역"}, 
     {"name": "수유역", "lat": 37.6380, "lon": 127.0257, "category": "인구밀집지역"},
     {"name": "창동역", "lat": 37.6531, "lon": 127.0476, "category": "인구밀집지역"},
     {"name": "노원역", "lat": 37.6548, "lon": 127.0605, "category": "인구밀집지역"},
@@ -45,7 +45,7 @@ CITY_POINTS = [
     {"name": "이태원관광특구", "lat": 37.5345, "lon": 126.9946, "category": "관광특구"},
     {"name": "잠실관광특구", "lat": 37.5133, "lon": 127.1001, "category": "관광특구"},
     {"name": "종로·청계관광특구", "lat": 37.5700, "lon": 126.9918, "category": "관광특구"},
-    {"name": "홍대 관광특구", "lat": 37.5510, "lon": 126.9239, "category": "관광특구"}
+    {"name": "홍대 관광특구", "lat": 37.5510, "lon": 126.9239, "category": "관광특구"},
 
     # --- [3. 고궁/문화유산] (15개) ---
     {"name": "경복궁", "lat": 37.5796, "lon": 126.9770, "category": "고궁/문화유산"},

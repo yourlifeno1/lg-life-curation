@@ -128,14 +128,14 @@ def show_voc_section(u_dong):
     
     st.write("")
     st.markdown(f"""
-        <div style="margin-top: 10px; margin-bottom: 5px;">
+        <div style="display: flex; align-items: baseline; margin-top: 10px; margin-bottom: 5px;">
             <span style="font-size: 22px; margin-right: 8px;">🏠</span>
-            <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px;">
+            <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px; margin-right: 8px;">
                 우리 동네 가전 이슈
             </span>
-            <div style="font-size: 13px; color: #6C757D; margin-top: 2px; margin-left: 30px;">
-                고객 이슈 Top 3
-            </div>
+            <span style="font-size: 13px; color: #6C757D; font-weight: normal; white-space: nowrap;">
+                (고객 이슈 Top 3)
+            </span>
         </div>
     """, unsafe_allow_html=True)
     

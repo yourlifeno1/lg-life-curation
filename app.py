@@ -254,26 +254,48 @@ if loc:
         # 에러 발생 시 로그만 출력하고 기본값(0.0) 유지하여 NameError 방지
         print(f"DEBUG: API Parsing Error -> {e}")
 
-
-
-
-    
     # [중요] 짝꿍 except가 끝난 후 화면 구성 실행
     st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")
     st.divider()
     
-    # [1] 상권 기상도 영역 (숫자 크기 및 굵기 대폭 강화)
-    st.markdown(f"### ☀️ {u_dong} 상권 기상도")
+    # [1] 상권 기상도 영역 (아이콘 및 변동성 로직 업그레이드 버전)
     
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(f'<p style="color:#666; font-size:16px; margin-bottom:0px;">상권 활력 점수</p><p style="font-size:64px; font-weight:800; margin-top:0px; line-height:1.2;">{v_score}점</p>', unsafe_allow_html=True)
-        st.markdown(f'<div style="background:#FEE2E2; color:#991B1B; padding:10px; border-radius:10px; font-weight:bold; text-align:center;">실시간 유동: {traffic}명 (한산)</div>', unsafe_allow_html=True)
-    with col2:
-        st.markdown(f'<p style="color:#666; font-size:16px; margin-bottom:0px;">4월 이사 지수</p><p style="font-size:64px; font-weight:800; margin-top:0px; line-height:1.2;">{cnt_now}건</p>', unsafe_allow_html=True)
-        st.markdown(f'<div style="background:#F1F3F5; padding:10px; border-radius:10px; font-weight:bold; text-align:center;">상태: 변동 없음</div>', unsafe_allow_html=True)
+    # 1. 점수에 따른 기상 아이콘 결정
+    weather_icon = "☀️" if v_score >= 70 else "☁️" if v_score >= 35 else "☔"
+    st.subheader(f"{weather_icon} {u_dong} 상권 기상도")
+    
+    c_u1, c_u2 = st.columns(2)
+    
+    with c_u1:
+        # 상권 활력 점수
+        st.markdown(f'<p style="color:#666; font-size:16px; margin-bottom:0px;">상권 활력 점수</p><p style="font-size:56px; font-weight:800; margin-top:0px;">{v_score}점</p>', unsafe_allow_html=True)
+        
+        # 유동인구 수치별 컬러 박스 로직 (활발/보통/한산)
+        if v_score >= 70: 
+            b_c, t_c, msg = "#D1FAE5", "#065F46", "활발" # 초록색
+        elif v_score >= 35: 
+            b_c, t_c, msg = "#FEF3C7", "#92400E", "보통" # 주황색
+        else: 
+            b_c, t_c, msg = "#FEE2E2", "#991B1B", "한산" # 빨간색
+            
+        st.markdown(f'<span style="background:{b_c}; color:{t_c}; padding:6px 14px; border-radius:20px; font-weight:700;">실시간 유동: {traffic}명 ({msg})</span>', unsafe_allow_html=True)
 
-    st.write("")
+    with c_u2:
+        # 4월 이사 지수
+        st.markdown(f'<p style="color:#666; font-size:16px; margin-bottom:0px;">4월 이사 지수</p><p style="font-size:56px; font-weight:800; margin-top:0px;">{cnt_now}건</p>', unsafe_allow_html=True)
+        
+        # 이사 데이터 변동률(diff)에 따른 상태 박스 로직
+        # diff 값은 상단 데이터 수집 로직에서 계산된 값을 사용합니다.
+        if diff == 0: 
+            m_bg, m_text = "#F1F3F5", "변동 없음 (전월 동일)"
+        elif diff > 0: 
+            m_bg, m_text = "#D1FAE5", f"↑ {abs(diff_pct):.1f}% 상승"
+        else: 
+            m_bg, m_text = "#FEE2E2", f"↓ {abs(diff_pct):.1f}% 하락"
+            
+        st.markdown(f'<span style="background:{m_bg}; padding:6px 14px; border-radius:20px; font-weight:700;">{m_text}</span>', unsafe_allow_html=True)
+
+    st.write("") # 하단 여백 추가
     st.subheader(f"📊 실시간 주요 현황 (거점: {target['name']})")
 
     # [2] 실시간 인구 구성 카드

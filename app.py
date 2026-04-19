@@ -231,9 +231,21 @@ if loc:
             found_shop = root.find(".//CUR_ALIVE_HOT_LVL")
             if found_shop is not None:
                 shop_lvl = found_shop.text
-                sales_total = root.findtext(".//CUR_ALIVE_AMT_LVL", "0")
                 
-                # 업종 순위 TOP 3 구성
+                # [수정 핵심] 어제/오늘 보셨던 521만원 같은 상세 수치를 가져오는 태그입니다.
+                raw_amt = root.findtext(".//CUR_ALIVE_AMT_LVL", "0")
+                
+                # 데이터가 존재하고 0이 아닐 경우 상세 숫자로 노출 (천 단위 콤마 추가)
+                if raw_amt and raw_amt != "0":
+                    try:
+                        # 521 -> 521 / 1240 -> 1,240 형태로 변환
+                        sales_total = f"{int(raw_amt):,}" 
+                    except:
+                        sales_total = raw_amt
+                else:
+                    sales_total = "집계 중" # 데이터가 0이면 초기값 대신 상태 표시
+
+                # 주요 업종 TOP 3 구성
                 r1 = root.findtext(".//UPJONG_NM_1", "-")
                 r2 = root.findtext(".//UPJONG_NM_2", "-")
                 r3 = root.findtext(".//UPJONG_NM_3", "-")

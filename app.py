@@ -200,55 +200,57 @@ if loc:
     shop_lvl, sales_rank, sales_total = "정보 없음", "정보 미제공", "0"
 
     try:
-        # [핵심] 장소명에서 괄호를 제거하여 API 호출 (app 4 방식)
-        pure_name = target['name'].split('(')[0].strip()
-        c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{pure_name}"
-        c_res = requests.get(c_url, timeout=5)
+        # [1] 장소명 최적화 (GPS 거점명 기반)
+        original_name = target['name']
+        clean_name = original_name.split('(')[0].strip() # 괄호 제거
         
-        if c_res.status_code == 200:
-            # [수정] app 4의 유연한 파싱 방식(.//)으로 회귀
-            root = ET.fromstring(c_res.text)
-            
-            # --- 실시간 인구 데이터 ---
-            found_cong = root.find(".//AREA_CONGEST_LVL")
-            if found_cong is not None:
-                cong_lvl = found_cong.text
-                fem_r = float(root.findtext(".//FEMALE_PPLTN_RATE", "50"))
+        # 1차 호출 시도
+        c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{clean_name}"
+        c_res = requests.get(c_url, timeout=5)
+        root = ET.fromstring(c_res.text) if c_res.status_code == 200 else None
+        
+        # [2] 2차 시도: 매출액이 없거나 호출 실패 시 (예: "영등포 타임스퀘어" -> "타임스퀘어")
+        # 공백이 있는 이름은 마지막 단어가 핵심 키워드인 경우가 많음
+        if root is None or root.find(".//CUR_ALIVE_AMT_LVL") is None:
+            if " " in clean_name:
+                retry_name = clean_name.split()[-1]
+                retry_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{retry_name}"
+                r_res = requests.get(retry_url, timeout=5)
+                if r_res.status_code == 200:
+                    root = ET.fromstring(r_res.text)
+
+        if root is not None:
+            # --- 실시간 인구 데이터 파싱 (기존 로직 유지) ---
+            p_section = root.find(".//LIVE_PPLTN_STTS")
+            if p_section is not None:
+                cong_lvl = p_section.findtext("AREA_CONGEST_LVL", "데이터 없음")
+                fem_r = float(p_section.findtext("FEMALE_PPLTN_RATE", "50"))
                 male_r = 100.0 - fem_r
-                
-                # 연령대 데이터 (키 이름을 하단 출력부와 100% 일치)
-                age_rates["10대"] = float(root.findtext(".//PPLTN_RATE_10", "0"))
-                age_rates["20대"] = float(root.findtext(".//PPLTN_RATE_20", "0"))
-                age_rates["30대"] = float(root.findtext(".//PPLTN_RATE_30", "0"))
-                age_rates["40대"] = float(root.findtext(".//PPLTN_RATE_40", "0"))
-                age_rates["50대"] = float(root.findtext(".//PPLTN_RATE_50", "0"))
-                
-                v60 = float(root.findtext(".//PPLTN_RATE_60", "0"))
-                v70 = float(root.findtext(".//PPLTN_RATE_70", "0"))
+                for i in range(1, 6):
+                    age_rates[f"{i}0대"] = float(p_section.findtext(f"PPLTN_RATE_{i}0", "0"))
+                v60 = float(p_section.findtext("PPLTN_RATE_60", "0"))
+                v70 = float(p_section.findtext("PPLTN_RATE_70", "0"))
                 age_rates["60대+"] = v60 + v70
 
-            # --- 실시간 상권 데이터 (TOP 3) ---
-            found_shop = root.find(".//CUR_ALIVE_HOT_LVL")
-            if found_shop is not None:
-                shop_lvl = found_shop.text
+            # --- [핵심 수정] 실시간 상권 데이터 상세 수치 파싱 ---
+            c_section = root.find(".//REALT_TIM_CMRCL_STTS") or root.find(".//LIVE_CMRCL_STTS")
+            if c_section is not None:
+                shop_lvl = c_section.findtext("CUR_ALIVE_HOT_LVL", "정보 없음")
+                raw_amt = c_section.findtext("CUR_ALIVE_AMT_LVL", "0")
                 
-                # [수정 핵심] 어제/오늘 보셨던 521만원 같은 상세 수치를 가져오는 태그입니다.
-                raw_amt = root.findtext(".//CUR_ALIVE_AMT_LVL", "0")
-                
-                # 데이터가 존재하고 0이 아닐 경우 상세 숫자로 노출 (천 단위 콤마 추가)
+                # 어제/오늘 보셨던 521만원 같은 상세 숫자를 천 단위 콤마와 함께 복구
                 if raw_amt and raw_amt != "0":
                     try:
-                        # 521 -> 521 / 1240 -> 1,240 형태로 변환
-                        sales_total = f"{int(raw_amt):,}" 
+                        sales_total = f"{int(raw_amt):,}"
                     except:
                         sales_total = raw_amt
                 else:
-                    sales_total = "집계 중" # 데이터가 0이면 초기값 대신 상태 표시
+                    sales_total = "데이터 집계 중"
 
-                # 주요 업종 TOP 3 구성
-                r1 = root.findtext(".//UPJONG_NM_1", "-")
-                r2 = root.findtext(".//UPJONG_NM_2", "-")
-                r3 = root.findtext(".//UPJONG_NM_3", "-")
+                # 주요 업종 TOP 3
+                r1 = c_section.findtext("UPJONG_NM_1", "-")
+                r2 = c_section.findtext("UPJONG_NM_2", "-")
+                r3 = c_section.findtext("UPJONG_NM_3", "-")
                 sales_rank = f"1위 {r1} / 2위 {r2} / 3위 {r3}"
 
     except Exception as e:

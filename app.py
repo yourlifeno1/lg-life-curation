@@ -390,38 +390,41 @@ if loc:
     st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")
     st.divider()
     
-    # 1. 기상 아이콘 결정
+    # 1. 기상 아이콘 및 상단 제목
     weather_icon = "☀️" if v_score >= 70 else "☁️" if v_score >= 35 else "☔"
     st.subheader(f"{weather_icon} {u_dong} 상권 기상도")
     
-    # 2. [해결책] HTML 밖에서 색상과 메시지를 미리 변수로 정의합니다.
-    # 이렇게 해야 파이썬이 HTML 스타일 시트와 혼동하지 않습니다.
-    
-    # 왼쪽 박스용 변수
-    v_box_bg = "#D1FAE5" if v_score >= 70 else "#FEF3C7" if v_score >= 35 else "#FEE2E2"
-    v_box_txt = "#065F46" if v_score >= 70 else "#92400E" if v_score >= 35 else "#991B1B"
-    v_box_msg = "활발" if v_score >= 70 else "보통" if v_score >= 35 else "한산"
+    # 2. [해결] HTML에 들어갈 모든 값을 변수로 미리 계산 (에러 방지 핵심)
+    # 왼쪽 박스 (점수)
+    left_bg = "#D1FAE5" if v_score >= 70 else "#FEF3C7" if v_score >= 35 else "#FEE2E2"
+    left_txt = "#065F46" if v_score >= 70 else "#92400E" if v_score >= 35 else "#991B1B"
+    left_msg = "활발" if v_score >= 70 else "보통" if v_score >= 35 else "한산"
 
-    # 오른쪽 박스용 변수
-    m_box_bg = "#F1F3F5" if diff == 0 else "#D1FAE5" if diff > 0 else "#FEE2E2"
-    m_box_msg = "변동 없음" if diff == 0 else f"↑{abs(diff_pct):.0f}% 상승" if diff > 0 else f"↓{abs(diff_pct):.0f}% 하락"
+    # 오른쪽 박스 (이사)
+    right_bg = "#F1F3F5" if diff == 0 else "#D1FAE5" if diff > 0 else "#FEE2E2"
+    if diff == 0:
+        right_msg = "변동 없음"
+    elif diff > 0:
+        right_msg = f"↑{abs(diff_pct):.0f}% 상승"
+    else:
+        right_msg = f"↓{abs(diff_pct):.0f}% 하락"
 
-    # 3. 통합 HTML 출력 (중괄호 안의 로직을 제거하여 깨짐 방지)
+    # 3. 통합 HTML 출력 (중괄호 안에는 오직 '변수 이름'만 들어가야 안전합니다)
     st.markdown(f"""
     <div style="display:flex; gap:10px; margin-bottom:15px;">
         <div style="flex:1; background:white; border:1px solid #E9ECEF; border-radius:12px; padding:15px; text-align:center; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
             <p style="font-size:12px; color:#868E96; margin:0; white-space:nowrap;">상권 활력 점수</p>
             <p style="font-size:26px; font-weight:800; color:#212529; margin:8px 0; line-height:1.1;">{v_score}점</p>
-            <span style="display:inline-block; padding:3px 8px; border-radius:10px; font-size:10px; font-weight:700; background:{v_box_bg}; color:{v_box_txt}; white-space:nowrap;">
-                유동 {traffic}명 ({v_box_msg})
+            <span style="display:inline-block; padding:3px 8px; border-radius:10px; font-size:10px; font-weight:700; background:{left_bg}; color:{left_txt}; white-space:nowrap;">
+                유동 {traffic}명 ({left_msg})
             </span>
         </div>
         
         <div style="flex:1; background:white; border:1px solid #E9ECEF; border-radius:12px; padding:15px; text-align:center; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
             <p style="font-size:12px; color:#868E96; margin:0; white-space:nowrap;">4월 이사 지수</p>
             <p style="font-size:26px; font-weight:800; color:#212529; margin:8px 0; line-height:1.1;">{cnt_now}건</p>
-            <span style="display:inline-block; padding:3px 8px; border-radius:10px; font-size:10px; font-weight:700; background:{m_box_bg}; color:#475467; white-space:nowrap;">
-                {m_box_msg}
+            <span style="display:inline-block; padding:3px 8px; border-radius:10px; font-size:10px; font-weight:700; background:{right_bg}; color:#475467; white-space:nowrap;">
+                {right_msg}
             </span>
         </div>
     </div>

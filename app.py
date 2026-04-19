@@ -400,7 +400,7 @@ if loc:
     
     with c_u1:
         # 상권 활력 점수
-        st.markdown(f'<p style="color:#666; font-size:16px; margin-bottom:0px;">상권 활력 점수</p><p style="font-size:56px; font-weight:800; margin-top:0px;">{v_score}점</p>', unsafe_allow_html=True)
+        st.markdown(f'<p style="color:#666; font-size:16px; margin-bottom:0px;">상권 활력 점수</p><p style="font-size:36px; font-weight:800; margin-top:0px;">{v_score}점</p>', unsafe_allow_html=True)
         
         # 유동인구 수치별 컬러 박스 로직 (활발/보통/한산)
         if v_score >= 70: 
@@ -414,7 +414,7 @@ if loc:
 
     with c_u2:
         # 4월 이사 지수
-        st.markdown(f'<p style="color:#666; font-size:16px; margin-bottom:0px;">4월 이사 지수</p><p style="font-size:56px; font-weight:800; margin-top:0px;">{cnt_now}건</p>', unsafe_allow_html=True)
+        st.markdown(f'<p style="color:#666; font-size:16px; margin-bottom:0px;">4월 이사 지수</p><p style="font-size:36px; font-weight:800; margin-top:0px;">{cnt_now}건</p>', unsafe_allow_html=True)
         
         # 이사 데이터 변동률(diff)에 따른 상태 박스 로직
         # diff 값은 상단 데이터 수집 로직에서 계산된 값을 사용합니다.

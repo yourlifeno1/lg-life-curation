@@ -193,7 +193,7 @@ if loc:
         # 에러 발생 시 로그만 남기고 0점 유지
         st.caption(f"S-DoT 수신 대기 중...")
 
-# --- 데이터 수집 시작 (이 줄의 시작점과 아래 줄들의 시작점을 맞추세요) ---
+    # --- 데이터 수집 시작 (이 줄의 시작점과 아래 줄들의 시작점을 맞추세요) ---
     # 모든 변수 초기화 (이전 줄들과 왼쪽 끝 정렬을 맞추는 것이 핵심!)
     cong_lvl, male_r, fem_r = "데이터 없음", 50.0, 50.0
     shop_lvl, sales_rank, sales_total = "정보 없음", "상권 정보 미제공", "0"
@@ -225,7 +225,10 @@ if loc:
                 v60 = float(p_section.findtext("PPLTN_RATE_60", "0"))
                 v70 = float(p_section.findtext("PPLTN_RATE_70", "0"))
                 age_rates["60대+"] = v60 + v70
-        
+        except Exception as e:
+        # 이 부분이 추가되어야 SyntaxError가 사라집니다!
+        print(f"데이터 수집 에러: {e}")
+
     # --- 화면 구성 ---
     st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")
     st.divider()

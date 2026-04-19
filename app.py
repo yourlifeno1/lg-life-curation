@@ -390,28 +390,38 @@ if loc:
     st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")
     st.divider()
     
-    # [1] 상권 기상도 영역 (아이콘 및 변동성 로직 업그레이드 버전)
+    # [1] 상권 기상도 영역 (변수 사전 정의 방식)
     
-    # 1. 점수에 따른 기상 아이콘 결정
+    # 1. 기상 아이콘 결정
     weather_icon = "☀️" if v_score >= 70 else "☁️" if v_score >= 35 else "☔"
     st.subheader(f"{weather_icon} {u_dong} 상권 기상도")
     
-    # [수정] 상단 지표를 두 개의 독립된 화이트 박스로 배치 (HTML 통합 버전)
+    # 2. HTML에 넣을 변수들 미리 계산 (에러 방지 핵심)
+    # 왼쪽 박스 (점수) 관련
+    v_bg = "#D1FAE5" if v_score >= 70 else "#FEF3C7" if v_score >= 35 else "#FEE2E2"
+    v_txt = "#065F46" if v_score >= 70 else "#92400E" if v_score >= 35 else "#991B1B"
+    v_msg = "활발" if v_score >= 70 else "보통" if v_score >= 35 else "한산"
+
+    # 오른쪽 박스 (이사) 관련
+    m_bg = "#F1F3F5" if diff == 0 else "#D1FAE5" if diff > 0 else "#FEE2E2"
+    m_msg = "변동 없음" if diff == 0 else f"↑{abs(diff_pct):.0f}% 상승" if diff > 0 else f"↓{abs(diff_pct):.0f}% 하락"
+
+    # 3. 통합 HTML 출력 (f-string 안의 중괄호를 최소화)
     st.markdown(f"""
     <div style="display:flex; gap:10px; margin-bottom:15px;">
         <div style="flex:1; background:white; border:1px solid #E9ECEF; border-radius:12px; padding:15px; text-align:center; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
             <p style="font-size:12px; color:#868E96; margin:0; white-space:nowrap;">상권 활력 점수</p>
             <p style="font-size:26px; font-weight:800; color:#212529; margin:8px 0; line-height:1.1;">{v_score}점</p>
-            <span style="display:inline-block; padding:3px 8px; border-radius:10px; font-size:10px; font-weight:700; background:{("#D1FAE5" if v_score >= 70 else "#FEF3C7" if v_score >= 35 else "#FEE2E2")}; color:{("#065F46" if v_score >= 70 else "#92400E" if v_score >= 35 else "#991B1B")}; white-space:nowrap;">
-                유동 {traffic}명 ({("활발" if v_score >= 70 else "보통" if v_score >= 35 else "한산")})
+            <span style="display:inline-block; padding:3px 8px; border-radius:10px; font-size:10px; font-weight:700; background:{v_bg}; color:{v_txt}; white-space:nowrap;">
+                유동 {traffic}명 ({v_msg})
             </span>
         </div>
         
         <div style="flex:1; background:white; border:1px solid #E9ECEF; border-radius:12px; padding:15px; text-align:center; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
             <p style="font-size:12px; color:#868E96; margin:0; white-space:nowrap;">4월 이사 지수</p>
             <p style="font-size:26px; font-weight:800; color:#212529; margin:8px 0; line-height:1.1;">{cnt_now}건</p>
-            <span style="display:inline-block; padding:3px 8px; border-radius:10px; font-size:10px; font-weight:700; background:{("#F1F3F5" if diff == 0 else "#D1FAE5" if diff > 0 else "#FEE2E2")}; color:#475467; white-space:nowrap;">
-                {("변동 없음" if diff == 0 else f"↑{abs(diff_pct):.0f}% 상승" if diff > 0 else f"↓{abs(diff_pct):.0f}% 하락")}
+            <span style="display:inline-block; padding:3px 8px; border-radius:10px; font-size:10px; font-weight:700; background:{m_bg}; color:#475467; white-space:nowrap;">
+                {m_msg}
             </span>
         </div>
     </div>

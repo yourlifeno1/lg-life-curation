@@ -425,11 +425,13 @@ if loc:
             <b style="font-size:18px; color:#495057;">💳 실시간 상권</b>
             <span style="color:#059669; font-weight:800; font-size:20px;">{shop_lvl} ●○○○</span>
         </div>
-        <div style="{box_style} flex:1; text-align:center; padding: 15px 5px;">
-            <p style="font-size:15px; font-weight:bold; color:#212529; margin:0; letter-spacing:-0.5px;">
-                최근 10분 매출 총액 <span style="font-size:22px; color:#007BFF;">{sales_total}</span>만원
+        <div style="{box_style} flex:1; text-align:center; padding: 12px 5px;">
+            <p style="font-size:13px; color:#495057; font-weight:bold; margin:0;">최근 10분 매출 총액</p>
+            <p style="margin:8px 0;">
+                <span style="font-size:28px; font-weight:900; color:#007BFF; letter-spacing:-1px;">{sales_total}</span>
+                <span style="font-size:14px; color:#212529; font-weight:bold; margin-left:2px;">만원</span>
             </p>
-            <p style="font-size:10px; color:#ADB5BD; margin:5px 0 0 0; font-weight:normal;">
+            <p style="font-size:9px; color:#ADB5BD; margin:0; font-weight:normal;">
                 (신한카드 내국인 기준)
             </p>
         </div>

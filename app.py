@@ -192,9 +192,8 @@ if loc:
     except Exception as e:
         # 에러 발생 시 로그만 남기고 0점 유지
         st.caption(f"S-DoT 수신 대기 중...")
-
-    # --- 데이터 수집 시작 (이 줄의 시작점과 아래 줄들의 시작점을 맞추세요) ---
-    # 모든 변수 초기화 (이전 줄들과 왼쪽 끝 정렬을 맞추는 것이 핵심!)
+# --- 데이터 수집 시작 ---
+    # 1. 모든 변수 초기화 (에러 방지를 위해 try 밖에서 수행)
     cong_lvl, male_r, fem_r = "데이터 없음", 50.0, 50.0
     shop_lvl, sales_rank, sales_total = "정보 없음", "상권 정보 미제공", "0"
     age_rates = {
@@ -203,43 +202,42 @@ if loc:
     }
 
     try:
-        # API 호출 및 파싱 로직 (여기서부터는 try 안쪽이므로 4칸 더 들여쓰기)
+        # API 호출 및 파싱 로직
         c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{target['name']}"
         c_res = requests.get(c_url, timeout=5)
+        
         if c_res.status_code == 200 and "<CITYDATA>" in c_res.text:
             root = ET.fromstring(c_res.text)
             
-            # [수정] 인구 데이터 파싱 섹션 (약 210~225라인 부근)
             p_section = root.find(".//LIVE_PPLTN_STTS")
             if p_section is not None:
-                # 1. 혼잡도 메시지 및 지표 수집
+                # 혼잡도 지표 (AREA_CONGEST_LVL) 수집
                 cong_lvl = p_section.findtext("AREA_CONGEST_LVL", "데이터 없음")
-        
-                # 2. 성별 비율 (문자열 -> 숫자 변환 시 에러 방지)
-                try:
-                    fem_val = p_section.findtext("FEMALE_PPLTN_RATE", "50")
-                    fem_r = float(fem_val)
-                    male_r = 100.0 - fem_r
-                except:
-                    male_r, fem_r = 50.0, 50.0
+                
+                # 성별 비율 변환
+                fem_val = p_section.findtext("FEMALE_PPLTN_RATE", "50")
+                fem_r = float(fem_val)
+                male_r = 100.0 - fem_r
+                
+                # 연령대별 데이터 직접 매칭 (가장 정확한 방법)
+                age_rates["10대"] = float(p_section.findtext("PPLTN_RATE_10", "0"))
+                age_rates["20대"] = float(p_section.findtext("PPLTN_RATE_20", "0"))
+                age_rates["30대"] = float(p_section.findtext("PPLTN_RATE_30", "0"))
+                age_rates["40대"] = float(p_section.findtext("PPLTN_RATE_40", "0"))
+                age_rates["50대"] = float(p_section.findtext("PPLTN_RATE_50", "0"))
+                
+                # 60대+ 합산 (60대 및 70대 데이터 통합)
+                v60 = float(p_section.findtext("PPLTN_RATE_60", "0"))
+                v70 = float(p_section.findtext("PPLTN_RATE_70", "0"))
+                age_rates["60대+"] = v60 + v70
 
-                # 3. 연령대별 비율 (가장 중요한 부분!)
-                # API 명세상 PPLTN_RATE_10, 20... 태그를 직접 하나씩 매칭합니다.
-                try:
-                    age_rates["10대"] = float(p_section.findtext("PPLTN_RATE_10", "0"))
-                    age_rates["20대"] = float(p_section.findtext("PPLTN_RATE_20", "0"))
-                    age_rates["30대"] = float(p_section.findtext("PPLTN_RATE_30", "0"))
-                    age_rates["40대"] = float(p_section.findtext("PPLTN_RATE_40", "0"))
-                    age_rates["50대"] = float(p_section.findtext("PPLTN_RATE_50", "0"))
-            
-                    # 60대와 70대를 합산하여 '60대+'로 표시
-                    v60 = float(p_section.findtext("PPLTN_RATE_60", "0"))
-                    v70 = float(p_section.findtext("PPLTN_RATE_70", "0"))
-                    age_rates["60대+"] = v60 + v70
-                    
     except Exception as e:
         # [중요] 이 except 블록이 있어야 SyntaxError가 사라집니다!
         print(f"데이터 수집 중 오류 발생: {e}")
+
+    # --- 화면 구성 (try-except 블록 밖) ---
+    st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")
+    st.divider()
 
     # --- 화면 구성 (try-except 블록 밖) ---
     st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")

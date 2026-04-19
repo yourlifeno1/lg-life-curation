@@ -516,9 +516,76 @@ if loc:
     """, unsafe_allow_html=True)
 
  # --- [핵심 추가] 가전 이슈 섹션 호출 ---
+    # --- [삽입 위치] 가전 이슈 섹션 바로 아래 ---
     show_voc_section(u_dong)
 
+    # ==========================================
+    # 여기서부터 상세 리포트 페이지 로직 시작
+    # ==========================================
+    if st.session_state.get('page_mode') == 'detail':
+        # 메인 화면의 내용을 가리기 위해 빈 공간을 만들거나 st.empty()를 쓸 수 있지만, 
+        # 가장 간단하게는 하단에 상세 분석 내용을 뿌려주는 방식입니다.
+        
+        st.write("---") # 구분선
+        st.markdown(f"## 📊 {u_dong} 가전 이슈 심층 분석")
+        st.caption(f"분석 기준: {datetime.now().strftime('%Y년 %m월')} 실시간 VOC 데이터")
+        
+        if st.button("⬅️ 메인 화면으로 돌아가기"):
+            st.session_state['page_mode'] = 'main'
+            st.rerun()
+
+        try:
+            # 데이터 로드 및 전처리 (메인 로직과 동일)
+            df = pd.read_csv(SHEET_CSV_URL)
+            df['이슈 키워드'] = df['이슈 키워드'].replace(['냄새', '곰팡이'], '위생(곰팡이/냄새)')
+            
+            # 1. 가전별 주요 분석 카드
+            st.subheader("💡 가전별 주요 분석")
+            top_apps = df['가전'].value_counts().head(3).index.tolist()
+            
+            cols = st.columns(len(top_apps))
+            for idx, appliance in enumerate(top_apps):
+                with cols[idx]:
+                    app_data = df[df['가전'] == appliance]
+                    total_cnt = len(app_data)
+                    st.markdown(f"""
+                    <div style="background:#FFFFFF; border:2px solid #007BFF; border-radius:15px; padding:20px; text-align:center; min-height:160px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                        <div style="font-size:14px; color:#6C757D;">{appliance}</div>
+                        <div style="font-size:28px; font-weight:900; color:#212529; margin:10px 0;">{total_cnt}건</div>
+                        <div style="font-size:12px; color:#007BFF; font-weight:bold;">관심도 {idx+1}위</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            st.write("")
+            
+            # 2. 핵심 키워드 빈도 TOP 5 (막대 그래프)
+            st.subheader("🔍 핵심 키워드 빈도 TOP 5")
+            all_keywords = df['이슈 키워드'].value_counts().head(5)
+            
+            for kw, count in all_keywords.items():
+                max_cnt = all_keywords.max()
+                progress = (count / max_cnt) * 100
+                st.markdown(f"""
+                <div style="margin-bottom:15px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                        <span style="font-weight:bold; font-size:14px;">{kw}</span>
+                        <span style="font-size:12px; color:#868E96;">{count}건</span>
+                    </div>
+                    <div style="background:#E9ECEF; height:10px; border-radius:5px; overflow:hidden;">
+                        <div style="width:{progress}%; background:linear-gradient(90deg, #007BFF, #6610F2); height:100%;"></div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # 3. 대응 가이드
+            st.info(f"""
+            **📢 {u_dong} 지역 현장 대응 가이드**
+            - 현재 이 지역은 **{top_apps[0]}** 제품의 **{all_keywords.index[0]}** 이슈가 가장 지배적입니다.
+            - 상담 시 이 부분을 먼저 체크하시면 고객 만족도를 크게 높일 수 있습니다.
+            """)
+
+        except Exception as e:
+            st.caption("상세 데이터를 불러오는 중입니다...")
+
     st.divider()
-    st.caption("※ 서울 실시간 도시데이터 V8.5 API 기반 | 데이터 갱신: 실시간")
-else:
-    st.info("🛰️ 위치 정보를 수집하여 현장 분석 리포트를 생성 중입니다...")
+    st.caption("※ 서울 실시간 도시데이터 V8.5 API 기반 | 데이터 갱신: 실시간") 

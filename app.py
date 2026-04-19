@@ -396,15 +396,7 @@ if loc:
     weather_icon = "☀️" if v_score >= 70 else "☁️" if v_score >= 35 else "☔"
     st.subheader(f"{weather_icon} {u_dong} 상권 기상도")
     
-    # 모바일 최적화 스타일 정의
-    # [수정] 가로 한 줄 배치를 강제하기 위한 컨테이너 설정
-    st.markdown("""
-        <style>
-        [data-testid="column"] { min-width: 45% !important; }
-        </style>
-    """, unsafe_allow_html=True)
-
-    # [수정] 상권 점수와 이사 지수를 이미지처럼 각각 독립된 박스로 배치
+    # [수정] 상단 지표를 두 개의 독립된 화이트 박스로 배치 (HTML 통합 버전)
     st.markdown(f"""
     <div style="display:flex; gap:10px; margin-bottom:15px;">
         <div style="flex:1; background:white; border:1px solid #E9ECEF; border-radius:12px; padding:15px; text-align:center; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
@@ -424,7 +416,6 @@ if loc:
         </div>
     </div>
     """, unsafe_allow_html=True)
-
         
     st.write("") # 하단 여백 추가
     st.subheader(f"📊 실시간 주요 현황 (거점: {target['name']})")

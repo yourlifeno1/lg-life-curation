@@ -593,8 +593,16 @@ if loc:
                     """, unsafe_allow_html=True)
 
             # 2. 핵심 키워드 빈도 TOP 5
-            st.write("")
-            st.subheader("🔍 핵심 키워드 빈도 TOP 5")
+            st.write("") # 간격 조절용
+            st.markdown(f"""
+                <div style="display: flex; align-items: baseline; margin-top: 15px; margin-bottom: 10px;">
+                    <span style="font-size: 22px; margin-right: 8px;">🔍</span>
+                    <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px;">
+                        핵심 키워드 빈도 TOP 5
+                    </span>
+                </div>
+            """, unsafe_allow_html=True)
+            
             all_keywords = df['이슈 키워드'].value_counts().head(5)
             
             for kw, count in all_keywords.items():
@@ -622,8 +630,15 @@ if loc:
 
             # 4. 실시간 소비 인구 비율 분석
             st.write("---")
-            st.subheader("💳 실시간 소비 인구 비율")
-            
+            st.markdown(f"""
+                <div style="display: flex; align-items: baseline; margin-top: 15px; margin-bottom: 15px;">
+                    <span style="font-size: 22px; margin-right: 8px;">💳</span>
+                    <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px;">
+                        실시간 소비 인구 비율
+                    </span>
+                </div>
+            """, unsafe_allow_html=True)
+                          
             # 데이터 추출
             m_pay_r = float(root.findtext(".//CMRCL_MALE_RATE", "0"))
             f_pay_r = float(root.findtext(".//CMRCL_FEMALE_RATE", "0"))

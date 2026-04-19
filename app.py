@@ -622,19 +622,19 @@ if loc:
             </div>
             """, unsafe_allow_html=True)
 
-            # --- (3) 연령대별 소비 비중 (한 줄 통합 막대 그래프) ---
-            st.write("**🎂 연령대별 소비 비중**")
-
-            # 중략 (age_items_html 생성 로직)
-
-            # [수정 포인트] 반드시 st.markdown과 unsafe_allow_html=True를 사용해야 합니다.
-            st.markdown(f"""
-                <div style="display:flex; height:35px; border-radius:10px; overflow:hidden; border:1px solid #E9ECEF; margin-bottom:10px; background:#F8F9FA;">
-                    {age_items_html if age_items_html else '<div style="width:100%; text-align:center; line-height:35px; color:#ADB5BD;">데이터 없음</div>'}
-                </div>
-            """, unsafe_allow_html=True)
-
-            st.caption("※ 왼쪽부터 10대↓, 20대, 30대, 40대, 50대, 60대↑ 순서입니다.")
+            # --- 2) 연령대별 소비 비중 (세로 리스트) ---
+                st.write("")
+                st.write("**🎂 연령대별 소비 비중**")
+                for age, val in age_data.items():
+                    st.markdown(f"""
+                    <div style="display:flex; align-items:center; margin-bottom:8px;">
+                        <div style="width:55px; font-size:12px; color:#495057;">{age}</div>
+                        <div style="flex:1; background:#F1F3F5; height:12px; border-radius:6px; overflow:hidden; margin:0 10px;">
+                            <div style="width:{val}%; background:linear-gradient(90deg, #3B82F6, #2563EB); height:100%;"></div>
+                        </div>
+                        <div style="width:35px; font-size:12px; text-align:right; font-weight:bold; color:#212529;">{val:.0f}%</div>
+                    </div>
+                    """, unsafe_allow_html=True)
                
             # (4) 상권 분석 요약
             max_age_key = max(age_data, key=age_data.get)

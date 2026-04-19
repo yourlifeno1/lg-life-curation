@@ -547,7 +547,7 @@ if loc:
                 <h3 style="
                     color: #212529; 
                     margin: 0; 
-                    font-size: clamp(24px, 7vw, 30px); 
+                    font-size: clamp(26px, 8vw, 32px); 
                     font-weight: 800;
                     letter-spacing: -1px;
                 ">

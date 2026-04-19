@@ -209,25 +209,35 @@ if loc:
         if c_res.status_code == 200 and "<CITYDATA>" in c_res.text:
             root = ET.fromstring(c_res.text)
             
+            # [수정] 인구 데이터 파싱 섹션 (약 210~225라인 부근)
             p_section = root.find(".//LIVE_PPLTN_STTS")
             if p_section is not None:
-                # 성별 비율 (서울시 화면 데이터 연동)
-                fem_r = float(p_section.findtext("FEMALE_PPLTN_RATE", "50"))
-                male_r = 100.0 - fem_r
-                
-                # 2. [데이터 매칭] API에서 가져온 값을 위에서 정의한 키에 저장
-                for i in range(1, 6):
-                    # API 태그는 PPLTN_RATE_10, 20... 형식임
-                    val = p_section.findtext(f"PPLTN_RATE_{i}0", "0")
-                    age_rates[f"{i}0대"] = float(val)
-                
-                # 60대 및 70대 합산 처리 (60대+ 키로 통합)
-                v60 = float(p_section.findtext("PPLTN_RATE_60", "0"))
-                v70 = float(p_section.findtext("PPLTN_RATE_70", "0"))
-                age_rates["60대+"] = v60 + v70
-    except Exception as e:
-        # 이 부분이 추가되어야 SyntaxError가 사라집니다!
-        print(f"데이터 수집 에러: {e}")
+                # 1. 혼잡도 메시지 및 지표 수집
+                cong_lvl = p_section.findtext("AREA_CONGEST_LVL", "데이터 없음")
+        
+                # 2. 성별 비율 (문자열 -> 숫자 변환 시 에러 방지)
+                try:
+                    fem_val = p_section.findtext("FEMALE_PPLTN_RATE", "50")
+                    fem_r = float(fem_val)
+                    male_r = 100.0 - fem_r
+                except:
+                    male_r, fem_r = 50.0, 50.0
+
+                # 3. 연령대별 비율 (가장 중요한 부분!)
+                # API 명세상 PPLTN_RATE_10, 20... 태그를 직접 하나씩 매칭합니다.
+                try:
+                    age_rates["10대"] = float(p_section.findtext("PPLTN_RATE_10", "0"))
+                    age_rates["20대"] = float(p_section.findtext("PPLTN_RATE_20", "0"))
+                    age_rates["30대"] = float(p_section.findtext("PPLTN_RATE_30", "0"))
+                    age_rates["40대"] = float(p_section.findtext("PPLTN_RATE_40", "0"))
+                    age_rates["50대"] = float(p_section.findtext("PPLTN_RATE_50", "0"))
+            
+                    # 60대와 70대를 합산하여 '60대+'로 표시
+                    v60 = float(p_section.findtext("PPLTN_RATE_60", "0"))
+                    v70 = float(p_section.findtext("PPLTN_RATE_70", "0"))
+                    age_rates["60대+"] = v60 + v70
+                except Exception as e:
+                    print(f"연령대 데이터 변환 에러: {e}")
 
     # --- 화면 구성 ---
     st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")

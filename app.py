@@ -164,13 +164,17 @@ if loc:
         u_dong = addr.get('address', {}).get('suburb') or addr.get('address', {}).get('neighbourhood') or "서울시"
     except: u_dong = "현재 위치"
     
-    target = get_nearest_point(u_lat, u_lon)
+# [수정] 변수명을 current_target으로 명확히 하여 강제 갱신
+    current_target = get_nearest_point(u_lat, u_lon)
 
-    # 데이터 수집
-    cnt_now = fetch_moving_all(target['code'], "202404")
-    cnt_last = fetch_moving_all(target['code'], "202403")
+    # 이제 확정된 current_target의 코드를 직접 집어넣습니다.
+    cnt_now = fetch_moving_all(current_target['code'], "202404")
+    cnt_last = fetch_moving_all(current_target['code'], "202403")
     diff = cnt_now - cnt_last
     diff_pct = (diff / cnt_last * 100) if cnt_last > 0 else 0
+    
+    # 기존 target 변수에도 새 값을 덮어씌워 UI와 동기화
+    target = current_target
 
    # [상권 기상도] 실시간 GPS 동네 이름(u_dong) 기반 유동인구 매칭
     traffic, v_score = 0, 0

@@ -198,6 +198,7 @@ if loc:
     male_r, fem_r = 50.0, 50.0
     age_rates = {"10대": 0.0, "20대": 0.0, "30대": 0.0, "40대": 0.0, "50대": 0.0, "60대+": 0.0}
     shop_lvl, sales_rank, sales_total = "정보 없음", "정보 미제공", "0"
+    fcst_data = [] # 인구 예측 데이터를 담을 리스트
 
     try:
         # [핵심] 장소명에서 괄호를 제거하여 API 호출 (app 4 방식)
@@ -226,6 +227,19 @@ if loc:
                 v60 = float(root.findtext(".//PPLTN_RATE_60", "0"))
                 v70 = float(root.findtext(".//PPLTN_RATE_70", "0"))
                 age_rates["60대+"] = v60 + v70
+
+            # --- [B] 오늘의 인기 시간대 (인구 예측 FCST_PPLTN) ---
+            # 서울시 API는 향후 12시간의 예측 데이터를 제공합니다.
+            fcst_list = root.findall(".//FCST_PPLTN")
+            for item in fcst_list:
+                f_time = item.findtext("FCST_TIME")[-5:] # "2024-05-01 14:00" -> "14:00"
+                f_lvl = item.findtext("FCST_CONGEST_LVL")
+                # 그래프 높이 조절을 위한 수치화
+                h_val = 100 if "붐빔" in f_lvl else (60 if "보통" in f_lvl else 30)
+                fcst_data.append({"time": f_time, "val": h_val, "lvl": f_lvl})
+            
+            # 데이터가 너무 많으면 상위 6개만 표시
+            fcst_data = fcst_data[:6]
 
             # --- 실시간 상권 데이터 (TOP 3) ---
             found_shop = root.find(".//CUR_ALIVE_HOT_LVL")

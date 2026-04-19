@@ -406,32 +406,28 @@ if loc:
         </style>
     """, unsafe_allow_html=True)
 
-    c_u1, c_u2 = st.columns(2)
-    
-    # 모바일 최적화 스타일 (한 줄 배치를 위해 마진과 패딩을 더 줄임)
-    title_css = "font-size:12px; color:#6C757D; margin-bottom:0px; white-space:nowrap;"
-    value_css = "font-size:26px; font-weight:800; color:#212529; line-height:1.0; margin:2px 0px;"
-    badge_css = "display:inline-block; padding:3px 7px; border-radius:10px; font-size:10px; font-weight:700; white-space:nowrap;"
-
-    with c_u1:
-        st.markdown(f'<p style="{title_css}">상권 활력 점수</p>', unsafe_allow_html=True)
-        st.markdown(f'<p style="{value_css}">{v_score}점</p>', unsafe_allow_html=True)
+    # [수정] 상권 점수와 이사 지수를 이미지처럼 각각 독립된 박스로 배치
+    st.markdown(f"""
+    <div style="display:flex; gap:10px; margin-bottom:15px;">
+        <div style="flex:1; background:white; border:1px solid #E9ECEF; border-radius:12px; padding:15px; text-align:center; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+            <p style="font-size:12px; color:#868E96; margin:0; white-space:nowrap;">상권 활력 점수</p>
+            <p style="font-size:26px; font-weight:800; color:#212529; margin:8px 0; line-height:1.1;">{v_score}점</p>
+            <span style="display:inline-block; padding:3px 8px; border-radius:10px; font-size:10px; font-weight:700; background:{("#D1FAE5" if v_score >= 70 else "#FEF3C7" if v_score >= 35 else "#FEE2E2")}; color:{("#065F46" if v_score >= 70 else "#92400E" if v_score >= 35 else "#991B1B")}; white-space:nowrap;">
+                유동 {traffic}명 ({("활발" if v_score >= 70 else "보통" if v_score >= 35 else "한산")})
+            </span>
+        </div>
         
-        if v_score >= 70: b_c, t_c, msg = "#D1FAE5", "#065F46", "활발"
-        elif v_score >= 35: b_c, t_c, msg = "#FEF3C7", "#92400E", "보통"
-        else: b_c, t_c, msg = "#FEE2E2", "#991B1B", "한산"
-            
-        st.markdown(f'<span style="{badge_css} background:{b_c}; color:{t_c};">유동 {traffic}명 ({msg})</span>', unsafe_allow_html=True)
+        <div style="flex:1; background:white; border:1px solid #E9ECEF; border-radius:12px; padding:15px; text-align:center; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+            <p style="font-size:12px; color:#868E96; margin:0; white-space:nowrap;">4월 이사 지수</p>
+            <p style="font-size:26px; font-weight:800; color:#212529; margin:8px 0; line-height:1.1;">{cnt_now}건</p>
+            <span style="display:inline-block; padding:3px 8px; border-radius:10px; font-size:10px; font-weight:700; background:{("#F1F3F5" if diff == 0 else "#D1FAE5" if diff > 0 else "#FEE2E2")}; color:#475467; white-space:nowrap;">
+                {("변동 없음" if diff == 0 else f"↑{abs(diff_pct):.0f}% 상승" if diff > 0 else f"↓{abs(diff_pct):.0f}% 하락")}
+            </span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    with c_u2:
-        st.markdown(f'<p style="{title_css}">4월 이사 지수</p>', unsafe_allow_html=True)
-        st.markdown(f'<p style="{value_css}">{cnt_now}건</p>', unsafe_allow_html=True)
         
-        if diff == 0: m_bg, m_text = "#F1F3F5", "변동 없음"
-        elif diff > 0: m_bg, m_text = "#D1FAE5", f"↑{abs(diff_pct):.0f}% 상승"
-        else: m_bg, m_text = "#FEE2E2", f"↓{abs(diff_pct):.0f}% 하락"
-            
-        st.markdown(f'<span style="{badge_css} background:{m_bg}; color:#475467;">{m_text}</span>', unsafe_allow_html=True)
     st.write("") # 하단 여백 추가
     st.subheader(f"📊 실시간 주요 현황 (거점: {target['name']})")
 

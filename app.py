@@ -193,14 +193,14 @@ if loc:
         # 에러 발생 시 로그만 남기고 0점 유지
         st.caption(f"S-DoT 수신 대기 중...")
 
-   # 1. 모든 변수 사전 초기화 (절대 누락 금지)
+# 1. 모든 출력용 변수 사전 초기화 (NameError 및 0% 현상 방지)
     cong_lvl = "데이터 없음"
     male_r, fem_r = 50.0, 50.0
     age_rates = {"10대": 0.0, "20대": 0.0, "30대": 0.0, "40대": 0.0, "50대": 0.0, "60대+": 0.0}
     shop_lvl, sales_rank, sales_total = "정보 없음", "상권 정보 미제공", "0"
 
     try:
-        # [핵심 수정] (도봉구) 등 괄호가 붙어있을 경우를 대비해 순수 이름만 추출
+        # API 호출 (이름에서 괄호 제거 후 순수 명칭 추출)
         pure_name = target['name'].split('(')[0].strip()
         c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{pure_name}"
         c_res = requests.get(c_url, timeout=5)
@@ -208,14 +208,14 @@ if loc:
         if c_res.status_code == 200 and "<CITYDATA>" in c_res.text:
             root = ET.fromstring(c_res.text)
             
-            # 인구 데이터 섹션 파싱
+            # [A] 실시간 인구 데이터 파싱
             p_section = root.find(".//LIVE_PPLTN_STTS")
             if p_section is not None:
                 cong_lvl = p_section.findtext("AREA_CONGEST_LVL", "데이터 없음")
                 fem_r = float(p_section.findtext("FEMALE_PPLTN_RATE", "50"))
                 male_r = 100.0 - fem_r
                 
-                # 연령대 데이터 직접 매칭 (가장 확실한 방법)
+                # 연령대 데이터 직접 매핑 (화면 출력용 키 이름과 100% 일치)
                 age_rates["10대"] = float(p_section.findtext("PPLTN_RATE_10", "0"))
                 age_rates["20대"] = float(p_section.findtext("PPLTN_RATE_20", "0"))
                 age_rates["30대"] = float(p_section.findtext("PPLTN_RATE_30", "0"))
@@ -226,13 +226,25 @@ if loc:
                 v70 = float(p_section.findtext("PPLTN_RATE_70", "0"))
                 age_rates["60대+"] = v60 + v70
 
-    except Exception as e:
-        print(f"API 데이터 호출 오류: {e}")
+            # [B] 실시간 상권 데이터 파싱 (TOP 3 업종 반영)
+            c_section = root.find(".//REALT_TIM_CMRCL_STTS")
+            if c_section is None:
+                c_section = root.find(".//LIVE_CMRCL_STTS")
+                
+            if c_section is not None:
+                shop_lvl = c_section.findtext("CUR_ALIVE_HOT_LVL", "정보 없음")
+                sales_total = c_section.findtext("CUR_ALIVE_AMT_LVL", "0")
+                
+                # 업종 순위 TOP 3 구성
+                r1 = c_section.findtext("UPJONG_NM_1", "-")
+                r2 = c_section.findtext("UPJONG_NM_2", "-")
+                r3 = c_section.findtext("UPJONG_NM_3", "-") # 3위 추가
+                sales_rank = f"1위 {r1} / 2위 {r2} / 3위 {r3}"
 
-    # 243라인 부근: 화면 구성
-    st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")
-    st.divider()
-    # --- 화면 구성 (try-except 블록 밖) ---
+    except Exception as e:
+        st.error(f"데이터 연동 중 오류 발생: {e}")
+
+    # --- 화면 상단 정보 (try-except 블록 외부) ---
     st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")
     st.divider()
     

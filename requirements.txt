@@ -1,7 +1,7 @@
-requests
-beautifulsoup4
-pandas
 streamlit
 pandas
 requests
 beautifulsoup4
+selenium
+webdriver-manager
+streamlit-js-eval

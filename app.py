@@ -193,24 +193,19 @@ if loc:
         # 에러 발생 시 로그만 남기고 0점 유지
         st.caption(f"S-DoT 수신 대기 중...")
 
-# [수정] 모든 연령대 키를 명시적으로 초기화 (KeyError 방지)
-age_rates = {
-        "10대": 0.0, 
-        "20대": 0.0, 
-        "30대": 0.0, 
-        "40대": 0.0, 
-        "50대": 0.0, 
-        "60대+": 0.0
-    }
-    
-    # 나머지 변수 초기화 (NameError 방지용)
+# --- 데이터 수집 시작 (이 줄의 시작점과 아래 줄들의 시작점을 맞추세요) ---
+    # 모든 변수 초기화 (이전 줄들과 왼쪽 끝 정렬을 맞추는 것이 핵심!)
     cong_lvl, male_r, fem_r = "데이터 없음", 50.0, 50.0
     shop_lvl, sales_rank, sales_total = "정보 없음", "상권 정보 미제공", "0"
+    age_rates = {
+        "10대": 0.0, "20대": 0.0, "30대": 0.0, 
+        "40대": 0.0, "50대": 0.0, "60대+": 0.0
+    }
 
     try:
+        # API 호출 및 파싱 로직 (여기서부터는 try 안쪽이므로 4칸 더 들여쓰기)
         c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{target['name']}"
         c_res = requests.get(c_url, timeout=5)
-        
         if c_res.status_code == 200 and "<CITYDATA>" in c_res.text:
             root = ET.fromstring(c_res.text)
             

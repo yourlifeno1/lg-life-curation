@@ -281,33 +281,39 @@ if loc:
                 v70 = float(root.findtext(".//PPLTN_RATE_70", "0"))
                 age_rates["60대+"] = v60 + v70
 
-            # --- [실시간 상권 카드 매출 데이터 파싱] 231라인 부근 ---
-            found_shop = root.find(".//CUR_ALIVE_HOT_LVL")
+            # --- [실시간 상권 카드 매출 데이터 강제 추출] ---
+            # 상권 데이터의 뿌리인 LIVE_CMRCL_STTS 섹션을 먼저 찾습니다.
+            found_shop = root.find(".//LIVE_CMRCL_STTS")
+            
             if found_shop is not None:
-                shop_lvl = found_shop.text
+                # 1. 상권 활성화 지표 (HOT_LVL)
+                shop_lvl = found_shop.findtext("AREA_CMRCL_LVL", "정보 없음")
                 
-                # 1. API 명세에 있는 신한카드 실시간 결제 금액(최소/최대)을 가져옵니다.
-                sh_min = root.findtext(".//AREA_SH_PAYMENT_AMT_MIN", "0")
-                sh_max = root.findtext(".//AREA_SH_PAYMENT_AMT_MAX", "0")
+                # 2. 신한카드 결제 금액 최소/최대값 직접 추출
+                sh_min = found_shop.findtext("AREA_SH_PAYMENT_AMT_MIN", "0")
+                sh_max = found_shop.findtext("AREA_SH_PAYMENT_AMT_MAX", "0")
                 
-                # 2. 데이터가 있는 경우 만원 단위로 가공합니다.
                 try:
                     v_min = int(sh_min)
                     v_max = int(sh_max)
                     
                     if v_max > 0:
-                        # 결과 예: "125~180" (단위는 HTML 하단에 '미만 만원'이 있으므로 숫자만)
+                        # 결과 예: "125~180" (단위는 하단 HTML에 포함됨)
                         sales_total = f"{v_min}~{v_max}"
                     else:
                         sales_total = "집계 중"
                 except:
                     sales_total = "0"
                 
-                # 3. 업종 순위 TOP 3 구성 (기존 로직 유지)
-                r1 = root.findtext(".//UPJONG_NM_1", "-")
-                r2 = root.findtext(".//UPJONG_NM_2", "-")
-                r3 = root.findtext(".//UPJONG_NM_3", "-")
+                # 3. 결제 금액 TOP 3 업종 (순위 데이터)
+                r1 = found_shop.findtext("UPJONG_NM_1", "-")
+                r2 = found_shop.findtext("UPJONG_NM_2", "-")
+                r3 = found_shop.findtext("UPJONG_NM_3", "-")
                 sales_rank = f"1위 {r1} / 2위 {r2} / 3위 {r3}"
+            else:
+                shop_lvl = "데이터 미제공"
+                sales_total = "0"
+                sales_rank = "정보 없음"
 
     except Exception as e:
         # 에러 발생 시 로그만 출력하고 기본값(0.0) 유지하여 NameError 방지

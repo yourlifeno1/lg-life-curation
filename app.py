@@ -117,7 +117,7 @@ def fetch_moving_all(lawd_cd, year_month):
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSGEDlHeWG2PHspcMEtlO74lWt9UWdeIzwL9A9fpV6nTY5eSvYTUfeNOFlWvh8qHXFnNwHBsaKKG6cp/pub?gid=189297044&single=true&output=csv"
 
 def show_voc_section(u_dong):
-    # 디자인 스타일
+    # 1. 디자인 스타일
     box_style = """
         background-color: #F8F9FA;
         border: 1px solid #E9ECEF;
@@ -127,49 +127,57 @@ def show_voc_section(u_dong):
     """
     
     st.write("")
-    # [스타일 보정] '실시간 주요 현황' 섹션과 폰트 크기(20px) 및 마진 통일
-    st.markdown('<b style="font-size:20px; color:#212529; font-family: sans-serif;">🏠 우리 동네 가전 이슈</b>', unsafe_allow_html=True)
-    st.markdown('<p style="font-size:14px; color:#6C757D; margin-top:-5px; font-family: sans-serif;">고객 이슈 Top 3</p>', unsafe_allow_html=True)
+    st.markdown('<b style="font-size:20px; color:#212529;">🏠 우리 동네 가전 이슈</b>', unsafe_allow_html=True)
+    st.markdown('<p style="font-size:14px; color:#6C757D; margin-top:-5px;">고객 이슈 Top 3</p>', unsafe_allow_html=True)
     
     try:
-        # 데이터 읽기
+        # 2. 데이터 로드 및 전처리
         df = pd.read_csv(SHEET_CSV_URL)
         
-        # 가전별 언급 횟수 상위 3개 추출
+        # 키워드 통합
+        df['이슈 키워드'] = df['이슈 키워드'].replace(['냄새', '곰팡이'], '위생(곰팡이/냄새)')
+        
+        # 가전별 전체 언급 횟수 상위 3개 추출
         top_appliances = df['가전'].value_counts().head(3)
         
         if not top_appliances.empty:
-            for i, (appliance, count) in enumerate(top_appliances.items(), 1):
-                # 해당 가전에서 가장 많이 언급된 이슈 키워드 추출
-                try:
-                    top_issue = df[df['가전'] == appliance]['이슈 키워드'].mode()[0]
-                except:
-                    top_issue = "점검"
-
-                # 순위별 카드 렌더링
+            for i, (appliance, total_count) in enumerate(top_appliances.items(), 1):
+                # 해당 가전의 데이터만 필터링
+                appliance_data = df[df['가전'] == appliance]
+                
+                # [핵심 로직] 키워드별 빈도 계산
+                issue_counts = appliance_data['이슈 키워드'].value_counts().reset_index()
+                issue_counts.columns = ['keyword', 'count']
+                
+                # 정렬 규칙: 1. 횟수(count) 내림차순, 2. 키워드(keyword) 오름차순(가나다)
+                issue_counts = issue_counts.sort_values(by=['count', 'keyword'], ascending=[False, True])
+                
+                # 상위 키워드들을 "키워드1", "키워드2" 형식으로 묶기
+                sorted_keywords = [f'"{row["keyword"]}"' for _, row in issue_counts.iterrows()]
+                keywords_str = ", ".join(sorted_keywords)
+                
+                # 3. 카드 출력
                 st.markdown(f"""
                 <div style="{box_style}">
                     <div style="display:flex; align-items:center;">
                         <span style="font-size:18px; font-weight:900; color:#007BFF; margin-right:12px;">{i}위</span>
                         <div style="flex:1;">
                             <span style="font-size:16px; font-weight:bold; color:#212529;">{appliance}</span>
-                            <span style="font-size:15px; color:#495057;"> "{top_issue}" 언급이 많아요</span>
+                            <span style="font-size:14px; color:#495057;"> {keywords_str} 순으로 언급이 많아요</span>
                         </div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
             
-            # 하이브리드 리포트 전환용 버튼
             st.write("")
-            if st.button("🔍 지역 가전 이슈 심층 리포트 보기", use_container_width=True, type="secondary"):
+            if st.button("🔍 지역 가전 이슈 심층 리포트 보기", use_container_width=True):
                 st.session_state['page_mode'] = 'detail'
                 st.rerun()
         else:
-            st.info("현재 수집된 가전 트렌드 데이터가 없습니다. 크롤러를 가동해주세요.")
+            st.info("실시간 가전 데이터를 분석하고 있습니다.")
             
     except Exception as e:
-        # 데이터가 없을 때 사용자에게 에러를 보여주기보다 안내 문구를 보여줍니다.
-        st.caption("실시간 가전 트렌드 정보를 분석 중입니다...")
+        st.caption("데이터 연결 상태를 확인 중입니다...")
 
         
 # --- UI 메인 ---

@@ -281,13 +281,29 @@ if loc:
                 v70 = float(root.findtext(".//PPLTN_RATE_70", "0"))
                 age_rates["60대+"] = v60 + v70
 
-            # --- 실시간 상권 데이터 (TOP 3) ---
+            # --- [실시간 상권 카드 매출 데이터 파싱] 231라인 부근 ---
             found_shop = root.find(".//CUR_ALIVE_HOT_LVL")
             if found_shop is not None:
                 shop_lvl = found_shop.text
-                sales_total = root.findtext(".//CUR_ALIVE_AMT_LVL", "0")
                 
-                # 업종 순위 TOP 3 구성
+                # 1. API 명세에 있는 신한카드 실시간 결제 금액(최소/최대)을 가져옵니다.
+                sh_min = root.findtext(".//AREA_SH_PAYMENT_AMT_MIN", "0")
+                sh_max = root.findtext(".//AREA_SH_PAYMENT_AMT_MAX", "0")
+                
+                # 2. 데이터가 있는 경우 만원 단위로 가공합니다.
+                try:
+                    v_min = int(sh_min)
+                    v_max = int(sh_max)
+                    
+                    if v_max > 0:
+                        # 결과 예: "125~180" (단위는 HTML 하단에 '미만 만원'이 있으므로 숫자만)
+                        sales_total = f"{v_min}~{v_max}"
+                    else:
+                        sales_total = "집계 중"
+                except:
+                    sales_total = "0"
+                
+                # 3. 업종 순위 TOP 3 구성 (기존 로직 유지)
                 r1 = root.findtext(".//UPJONG_NM_1", "-")
                 r2 = root.findtext(".//UPJONG_NM_2", "-")
                 r3 = root.findtext(".//UPJONG_NM_3", "-")

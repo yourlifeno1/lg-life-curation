@@ -21,7 +21,7 @@ HEADERS = {
 }
 
 # ==========================================
-# 2. 데이터 처리 및 전송 (매니저님 규격 준수)
+# 2. 데이터 처리 및 전송 (데이터 순서 엄격 준수)
 # ==========================================
 def refine_category(title, summary, initial_item):
     combined = (title + " " + title + " " + summary).replace(" ", "")
@@ -49,27 +49,25 @@ def extract_brand(text):
     return "기타/미분류"
 
 def push_to_sheet(channel, region, category, title, summary, post_date, issue_tag, brand):
-    # summary가 비어있을 경우를 대비한 방어 로직
-    safe_summary = summary if summary and len(summary.strip()) > 0 else "본문 요약 없음"
-    
+    # 전송 시 필드와 데이터를 1:1로 명확하게 매칭 
     payload = {
-        "channel": channel, 
-        "region": region, 
-        "category": category,
-        "voc": title, 
-        "summary": safe_summary[:300], # 최대 300자 제한
-        "postDate": post_date,
-        "issueTag": issue_tag, 
-        "brand": brand
+        "channel": str(channel), 
+        "region": str(region), 
+        "category": str(category),
+        "voc": str(title), 
+        "summary": str(summary)[:500], # 요약 내용이 들어가는 핵심 필드 
+        "postDate": str(post_date),    # 날짜가 요약 칸에 가지 않도록 분리 
+        "issueTag": str(issue_tag), 
+        "brand": str(brand)
     }
     try:
         res = requests.post(GAS_URL, data=payload, timeout=15)
-        print(f"✅ 전송성공: [{category}] {title[:15]}... | 요약({len(safe_summary)}자)")
+        print(f"✅ 전송: [{category}] {title[:10]}... | 출처: {channel}")
     except Exception as e:
-        print(f"❌ 전송실패: {e}")
+        print(f"❌ 오류: {e}")
 
 # ==========================================
-# 3. 크롤링 엔진 (Selenium)
+# 3. 크롤링 엔진
 # ==========================================
 def setup_driver():
     chrome_options = Options()
@@ -96,22 +94,34 @@ def crawl_naver_cafe(item, sub, existing_titles, driver):
                 time.sleep(3)
                 driver.switch_to.window(driver.window_handles[-1])
                 
-                # iframe 내부로 진입
                 driver.switch_to.frame("cafe_main")
                 
-                # 본문 추출 (여러 클래스 대응)
+                # 본문(요약용) 추출 
                 try:
-                    content = driver.find_element(By.CSS_SELECTOR, ".se-main-container, .ContentRenderer").text
+                    full_content = driver.find_element(By.CSS_SELECTOR, ".se-main-container, .ContentRenderer, #content-area").text
                 except:
-                    content = "본문 추출 실패 (권한 혹은 구조 변경)"
+                    full_content = "본문 수집 불가"
                 
-                date_txt = driver.find_element(By.CSS_SELECTOR, ".date").text
+                # 날짜 추출 
+                try:
+                    date_val = driver.find_element(By.CSS_SELECTOR, ".date").text
+                except:
+                    date_val = datetime.now().strftime("%Y.%m.%d.")
                 
-                final_cat = refine_category(title, content, item)
-                brand = extract_brand(title + content)
+                final_cat = refine_category(title, full_content, item)
+                brand_val = extract_brand(title + full_content)
                 
-                # [수정] 추출된 content를 summary 매개변수로 정확히 전달
-                push_to_sheet("네이버 카페", "전국", final_cat, title, content, date_txt, sub, brand)
+                # 매개변수 이름을 지정하여 호출함으로써 데이터 뒤섞임 방지 
+                push_to_sheet(
+                    channel="네이버 카페",
+                    region="전국",
+                    category=final_cat,
+                    title=title,
+                    summary=full_content, # 여기에 요약값이 들어갑니다 
+                    post_date=date_val,    # 여기에 날짜값이 들어갑니다 
+                    issue_tag=sub,
+                    brand=brand_val
+                )
                 
                 driver.close()
                 driver.switch_to.window(driver.window_handles[0])
@@ -126,13 +136,26 @@ def crawl_naver_kin(item, sub, existing_titles):
         soup = BeautifulSoup(res.text, 'html.parser')
         for it in soup.select('ul.basic1 > li')[:2]:
             title = it.select_one('._searchListTitleAnchor').text.strip()
-            # 지식iN은 본문 요약 태그가 별도로 존재함
-            summary = it.select_one('.answer_content, .txt_inline + dl dt + dd, .txt_inline').text.strip()
-            date_txt = it.select_one('.txt_inline').text
+            # 지식iN 요약 추출 
+            summary_tag = it.select_one('.answer_content, .txt_inline + dl dt + dd')
+            summary_val = summary_tag.text.strip() if summary_tag else "내용 요약 없음"
             
-            final_cat = refine_category(title, summary, item)
-            brand = extract_brand(title + summary)
-            push_to_sheet("네이버 지식iN", "전국", final_cat, title, summary, date_txt, sub, brand)
+            date_val = it.select_one('.txt_inline').text
+            
+            final_cat = refine_category(title, summary_val, item)
+            brand_val = extract_brand(title + summary_val)
+            
+            # 매개변수 이름 지정 호출 
+            push_to_sheet(
+                channel="네이버 지식iN",
+                region="전국",
+                category=final_cat,
+                title=title,
+                summary=summary_val,
+                post_date=date_val,
+                issue_tag=sub,
+                brand=brand_val
+            )
     except: pass
 
 # ==========================================
@@ -140,8 +163,8 @@ def crawl_naver_kin(item, sub, existing_titles):
 # ==========================================
 if __name__ == "__main__":
     try:
-        df_existing = pd.read_csv(SHEET_CSV_URL)
-        existing_titles = df_existing['제목(VOC)'].tolist()
+        df_ex = pd.read_csv(SHEET_CSV_URL)
+        existing_titles = df_ex['제목(VOC)'].tolist()
     except:
         existing_titles = []
 
@@ -163,9 +186,8 @@ if __name__ == "__main__":
     
     for item, subs in appliance_settings.items():
         for sub in subs:
-            print(f"📡 수집 중: {item} > {sub}")
             crawl_naver_cafe(item, sub, existing_titles, driver)
             crawl_naver_kin(item, sub, existing_titles)
-            time.sleep(random.uniform(1.2, 2.8))
+            time.sleep(random.uniform(1.0, 2.0))
 
     driver.quit()

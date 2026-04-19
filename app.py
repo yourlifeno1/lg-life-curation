@@ -236,8 +236,8 @@ if loc:
                     v60 = float(p_section.findtext("PPLTN_RATE_60", "0"))
                     v70 = float(p_section.findtext("PPLTN_RATE_70", "0"))
                     age_rates["60대+"] = v60 + v70
-    except Exception as e:
-        print(f"연령대 데이터 변환 에러: {e}")
+            except Exception as e:
+                print(f"연령대 데이터 변환 에러: {e}")
 
     # --- 화면 구성 ---
     st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")

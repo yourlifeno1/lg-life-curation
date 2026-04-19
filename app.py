@@ -241,13 +241,22 @@ if loc:
             # 데이터가 너무 많으면 상위 6개만 표시
             fcst_data = fcst_data[:6]
 
-            # --- 실시간 상권 데이터 (TOP 3) ---
-            found_shop = root.find(".//CUR_ALIVE_HOT_LVL")
-            if found_shop is not None:
-                shop_lvl = found_shop.text
-                sales_total = root.findtext(".//CUR_ALIVE_AMT_LVL", "0")
+            # --- 실시간 상권 데이터 (타임스퀘어 스타일 상세 수치 적용) ---
+            c_section = root.find(".//REALT_TIM_CMRCL_STTS") or root.find(".//LIVE_CMRCL_STTS")
+            if c_section is not None:
+                # 상권 핫플레이스 수준 (보통, 붐빔 등)
+                shop_lvl = c_section.findtext("CUR_ALIVE_HOT_LVL", "정보 없음")
                 
-                # 업종 순위 TOP 3 구성
+                # [핵심] 매출 총액 태그에서 숫자 그대로 가져오기
+                raw_sales = c_section.findtext("CUR_ALIVE_AMT_LVL", "0")
+                
+                # 천 단위 콤마를 넣어 어제 보셨던 '521' 또는 '1,240' 형태로 만듭니다.
+                try:
+                    sales_total = f"{int(raw_sales):,}"
+                except:
+                    sales_total = raw_sales
+                
+                # 업종 TOP 3 구성
                 r1 = root.findtext(".//UPJONG_NM_1", "-")
                 r2 = root.findtext(".//UPJONG_NM_2", "-")
                 r3 = root.findtext(".//UPJONG_NM_3", "-")

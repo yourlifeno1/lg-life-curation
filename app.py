@@ -193,10 +193,9 @@ if loc:
         # 에러 발생 시 로그만 남기고 0점 유지
         st.caption(f"S-DoT 수신 대기 중...")
 
-  # [수정] 모든 변수 사전 초기화 (NameError 방지)
-    cong_lvl, male_r, fem_r = "데이터 없음", 50.0, 50.0
-    shop_lvl, sales_rank, sales_total = "정보 없음", "상권 정보 미제공", "0" # sales_total 초기화 추가
-    age_rates = {"10대":0, "20대":0, "30대":0, "40대":0, "50대":0, "60대+":0}
+# [수정] 최신 명세(217~240번) 기준 상권 데이터 초기화 및 수집
+    shop_lvl, sales_rank, sales_total = "정보 없음", "상권 정보 미제공", "0"
+    male_pay_r, fem_pay_r = 50.0, 50.0  # 소비 성별 비중 변수
     
     try:
         c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{target['name']}"
@@ -217,20 +216,30 @@ if loc:
                 v70 = float(ppltn_stts.findtext("PPLTN_RATE_70", "0"))
                 age_rates["60대+"] = v60 + v70
 
-            # 2. 상권 데이터 파싱 (sales_total 포함)
-            commerce_stts = root.find(".//REALT_TIM_CMRCL_STTS")
-            if commerce_stts is not None:
-                shop_lvl = commerce_stts.findtext("CUR_ALIVE_HOT_LVL", "정보 없음")
-                r1 = commerce_stts.findtext("UPJONG_NM_1", "-")
-                r2 = commerce_stts.findtext("UPJONG_NM_2", "-")
-                r3 = commerce_stts.findtext("UPJONG_NM_3", "-")
-                sales_rank = f"1위 {r1} / 2위 {r2} / 3위 {r3}"
-                # 매출 등급/금액 데이터 (명세서 14번 항목)
-                sales_total = commerce_stts.findtext("CUR_ALIVE_AMT_LVL", "0") 
-    
+           # 2. 실시간 상권 현황 (명세 217번: LIVE_CMRCL_STTS)
+            c_section = root.find(".//LIVE_CMRCL_STTS")
+            if c_section is not None:
+                # 장소 실시간 상권 현황 (명세 218번)
+                shop_lvl = c_section.findtext("AREA_CMRCL_LVL", "정보 없음")
+                
+                # 실시간 결제 건수 (명세 219번) - 이를 sales_total 변수에 할당하여 에러 방지
+                sales_total = c_section.findtext("AREA_SH_PAYMENT_CNT", "0")
+                
+                # 소비 성별 비중 (명세 230~231번)
+                male_pay_r = float(c_section.findtext("CMRCL_MALE_RATE", "50"))
+                fem_pay_r = float(c_section.findtext("CMRCL_FEMALE_RATE", "50"))
+                
+                # 업종별 정보 (명세 222~224번 활용하여 rank 구성)
+                cat_l = c_section.findtext("RSB_LRG_CTGR", "-") # 업종 대분류
+                cat_m = c_section.findtext("RSB_MID_CTGR", "-") # 업종 중분류
+                sales_rank = f"주요 소비 업종: {cat_l} > {cat_m}"
+            else:
+                shop_lvl = "상권 데이터 미제공"
+                sales_rank = "해당 거점은 상권 분석 제외 지역입니다."
+                sales_total = "0"
+
     except Exception as e:
-        # 에러 발생 시에도 변수는 이미 위에서 선언되었으므로 NameError는 나지 않음
-        pass
+        print(f"상권 데이터 수집 에러: {e}")
         
     # --- 화면 구성 ---
     st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")

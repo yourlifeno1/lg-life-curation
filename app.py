@@ -269,41 +269,44 @@ if loc:
             if found_cong is not None:
                 cong_lvl = found_cong.text
                 
-                # 1. [핵심] '미래 예측' 주머니가 아닌 '과거 기록' 주머니들을 찾습니다.
-                # 서울시 API에서 과거 12시간 기록은 보통 <PPLTN_TIME> 태그가 포함된 노드에 담깁니다.
-                past_records = root.findall(".//PPLTN_TIME/..") # PPLTN_TIME을 포함한 상위 부모 노드들 탐색
+                # 1. 인구 예측(FCST_PPLTN) 전체 데이터를 가져옵니다.
+                fcst_all = root.findall(".//FCST_PPLTN")
                 
                 max_val = -1
                 peak_time = ""
                 
-                # 2. 지난 12시간의 실제 기록들 중에서 가장 높았던 시점을 탐색
-                for record in past_records:
+                # 2. 제안하신 MIN/MAX 중 MAX(최대치)가 가장 높은 시점을 피크 타임으로 잡습니다.
+                for fcst in fcst_all:
                     try:
-                        # 해당 과거 시점의 실제 인구 최대치
-                        p_max = int(record.findtext("AREA_PPLTN_MAX", "0"))
-                        # 해당 데이터가 기록된 시간 (업데이트 시간)
-                        p_time = record.findtext("PPLTN_TIME", "")
+                        f_max = int(fcst.findtext("FCST_PPLTN_MAX", "0"))
+                        f_time = fcst.findtext("FCST_TIME", "")
                         
-                        if p_max > max_val:
-                            max_val = p_max
-                            peak_time = p_time
+                        if f_max > max_val:
+                            max_val = f_max
+                            peak_time = f_time
                     except:
                         continue
                 
-                # 3. 시간 포맷팅 (지난 12시간 중 진짜 피크였던 시간)
-                if peak_time:
+                # 3. 시간 포맷팅: 숫자 제외, "오전/오후 X시"만 남기기
+                if peak_time and max_val > 0:
                     try:
                         dt_obj = datetime.strptime(peak_time, "%Y-%m-%d %H:%M")
                         ampm = "오전" if dt_obj.hour < 12 else "오후"
                         hh_12 = dt_obj.hour if dt_obj.hour <= 12 else dt_obj.hour - 12
                         if hh_12 == 0: hh_12 = 12
                         
-                        # 예: "오후 2시경" (오늘 이미 지나온 시간 중 가장 붐볐던 때)
-                        pop_time = f"{ampm} {hh_12}시경"
+                        # 최종 결과: "오후 6시" (글자가 짧아져서 가독성이 좋아집니다)
+                        pop_time = f"{ampm} {hh_12}시"
                     except:
                         pop_time = "분석 중"
                 else:
-                    pop_time = "데이터 없음"
+                    # 예측 데이터가 없는 경우를 대비한 현재 시간 포맷팅
+                    now = datetime.now()
+                    ampm = "오전" if now.hour < 12 else "오후"
+                    hh_12 = now.hour if now.hour <= 12 else now.hour - 12
+                    if hh_12 == 0: hh_12 = 12
+                    pop_time = f"{ampm} {hh_12}시"
+
                 
                 # 성별 비중 로직 (기존과 동일)
                 fem_r = float(root.findtext(".//FEMALE_PPLTN_RATE", "50"))
@@ -447,7 +450,7 @@ if loc:
         </div>
         <div style="display:flex; gap:10px;">
             <div style="{box_style} flex:1; text-align:center;">
-                <p style="font-size:12px; color:#868E96; margin:0;">오늘의 인기 시간대</p>
+                <p style="font-size:12px; color:#868E96; margin:0;">향후 12시간 인구 전망</p>
                 <p style="font-size:18px; font-weight:bold; margin:5px 0 0 0;">{pop_time}</p>
             </div>
             <div style="{box_style} flex:1.5;">

@@ -172,10 +172,10 @@ if loc:
     diff = cnt_now - cnt_last
     diff_pct = (diff / cnt_last * 100) if cnt_last > 0 else 0
 
-   # [수정] S-DoT(IotVdata018) 실시간 유동인구 연동 로직
+   # [상권 기상도 수리] 내 실시간 GPS(u_lat, u_lon)와 가장 가까운 센서 매칭
     traffic, v_score = 0, 0
     try:
-        # 1. 주변 센서를 훑기 위해 데이터 수신 범위를 100개로 넓힙니다.
+        # 1. 주변 센서를 훑기 위해 데이터를 100개까지 가져옵니다.
         sdot_url = f"http://openapi.seoul.go.kr:8088/{SEOUL_API_KEY}/xml/IotVdata018/1/100/"
         s_res = requests.get(sdot_url, timeout=5)
         
@@ -183,29 +183,27 @@ if loc:
             s_root = ET.fromstring(s_res.text)
             rows = s_root.findall(".//row")
             
-            # 2. [핵심] 내 현재 GPS 좌표와 각 센서 간의 거리를 계산하여 가장 가까운 것 선택
-            def get_distance(node):
+            # 2. [핵심] 내 현재 위치와 각 센서 간의 거리를 계산하는 함수
+            def get_sdot_dist(node):
                 try:
-                    # 센서의 위도/경도 좌표 추출
                     s_lat = float(node.findtext("COORD_Y", 0))
                     s_lon = float(node.findtext("COORD_X", 0))
-                    # 내 위치(u_lat, u_lon)와의 직선 거리 계산
+                    # 내 위치(u_lat, u_lon)와의 거리 계산
                     return (u_lat - s_lat)**2 + (u_lon - s_lon)**2
                 except: return 999999
             
-            # 내 위치에서 가장 가까운 S-DoT 센서 행 찾기
-            nearest_row = min(rows, key=get_distance) if rows else None
+            # 3. 쌍문1동 매니저님 위치에서 가장 가까운 S-DoT 센서 선택
+            nearest_row = min(rows, key=get_sdot_dist) if rows else None
             
             if nearest_row is not None:
                 v_node = nearest_row.find("VISITOR_COUNT")
                 if v_node is not None and v_node.text:
-                    # 실제 측정된 유동인구 수
+                    # 실제 측정된 유동인구
                     traffic = int(float(v_node.text))
-                    # 유동인구 150명 기준 활력 점수(0~99점) 계산
+                    # 150명 기준 활력 점수(0~99점) 계산
                     v_score = min(int((traffic / 150) * 100), 99)
     except Exception as e:
-        # 에러 시 기본값 0 유지
-        pass
+        st.caption("현 위치 기반 센서 데이터를 찾는 중...")
 
     # 1. 모든 출력 변수 사전 초기화 (NameError 및 0% 현상 완벽 방지)
     cong_lvl = "데이터 없음"

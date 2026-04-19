@@ -519,14 +519,10 @@ if loc:
     show_voc_section(u_dong)
 
     # ==========================================
-    # 여기서부터 상세 리포트 페이지 로직 시작
+    # 여기서부터 상세 리포트 페이지 로직 시작 (덮어쓰기 구간)
     # ==========================================
     if st.session_state.get('page_mode') == 'detail':
-        # 메인 화면의 내용을 가리기 위해 빈 공간을 만들거나 st.empty()를 쓸 수 있지만, 
-        # 가장 간단하게는 하단에 상세 분석 내용을 뿌려주는 방식입니다.
-        
-        st.write("---") # 구분선
-        # 1. 제목 수정: 동 이름 없이 출력
+        st.write("---") 
         st.markdown("<h2 style='text-align: center; color: #212529;'>📊 가전 이슈 심층 분석</h2>", unsafe_allow_html=True)
         st.caption(f"분석 기준: {datetime.now().strftime('%Y년 %m월')} 실시간 VOC 데이터")
         
@@ -535,11 +531,10 @@ if loc:
             st.rerun()
 
         try:
-            # 데이터 로드 및 전처리 (메인 로직과 동일)
+            # 1. 가전별 주요 분석 카드
             df = pd.read_csv(SHEET_CSV_URL)
             df['이슈 키워드'] = df['이슈 키워드'].replace(['냄새', '곰팡이'], '위생(곰팡이/냄새)')
             
-            # 1. 가전별 주요 분석 카드
             st.subheader("💡 가전별 주요 분석")
             top_apps = df['가전'].value_counts().head(3).index.tolist()
             
@@ -556,9 +551,8 @@ if loc:
                     </div>
                     """, unsafe_allow_html=True)
 
+            # 2. 핵심 키워드 빈도 TOP 5
             st.write("")
-            
-            # 2. 핵심 키워드 빈도 TOP 5 (막대 그래프)
             st.subheader("🔍 핵심 키워드 빈도 TOP 5")
             all_keywords = df['이슈 키워드'].value_counts().head(5)
             
@@ -585,13 +579,11 @@ if loc:
             - 이슈에 맞춰 LG전자 구독의 전문가 방문관리, 무상 A/s, 소모품 교체를 적절하게 언급하세요.
             """)
 
-        # ==========================================================
-        # --- 실시간 소비 인구 비율 분석 ---
-        st.write("---")
-        st.subheader("💳 실시간 소비 인구 비율")
-        
-        try:
-            # 1. 데이터 추출
+            # 4. 실시간 소비 인구 비율 분석
+            st.write("---")
+            st.subheader("💳 실시간 소비 인구 비율")
+            
+            # 데이터 추출
             m_pay_r = float(root.findtext(".//CMRCL_MALE_RATE", "0"))
             f_pay_r = float(root.findtext(".//CMRCL_FEMALE_RATE", "0"))
             p_pay_r = float(root.findtext(".//CMRCL_PERSONAL_RATE", "0"))
@@ -606,7 +598,7 @@ if loc:
                 "60대↑": float(root.findtext(".//CMRCL_60_RATE", "0"))
             }
 
-            # --- (1) 성별 소비 비중 (단독 섹션) ---
+            # (1) 성별 소비 비중
             st.write("**👫 성별 소비 비중**")
             t_g = m_pay_r + f_pay_r
             m_w = m_pay_r if t_g > 0 else 50
@@ -618,7 +610,7 @@ if loc:
             </div>
             """, unsafe_allow_html=True)
 
-            # --- (2) 개인/법인 비중 (단독 섹션) ---
+            # (2) 개인/법인 비중
             st.write("**🏢 개인/법인 비중**")
             t_c = p_pay_r + c_pay_r
             p_w = p_pay_r if t_c > 0 else 50
@@ -630,10 +622,9 @@ if loc:
             </div>
             """, unsafe_allow_html=True)
 
-            # --- (3) 연령대별 소비 비중 ---
+            # (3) 연령대별 소비 비중
             st.write("**🎂 연령대별 소비 비중**")
             age_colors = ["#D1E9FF", "#A5D8FF", "#74C0FC", "#339AF0", "#1C7ED6", "#1864AB"]
-            
             age_items_html = ""
             for idx, (label, val) in enumerate(age_data.items()):
                 if val > 0:
@@ -643,7 +634,6 @@ if loc:
                         {label.replace('대', '')} ({val:.0f}%)
                     </div>
                     """
-            
             st.markdown(f"""
             <div style="display:flex; height:35px; border-radius:10px; overflow:hidden; border:1px solid #E9ECEF; margin-bottom:10px; background:#F8F9FA;">
                 {age_items_html if age_items_html else '<div style="width:100%; text-align:center; line-height:35px; color:#ADB5BD;">데이터 없음</div>'}
@@ -651,11 +641,10 @@ if loc:
             """, unsafe_allow_html=True)
             st.caption("※ 왼쪽부터 10대↓, 20대, 30대, 40대, 50대, 60대↑ 순서입니다.")
 
-            # --- (4) 최종 상권 분석 요약 ---
+            # (4) 상권 분석 요약
             max_age_key = max(age_data, key=age_data.get)
             dominant_g = "남성" if m_pay_r > f_pay_r else "여성"
             corp_type = "개인 고객" if p_pay_r > c_pay_r else "법인/단체"
-            
             st.success(f"""
             **📌 {u_dong} 상권 분석 요약**
             - **핵심 타겟**: 현재 **{dominant_g}**({max(m_pay_r, f_pay_r):.0f}%) 및 **{max_age_key}**의 소비가 가장 집중되어 있습니다.
@@ -664,7 +653,8 @@ if loc:
             """)
 
         except Exception as e:
-            st.caption("실시간 소비 데이터를 분석하는 중입니다...")
+            st.error(f"상세 데이터를 분석하는 중 오류가 발생했습니다: {e}")
 
+    # 공통 하단 구분선
     st.divider()
     st.caption("※ 서울 실시간 도시데이터 V8.5 API 기반 | 데이터 갱신: 실시간")

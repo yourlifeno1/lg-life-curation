@@ -113,8 +113,11 @@ def fetch_moving_all(lawd_cd, year_month):
     return total
 
 # [신규 함수] 우리 동네 가전 이슈 리포트 출력 로직
+# 1. 파일 상단 변수 설정 (이 주소로 꼭 바꿔주세요)
+SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSGEDlHeWG2PHspcMEtlO74lWt9UWdeIzwL9A9fpV6nTY5eSvYTUfeNOFlWvh8qHXFnNwHBsaKKG6cp/pub?gid=189297044&single=true&output=csv"
+
 def show_voc_section(u_dong):
-    # 1. 박스 디자인 스타일
+    # 디자인 스타일
     box_style = """
         background-color: #F8F9FA;
         border: 1px solid #E9ECEF;
@@ -123,51 +126,52 @@ def show_voc_section(u_dong):
         margin-bottom: 10px;
     """
     
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    # 2. 제목 설정 (동 이름 제외, 부제 추가)
-    st.markdown('<b style="font-size:18px; color:#495057;">🏠 우리 동네 가전 이슈</b>', unsafe_allow_html=True)
-    st.markdown('<p style="font-size:13px; color:#6C757D; margin-top:-5px;">고객 이슈 Top 3</p>', unsafe_allow_html=True)
+    st.write("")
+    # [스타일 보정] '실시간 주요 현황' 섹션과 폰트 크기(20px) 및 마진 통일
+    st.markdown('<b style="font-size:20px; color:#212529; font-family: sans-serif;">🏠 우리 동네 가전 이슈</b>', unsafe_allow_html=True)
+    st.markdown('<p style="font-size:14px; color:#6C757D; margin-top:-5px; font-family: sans-serif;">고객 이슈 Top 3</p>', unsafe_allow_html=True)
     
     try:
-        # 3. 구글 시트 데이터 로드
+        # 데이터 읽기
         df = pd.read_csv(SHEET_CSV_URL)
         
-        # 가전별 언급 횟수 계산 및 상위 3개 추출
+        # 가전별 언급 횟수 상위 3개 추출
         top_appliances = df['가전'].value_counts().head(3)
         
         if not top_appliances.empty:
             for i, (appliance, count) in enumerate(top_appliances.items(), 1):
-                # 해당 가전의 최빈 이슈 키워드 추출
+                # 해당 가전에서 가장 많이 언급된 이슈 키워드 추출
                 try:
                     top_issue = df[df['가전'] == appliance]['이슈 키워드'].mode()[0]
                 except:
                     top_issue = "점검"
-                
-                # 순위별 카드 출력
+
+                # 순위별 카드 렌더링
                 st.markdown(f"""
                 <div style="{box_style}">
                     <div style="display:flex; align-items:center;">
                         <span style="font-size:18px; font-weight:900; color:#007BFF; margin-right:12px;">{i}위</span>
                         <div style="flex:1;">
-                            <span style="font-size:15px; font-weight:bold; color:#212529;">{appliance}</span>
-                            <span style="font-size:14px; color:#495057;"> "{top_issue}" 언급이 많아요</span>
+                            <span style="font-size:16px; font-weight:bold; color:#212529;">{appliance}</span>
+                            <span style="font-size:15px; color:#495057;"> "{top_issue}" 언급이 많아요</span>
                         </div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
             
-            # 다음 작업을 위한 상세 리포트 버튼 (우선 유지)
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("🔍 지역 가전 이슈 심층 리포트 보기", use_container_width=True):
+            # 하이브리드 리포트 전환용 버튼
+            st.write("")
+            if st.button("🔍 지역 가전 이슈 심층 리포트 보기", use_container_width=True, type="secondary"):
                 st.session_state['page_mode'] = 'detail'
                 st.rerun()
         else:
-            st.caption("현재 수집된 가전 이슈 데이터가 없습니다.")
+            st.info("현재 수집된 가전 트렌드 데이터가 없습니다. 크롤러를 가동해주세요.")
             
     except Exception as e:
-        st.caption("데이터를 분석하여 트렌드를 계산 중입니다...")
+        # 데이터가 없을 때 사용자에게 에러를 보여주기보다 안내 문구를 보여줍니다.
+        st.caption("실시간 가전 트렌드 정보를 분석 중입니다...")
 
+        
 # --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")
 st.title("📍 LG Life Curation")

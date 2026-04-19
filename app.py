@@ -396,8 +396,6 @@ if loc:
     weather_icon = "☀️" if v_score >= 70 else "☁️" if v_score >= 35 else "☔"
     st.subheader(f"{weather_icon} {u_dong} 상권 기상도")
     
-    c_u1, c_u2 = st.columns(2)
-    
     # 모바일 최적화 스타일 정의
     # [수정] 가로 한 줄 배치를 강제하기 위한 컨테이너 설정
     st.markdown("""

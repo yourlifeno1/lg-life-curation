@@ -99,13 +99,20 @@ def get_nearest_point(u_lat, u_lon):
         return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
     return min(CITY_POINTS, key=lambda p: haversine(u_lat, u_lon, p['lat'], p['lon']))
 
-def fetch_moving_all(lawd_cd, year_month):
+@st.cache_data(ttl=3600) # 1시간 동안만 캐시 유지
+def fetch_moving_all(lawd_cd, year_month, _t=None): # _t 인자 추가
     total = 0
     paths = ["RTMSDataSvcAptRent/getRTMSDataSvcAptRent", "RTMSDataSvcRhRent/getRTMSDataSvcRhRent", "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent"]
     for path in paths:
         try:
+            # 타임스탬프를 쿼리에 섞어 국토부 서버 캐시까지 우회
             url = f"http://apis.data.go.kr/1613000/{path}"
-            p = {'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 'LAWD_CD': lawd_cd, 'DEAL_YMD': year_month}
+            p = {
+                'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 
+                'LAWD_CD': lawd_cd, 
+                'DEAL_YMD': year_month,
+                '_cache_buster': _t # 캐시 우회용 변수
+            }
             r = requests.get(url, params=p, timeout=5)
             if r.status_code == 200:
                 total += len(ET.fromstring(r.text).findall('.//item'))

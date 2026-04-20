@@ -284,23 +284,23 @@ if loc:
     cnt_now = fetch_moving_all(current_code, ym_now, u_lat, u_lon, _t=t_stamp)
     cnt_last = fetch_moving_all(current_code, ym_last, u_lat, u_lon, _t=t_stamp)
     
-    # [날짜 자동화 로직] 실행 시점 기준 당월/전월 계산
+    # [4] 날짜 자동화 로직 (반드시 호출보다 위에 있어야 함)
     now_dt = datetime.now()
     
-    # 1. 당월 (YYYYMM 형식)
+    # 1. 당월 (YYYYMM 형식) - 여기서 ym_now가 생성됩니다.
     ym_now = now_dt.strftime('%Y%m')
     
-    # 2. 전월 계산 (1월일 경우 작년 12월로 넘어가야 함)
+    # 2. 전월 계산
     first_day_of_current_month = now_dt.replace(day=1)
     last_month_dt = first_day_of_current_month - pd.Timedelta(days=1)
     ym_last = last_month_dt.strftime('%Y%m')
 
-    # [5] 국토부 6개 API 데이터 통합 호출 (수정된 부분)
+    # [5] 국토부 6개 API 데이터 통합 호출
     import time
     t_stamp = int(time.time() / 60)
     
-    # ★ 중요: 함수 호출 시 u_lat, u_lon을 추가로 전달합니다.
-    # 이 인자들이 있어야 fetch_moving_all 함수 내부에서 거리 계산이 작동합니다.
+    # 이제 ym_now가 위에서 정의되었으므로 에러가 나지 않습니다.
+    # 거리 기반 반경 1.5km 필터링을 위해 u_lat, u_lon을 전달합니다.
     cnt_now = fetch_moving_all(current_code, ym_now, u_lat, u_lon, _t=t_stamp)
     cnt_last = fetch_moving_all(current_code, ym_last, u_lat, u_lon, _t=t_stamp)
     

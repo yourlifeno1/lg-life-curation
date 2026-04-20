@@ -281,48 +281,45 @@ if loc:
         diff_pct = 100.0 if cnt_now > 0 else 0.0
     # ----------------------------------------------
 
-    # [상권 기상도] S-DoT 유동인구 정밀 매칭 (0명 & 잔상 해결 버전)
+    # [상권 기상도] S-DoT 유동인구 정밀 매칭 (명세서 반영 버전)
     traffic, v_score = 0, 0
     try:
-        # 1. 서울시 S-DoT API 호출
-        sdot_url = f"http://openapi.seoul.go.kr:8088/{SEOUL_API_KEY}/xml/sDoTPeople/1/200/"
+        # 호출 범위를 1000개로 늘려 현재 위치의 센서를 찾을 확률을 높입니다.
+        sdot_url = f"http://openapi.seoul.go.kr:8088/{SEOUL_API_KEY}/xml/sDoTPeople/1/1000/"
         s_res = requests.get(sdot_url, timeout=5)
         
         if s_res.status_code == 200:
             s_root = ET.fromstring(s_res.text)
             rows = s_root.findall(".//row")
             
-            # --- 중요: 매칭 시작 전 무조건 초기화 (0명 출력 및 잔상 제거의 핵심) ---
-            matched_row = None 
-            
-            # 2. GPS 동네 이름(u_dong) 전처리
-            # 예: "회현동1가" -> "회현동", "쌍문제1동" -> "쌍문1동"으로 유연하게 매칭 준비
-            search_name = u_dong.replace(" ", "").replace("제", "")
-            if len(search_name) > 3: # 이름이 길면 핵심 단어(앞 3글자) 추출
-                search_name = search_name[:3]
+            matched_row = None
+            # GPS 동네 이름 전처리 (영문 매칭 대비)
+            search_name = u_dong.replace(" ", "").replace("제", "")[:3]
             
             for row in rows:
+                # 명세서상의 태그명: ADMINISTRATIVE_DISTRICT
                 api_dong = row.findtext("ADMINISTRATIVE_DISTRICT", "")
-                if api_dong:
-                    # [핵심] 포함 관계만 확인하여 매칭률 극대화
-                    if search_name in api_dong or api_dong in search_name:
-                        matched_row = row
-                        break
+                
+                # [수정] 한글 또는 영문 포함 여부를 유연하게 체크
+                if search_name in api_dong or api_dong.lower() in u_dong.lower():
+                    matched_row = row
+                    break
             
-            # 3. 매칭 결과 처리
             if matched_row is not None:
-                v_val = matched_row.findtext("VISITOR_COUNT", "0")
+                # [핵심 수정] 명세서의 출력값 태그인 'VISIT_COUNT'를 사용합니다.
+                v_val = matched_row.findtext("VISIT_COUNT", "0")
                 traffic = int(float(v_val))
-                # 150명 기준 활력 점수 환산
-                v_score = min(int((traffic / 150) * 100), 99)
+                
+                # 센서 측정값이 낮으므로(CSV 기준) 기준값을 50으로 조정하여 기상도를 활성화합니다.
+                v_score = min(int((traffic / 50) * 100), 99)
             else:
-                # [안전장치] 매칭 실패 시 0점이 아닌 지역 평균치(예: 65)로 대체
-                # 이렇게 해야 '0명'으로 깨지는 현상을 막고, 구로 데이터 잔상도 지워집니다.
-                traffic, v_score = 70, 45 
+                # 매칭 실패 시 기본값 부여 (이전 지역 잔상 제거)
+                traffic, v_score = 0, 0
                 
     except Exception as e:
-        st.caption("실시간 센서 데이터를 동기화 중입니다...")
+        st.caption("실시간 센서 동기화 중...")
 
+    
     # 1. 모든 출력 변수 사전 초기화 (NameError 및 0% 현상 완벽 방지)
     cong_lvl = "데이터 없음"
     male_r, fem_r = 50.0, 50.0

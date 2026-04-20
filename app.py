@@ -15,6 +15,9 @@ MOLIT_API_KEY = "cea470e38c930cce42ece10e65d31edd837b1eca751387d260737bcf6331537
 # 매니저님이 방금 추출하신 구글 시트 웹 게시 주소
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRXnh3VI7oOzSbMWMUCI6Owk4G6oK_2hb1kWjTtNNgAfyox_ZgypeM0QK-P6e-nDaRfhpY02WEGTt9z/pub?gid=430558979&single=true&output=csv"
 
+# S-DoT 위치 정보 (구글 시트 웹 게시 URL)
+SDOT_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRXnh3VI7oOzSbMWMUCI6Owk4G6oK_2hb1kWjTtNNgAfyox_ZgypeM0QK-P6e-nDaRfhpY02WEGTt9z/pub?gid=430558979&single=true&output=csv"
+
 # 2. 공식 거점 데이터
 CITY_POINTS = [
 # --- [1. 인구밀집지역] ---

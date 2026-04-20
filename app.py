@@ -133,19 +133,28 @@ def fetch_moving_all(lawd_cd, year_month, u_lat, u_lon, u_dong, _t=None):
                 items = root.findall('.//item')
                 
                 for item in items:
-                    umd_name = item.findtext('법정동', '').strip() #
+                    # 1. API에서 가져온 법정동 명칭 (예: "쌍문동")
+                    umd_name = item.findtext('법정동', '').strip()
                     
-                    # 1순위: 내 동네 이름(키워드)이 포함되어 있으면 즉시 합산
-                    if my_dong_key in umd_name:
+                    # 2. 내 위치에서 핵심 단어만 추출 (예: "쌍문1동" -> "쌍문")
+                    # '동'이나 숫자를 떼고 핵심 이름만 비교합니다.
+                    my_dong_keyword = u_dong.replace("제", "").replace("동", "")
+                    # 숫자 제거 (정규표현식 대신 간단한 처리)
+                    for i in range(10): my_dong_keyword = my_dong_keyword.replace(str(i), "")
+                    my_dong_keyword = my_dong_keyword.strip()[:2] # 최종 "쌍문" 추출
+
+                    # 3. [유연한 매칭] 내 동네 키워드가 법정동 명칭에 포함되면 합산
+                    if my_dong_keyword in umd_name:
                         total += 1
-                        continue
+                        continue # 내 동네면 거리 계산 없이 다음 데이터로
                     
-                    # 2순위: 다른 동네라면 CITY_POINTS에서 좌표를 찾아 거리 계산 (반경 1.5km)
+                    # 4. [인접 생활권] 이름은 다르지만 좌표 기반 1.5km 이내인 경우
                     target_geo = next((p for p in CITY_POINTS if umd_name[:2] in p['name']), None)
                     if target_geo:
                         dist = calculate_distance(u_lat, u_lon, target_geo['lat'], target_geo['lon'])
                         if dist <= 1.5:
                             total += 1
+                            
         except: continue
     return total
 

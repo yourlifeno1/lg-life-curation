@@ -225,7 +225,9 @@ st.title("LG Life Curation")
 
 loc = get_geolocation()
 
-# [1] 변수 사전 초기화 (에러 방지용)
+# [1] 핵심: 변수 사전 선언 (if loc 문 밖에서 미리 선언해야 454라인 에러가 안 납니다)
+u_dong = "위치 파악 중..."
+target = {"gu": "서울시", "name": "거점 탐색 중", "code": "11110"}
 cnt_now, cnt_last, diff, diff_pct = 0, 0, 0, 0
 
 if loc:
@@ -234,6 +236,7 @@ if loc:
     # [2] 위치 기반 정보 세션 관리
     if 'u_dong' not in st.session_state or st.session_state.get('last_lat') != u_lat:
         try:
+            # 실시간 GPS 동네 이름 가져오기
             addr = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={u_lat}&lon={u_lon}", headers={'User-Agent':'LG_App'}).json()
             st.session_state['u_dong'] = addr.get('address', {}).get('suburb') or addr.get('address', {}).get('neighbourhood') or "서울시"
             st.session_state['last_lat'] = u_lat
@@ -242,29 +245,29 @@ if loc:
     
     u_dong = st.session_state['u_dong']
     
-    # [3] 거점 확정
+    # [3] 거점 확정 및 지역 코드 추출
     current_target = get_nearest_point(u_lat, u_lon)
     current_code = current_target['code']
+    target = current_target # 여기서 실제 거점 정보로 덮어씌워짐
 
-    # [4] 지역 이동 감지 및 캐시 초기화
+    # [4] 지역 이동 감지 시 캐시 삭제 및 리런 (지역 이동 시 갱신 핵심)
     if st.session_state.get('active_region_code') != current_code:
-        st.cache_data.clear() # 이전 지역 데이터 삭제
+        st.cache_data.clear()
         st.session_state['active_region_code'] = current_code
-        st.rerun() # 앱 재실행
+        st.rerun()
 
-    # 데이터 호출
+    # [5] 국토부 6개 API 데이터 통합 호출 (매매 3종 + 전월세 3종)
     import time
     t_stamp = int(time.time() / 60)
     
     cnt_now = fetch_moving_all(current_code, "202404", _t=t_stamp)
     cnt_last = fetch_moving_all(current_code, "202403", _t=t_stamp)
     
-    # [수정] 증감 및 퍼센트 계산 로직 정교화
+    # [6] 전월 대비 증감 및 % 계산 (기록 안 나오던 문제 해결)
     diff = cnt_now - cnt_last
     if cnt_last > 0:
         diff_pct = (diff / cnt_last) * 100
     else:
-        # 전월 데이터가 0이면 이번 달 데이터가 있는 경우 100% 상승으로 간주하거나 0 처리
         diff_pct = 100.0 if cnt_now > 0 else 0.0
     # ----------------------------------------------
 

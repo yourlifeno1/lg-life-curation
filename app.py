@@ -545,7 +545,14 @@ if loc:
     l_val = f"{v_score}점"
     l_bg = "#D1FAE5" if v_score >= 70 else "#FEF3C7" if v_score >= 35 else "#FEE2E2"
     l_txt_color = "#065F46" if v_score >= 70 else "#92400E" if v_score >= 35 else "#991B1B"
-    l_msg = f"유동 {traffic}명 ({'활발' if v_score >= 70 else '보통' if v_score >= 35 else '한산'})"
+    # [수정] S-DoT 센서 유무에 따른 메시지 분기 로직
+    if dist_to_sdot <= 0.5 and traffic > 0:
+        # 센서가 근처에 있고 값이 있을 때 (하이브리드 모드)
+        l_msg = f"실시간 유동 {traffic}명 ({'활발' if v_score >= 70 else '보통' if v_score >= 35 else '한산'})"
+    else:
+        # 센서가 없거나 너무 멀 때 (광역 분석 모드)
+        # cong_lvl: '여유', '보통', '붐빔' 등의 텍스트가 표시됩니다.
+        l_msg = f"거점 인구 {cong_lvl} (광역 분석)"
 
     # 오른쪽 박스용 (%, 건수, 화살표까지 여기서 다 합칩니다)
     r_val = f"{cnt_now}건"

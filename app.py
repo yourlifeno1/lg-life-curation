@@ -225,7 +225,7 @@ st.title("LG Life Curation")
 
 loc = get_geolocation()
 
-# [1] 핵심: 변수 사전 선언 (if loc 문 밖에서 미리 선언해야 454라인 에러가 안 납니다)
+# [1] 변수 사전 선언: 454라인 NameError 방지를 위해 if loc 밖에서 미리 정의합니다.
 u_dong = "위치 파악 중..."
 target = {"gu": "서울시", "name": "거점 탐색 중", "code": "11110"}
 cnt_now, cnt_last, diff, diff_pct = 0, 0, 0, 0
@@ -233,10 +233,9 @@ cnt_now, cnt_last, diff, diff_pct = 0, 0, 0, 0
 if loc:
     u_lat, u_lon = loc['coords']['latitude'], loc['coords']['longitude']
     
-    # [2] 위치 기반 정보 세션 관리
+    # [2] 위치 기반 정보 세션 관리 (중복 호출 방지 및 잔상 제거)
     if 'u_dong' not in st.session_state or st.session_state.get('last_lat') != u_lat:
         try:
-            # 실시간 GPS 동네 이름 가져오기
             addr = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={u_lat}&lon={u_lon}", headers={'User-Agent':'LG_App'}).json()
             st.session_state['u_dong'] = addr.get('address', {}).get('suburb') or addr.get('address', {}).get('neighbourhood') or "서울시"
             st.session_state['last_lat'] = u_lat
@@ -248,9 +247,9 @@ if loc:
     # [3] 거점 확정 및 지역 코드 추출
     current_target = get_nearest_point(u_lat, u_lon)
     current_code = current_target['code']
-    target = current_target # 여기서 실제 거점 정보로 덮어씌워짐
+    target = current_target 
 
-    # [4] 지역 이동 감지 시 캐시 삭제 및 리런 (지역 이동 시 갱신 핵심)
+    # [4] 지역 이동 감지 시 캐시 삭제 및 리런 (회현동 ↔ 구로구 데이터 꼬임 방지)
     if st.session_state.get('active_region_code') != current_code:
         st.cache_data.clear()
         st.session_state['active_region_code'] = current_code
@@ -260,10 +259,11 @@ if loc:
     import time
     t_stamp = int(time.time() / 60)
     
+    # 매니저님이 주신 오피스텔 전월세를 포함한 6개 지표가 fetch_moving_all 내부에 반영되어야 합니다.
     cnt_now = fetch_moving_all(current_code, "202404", _t=t_stamp)
     cnt_last = fetch_moving_all(current_code, "202403", _t=t_stamp)
     
-    # [6] 전월 대비 증감 및 % 계산 (기록 안 나오던 문제 해결)
+    # [6] 전월 대비 증감 기록 산출
     diff = cnt_now - cnt_last
     if cnt_last > 0:
         diff_pct = (diff / cnt_last) * 100

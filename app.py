@@ -112,11 +112,7 @@ def get_nearest_point(u_lat, u_lon):
     
 # --- 수정 포인트 2: 거리 기반 필터링 로직 적용 ---
 @st.cache_data(ttl=3600, show_spinner=False)
-def fetch_moving_all(lawd_cd, year_month, u_dong, _t=None):
-    """
-    1. 이사 지수 로직: 시티포인트를 활용하지 않음.
-    2. GPS로 파악된 u_dong의 앞 2글자(법정동 핵심어)를 기준으로 구 전체 데이터에서 필터링.
-    """
+def fetch_moving_all(lawd_cd, year_month, _t=None):
     total = 0
     paths = [
         "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
@@ -124,31 +120,22 @@ def fetch_moving_all(lawd_cd, year_month, u_dong, _t=None):
         "RTMSDataSvcSHTrade/getRTMSDataSvcSHTrade", "RTMSDataSvcSHRent/getRTMSDataSvcSHRent"
     ]
     
-    # [핵심] 법정동 매칭을 위한 키워드 정제 (예: "쌍문동" -> "쌍문")
-    # u_dong이 "도봉구 쌍문동" 혹은 "쌍문1동"일 때 "쌍문"만 정확히 추출
-    base_keyword = u_dong.split()[-1].replace("제", "").replace("동", "")
-    for i in range(10): base_keyword = base_keyword.replace(str(i), "")
-    base_keyword = base_keyword.strip()[:2]
-    
     for path in paths:
         try:
             url = f"http://apis.data.go.kr/1613000/{path}"
-            p = {'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 'LAWD_CD': lawd_cd, 'DEAL_YMD': year_month, '_cache_buster': _t}
+            p = {
+                'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 
+                'LAWD_CD': lawd_cd, 
+                'DEAL_YMD': year_month,
+                '_cache_buster': _t
+            }
             r = requests.get(url, params=p, timeout=5)
             if r.status_code == 200:
                 root = ET.fromstring(r.text)
                 items = root.findall('.//item')
-                
-                for item in items:
-                    # 기술문서상 법정동(umdNm) 데이터 추출
-                    umd_name = item.findtext('법정동', '').strip()
-                    
-                    # [반경 1.5km 로직의 실무적 구현] 
-                    # 같은 구 내에서 이름 앞부분이 같은 동네(예: 쌍문1~4동)는 
-                    # 지리적으로 1.5km 이내 생활권일 확률이 매우 높음
-                    if base_keyword in umd_name:
-                        total += 1
-        except: continue
+                total += len(items) # 필터링 없이 구 전체 합산
+        except:
+            continue
     return total
 
 # [신규 함수] 우리 동네 가전 이슈 리포트 출력 로직
@@ -275,13 +262,15 @@ if loc:
     ym_now = now_dt.strftime('%Y%m')
     ym_last = (now_dt.replace(day=1) - pd.Timedelta(days=1)).strftime('%Y%m')
 
+    # [5] 이사 지수용: 시티포인트/법정동 필터링 없이 '구 전체' 합산
+    # 매니저님의 원칙: 이사 지수는 시티포인트를 활용하지 않고 자치구 단위로 집계합니다.
     import time
     t_stamp = int(time.time() / 60)
     
-    # [5] 이사 지수용: 시티포인트 활용 안 함 (u_dong 직접 활용)
-    # 함수에 좌표 대신 u_dong을 전달하여 텍스트 기반으로 생활권을 합산합니다.
-    cnt_now = fetch_moving_all(current_code, ym_now, u_dong, _t=t_stamp)
-    cnt_last = fetch_moving_all(current_code, ym_last, u_dong, _t=t_stamp)
+    # current_code는 [3]번에서 내 GPS와 가장 가까운 거점이 속한 '구 코드'입니다.
+    # 이 코드를 사용하여 해당 구 전체의 이사 유동을 가져옵니다.
+    cnt_now = fetch_moving_all(current_code, ym_now, _t=t_stamp)
+    cnt_last = fetch_moving_all(current_code, ym_last, _t=t_stamp)
     
     # [6] 전월 대비 증감 기록 산출
     diff = cnt_now - cnt_last

@@ -452,57 +452,37 @@ if loc:
                 v70 = float(root.findtext(".//PPLTN_RATE_70", "0"))
                 age_rates["60대+"] = v60 + v70
 
-            # --- [실시간 상권 결제 건수 기반 매출 총액 예측] ---
+            # --- [실시간 상권 통합 분석: 매출 및 업종 순위] ---
+            # 상권 결제 정보를 담고 있는 태그를 한 번에 찾습니다.
             found_shop = root.find(".//LIVE_CMRCL_STTS")
             
             if found_shop is not None:
+                # 1. 상권 활력 단계 (이미지 디자인 반영)
                 shop_lvl = found_shop.findtext("AREA_CMRCL_LVL", "정보 없음")
                 
-                # 1. 금액 최소/최대값 및 결제 건수를 가져옵니다.
+                # 2. 매출 총액 산출 (평균 결제액 * 결제 건수)
                 sh_min = found_shop.findtext("AREA_SH_PAYMENT_AMT_MIN", "0")
                 sh_max = found_shop.findtext("AREA_SH_PAYMENT_AMT_MAX", "0")
-                sh_cnt = found_shop.findtext("AREA_SH_PAYMENT_CNT", "0") # 결제 건수
+                sh_cnt = found_shop.findtext("AREA_SH_PAYMENT_CNT", "0")
                 
                 try:
-                    v_min = int(sh_min)
-                    v_max = int(sh_max)
                     v_cnt = int(sh_cnt)
-                    
                     if v_cnt > 0:
-                        # 2. 평균 결제액 계산 후 건수를 곱해 총액 산출
-                        avg_amt = (v_min + v_max) / 2
+                        # 평균가 계산 후 총 건수를 곱해 10분간 매출 총액 추정
+                        avg_amt = (int(sh_min) + int(sh_max)) / 2
                         total_revenue = avg_amt * v_cnt
-                        
-                        # 3. 만원 단위로 변환하여 저장 (예: 85)
-                        # 이미 HTML 뒤에 '미만 만원'이 있으므로 숫자만 깔끔하게 보냅니다.
                         sales_total = f"{int(total_revenue // 10000):,}"
                     else:
                         sales_total = "0"
                 except:
                     sales_total = "0"
-                
-            # --- [수정] 실시간 결제 업종 순위 (순수 업종명만 출력) ---
-            found_shop = root.find(".//LIVE_CMRCL_STTS")
-            
-            if found_shop is not None:
-                # 1. 상권 활력 단계
-                shop_lvl = found_shop.findtext("AREA_CMRCL_LVL", "정보 없음")
-                
-                # 2. 매출 총액 (기존 유지)
-                sh_min = found_shop.findtext("AREA_SH_PAYMENT_AMT_MIN", "0")
-                sh_max = found_shop.findtext("AREA_SH_PAYMENT_AMT_MAX", "0")
-                sh_cnt = found_shop.findtext("AREA_SH_PAYMENT_CNT", "0")
-                try:
-                    total_revenue = ((int(sh_min) + int(sh_max)) / 2) * int(sh_cnt)
-                    sales_total = f"{int(total_revenue // 10000):,}"
-                except:
-                    sales_total = "0"
 
-                # 3. [핵심] 업종명만 추출하여 Top 3 구성
+                # 3. [핵심] 실시간 결제 업종 Top 3 추출
                 upjong_list = []
                 for i in range(1, 6):
+                    # 명세서의 태그명(UPJONG_NM_i, RSB_SH_PAYMENT_CNT_i)을 정확히 매칭합니다
                     nm = found_shop.findtext(f"UPJONG_NM_{i}")
-                    cnt = found_shop.findtext(f"RSB_SH_PAYMENT_CNT_{i}") # 정렬을 위해 건수는 가져오되 출력은 안 함
+                    cnt = found_shop.findtext(f"RSB_SH_PAYMENT_CNT_{i}")
                     
                     if nm and nm != "-" and cnt:
                         try:
@@ -510,15 +490,16 @@ if loc:
                         except:
                             continue
 
-                # 4. 건수 기준으로 정렬 후 "업종명"만 깔끔하게 연결
+                # 4. 결제 건수가 많은 순서대로 정렬 후 문자열 완성
                 if upjong_list:
                     sorted_list = sorted(upjong_list, key=lambda x: x['count'], reverse=True)
-                    # "1위 업종명 / 2위 업종명 / 3위 업종명" 형식
+                    # "1위 업종명 / 2위 업종명 / 3위 업종명" 형식으로 가로 출력
                     rank_parts = [f"{idx+1}위 {item['name']}" for idx, item in enumerate(sorted_list[:3])]
                     sales_rank = " / ".join(rank_parts)
                 else:
                     sales_rank = "현재 집계된 업종 정보가 없습니다."
             else:
+                # 데이터가 아예 없는 경우 초기화
                 shop_lvl = "데이터 미제공"
                 sales_total = "0"
                 sales_rank = "정보 없음"

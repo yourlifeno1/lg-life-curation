@@ -91,25 +91,26 @@ CITY_POINTS = [
     {"name": "신촌 스타광장", "lat": 37.5580, "lon": 126.9370, "category": "발달상권", "code": "11410", "gu": "서대문구"}
 ]
 
-def get_nearest_point(u_lat, u_lon):
-    def haversine(lat1, lon1, lat2, lon2):
-        R = 6371
-        dLat, dLon = math.radians(lat2-lat1), math.radians(lon2-lon1)
-        a = math.sin(dLat/2)**2 + math.cos(math.radians(lat1))*math.cos(math.radians(lat2))*math.sin(dLon/2)**2
-        return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
-    return min(CITY_POINTS, key=lambda p: haversine(u_lat, u_lon, p['lat'], p['lon']))
-
-@st.cache_data(ttl=3600, show_spinner=False) # show_spinner=False 추가로 메시지 제거
-def fetch_moving_all(lawd_cd, year_month, _t=None):
+# --- 수정 포인트 1: 거리 계산 함수 추가 ---
+def calculate_distance(lat1, lon1, lat2, lon2):
+    R = 6371  # 지구 반지름 (km)
+    dLat = math.radians(lat2 - lat1)
+    dLon = math.radians(lon2 - lon1)
+    a = math.sin(dLat / 2) * math.sin(dLat / 2) + \
+        math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * \
+        math.sin(dLon / 2) * math.sin(dLon / 2)
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
+    
+# --- 수정 포인트 2: 거리 기반 필터링 로직 적용 ---
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_moving_all(lawd_cd, year_month, u_lat, u_lon, _t=None):
     total = 0
-    # 매매(Trade) 3종 + 전월세(Rent) 3종 = 총 6개 API 경로 통합
+    # 6개 API (아파트/오피스텔/단독다가구 매매 및 전월세)
     paths = [
-        "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", 
-        "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
-        "RTMSDataSvcRhTrade/getRTMSDataSvcRhTrade",
-        "RTMSDataSvcRhRent/getRTMSDataSvcRhRent",
-        "RTMSDataSvcOffiTrade/getRTMSDataSvcOffiTrade",
-        "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent"
+        "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
+        "RTMSDataSvcOffiTrade/getRTMSDataSvcOffiTrade", "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent",
+        "RTMSDataSvcSHTrade/getRTMSDataSvcSHTrade", "RTMSDataSvcSHRent/getRTMSDataSvcSHRent"
     ]
     
     for path in paths:
@@ -119,14 +120,26 @@ def fetch_moving_all(lawd_cd, year_month, _t=None):
                 'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 
                 'LAWD_CD': lawd_cd, 
                 'DEAL_YMD': year_month,
-                '_cache_buster': _t # 캐시 우회용 변수
+                '_cache_buster': _t
             }
             r = requests.get(url, params=p, timeout=5)
             if r.status_code == 200:
                 root = ET.fromstring(r.text)
                 items = root.findall('.//item')
-                total += len(items)
-        except: 
+                
+                for item in items:
+                    # 기술문서상 공통 항목인 '법정동' 추출
+                    umd_name = item.findtext('법정동', '').strip()
+                    
+                    # CITY_POINTS에서 해당 동네의 대표 좌표를 찾아 거리 계산
+                    target_point = next((p for p in CITY_POINTS if umd_name[:2] in p['name']), None)
+                    
+                    if target_point:
+                        dist = calculate_distance(u_lat, u_lon, target_point['lat'], target_point['lon'])
+                        # 반경 1.5km 이내 생활권 데이터만 합산
+                        if dist <= 1.5:
+                            total += 1
+        except:
             continue
     return total
 
@@ -266,12 +279,14 @@ if loc:
     last_month_dt = first_day_of_current_month - pd.Timedelta(days=1)
     ym_last = last_month_dt.strftime('%Y%m')
 
-    # [5] 국토부 6개 API 데이터 통합 호출 (자동 계산된 날짜 적용)
+    # [5] 국토부 6개 API 데이터 통합 호출 (수정된 부분)
     import time
     t_stamp = int(time.time() / 60)
     
-    cnt_now = fetch_moving_all(current_code, ym_now, _t=t_stamp)
-    cnt_last = fetch_moving_all(current_code, ym_last, _t=t_stamp)
+    # ★ 중요: 함수 호출 시 u_lat, u_lon을 추가로 전달합니다.
+    # 이 인자들이 있어야 fetch_moving_all 함수 내부에서 거리 계산이 작동합니다.
+    cnt_now = fetch_moving_all(current_code, ym_now, u_lat, u_lon, _t=t_stamp)
+    cnt_last = fetch_moving_all(current_code, ym_last, u_lat, u_lon, _t=t_stamp)
     
     # [6] 전월 대비 증감 기록 산출
     diff = cnt_now - cnt_last

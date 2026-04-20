@@ -214,21 +214,44 @@ st.title("LG Life Curation")
 
 loc = get_geolocation()
 
+# [1] 변수 사전 초기화 (에러 방지용)
+cnt_now, cnt_last, diff, diff_pct = 0, 0, 0, 0
+
 if loc:
     u_lat, u_lon = loc['coords']['latitude'], loc['coords']['longitude']
     
-    try:
-        # 1. 실시간 GPS 동네 이름 가져오기
-        addr = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={u_lat}&lon={u_lon}", headers={'User-Agent':'LG_App'}).json()
-        u_dong = addr.get('address', {}).get('suburb') or addr.get('address', {}).get('neighbourhood') or "서울시"
-    except: u_dong = "현재 위치"
+    # [2] 위치 기반 정보 세션 관리
+    if 'u_dong' not in st.session_state or st.session_state.get('last_lat') != u_lat:
+        try:
+            addr = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={u_lat}&lon={u_lon}", headers={'User-Agent':'LG_App'}).json()
+            st.session_state['u_dong'] = addr.get('address', {}).get('suburb') or addr.get('address', {}).get('neighbourhood') or "서울시"
+            st.session_state['last_lat'] = u_lat
+        except: 
+            st.session_state['u_dong'] = "현재 위치"
     
-    # --- [2번: 지역 변경 감지 및 캐시 초기화 로직] ---
-    # 1. 현재 GPS 기반 가장 가까운 거점의 법정동 코드 추출
+    u_dong = st.session_state['u_dong']
+    
+    # [3] 거점 확정
     current_target = get_nearest_point(u_lat, u_lon)
     current_code = current_target['code']
+
+    # [4] 지역 이동 감지 및 캐시 초기화
+    if st.session_state.get('active_region_code') != current_code:
+        st.cache_data.clear() # 이전 지역 데이터 삭제
+        st.session_state['active_region_code'] = current_code
+        st.rerun() # 앱 재실행
+
+    # [5] 데이터 실제 호출 (타임스탬프 적용)
+    import time
+    t_stamp = int(time.time() / 60)
     
-    # 5. 기존 UI 변수(target)와 동기화
+    # 여기서 cnt_now와 cnt_last를 확실히 생성합니다.
+    cnt_now = fetch_moving_all(current_code, "202404", _t=t_stamp)
+    cnt_last = fetch_moving_all(current_code, "202403", _t=t_stamp)
+    
+    # 증감 계산
+    diff = cnt_now - cnt_last
+    diff_pct = (diff / cnt_last * 100) if cnt_last > 0 else 0
     target = current_target
     # ----------------------------------------------
 

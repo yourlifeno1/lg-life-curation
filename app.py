@@ -417,14 +417,14 @@ if loc:
                 except:
                     sales_total = "0"
                 
-             # --- [수정] 실시간 결제 건수 기반 업종 순위 로직 ---
+            # --- [수정] 실시간 결제 업종 순위 (순수 업종명만 출력) ---
             found_shop = root.find(".//LIVE_CMRCL_STTS")
             
             if found_shop is not None:
-                # 1. 상권 활력 단계 (북적임 등)
+                # 1. 상권 활력 단계
                 shop_lvl = found_shop.findtext("AREA_CMRCL_LVL", "정보 없음")
                 
-                # 2. 매출 총액 계산 (기존 유지)
+                # 2. 매출 총액 (기존 유지)
                 sh_min = found_shop.findtext("AREA_SH_PAYMENT_AMT_MIN", "0")
                 sh_max = found_shop.findtext("AREA_SH_PAYMENT_AMT_MAX", "0")
                 sh_cnt = found_shop.findtext("AREA_SH_PAYMENT_CNT", "0")
@@ -434,12 +434,11 @@ if loc:
                 except:
                     sales_total = "0"
 
-                # 3. [핵심] 업종별 결제 건수(RSB_SH_PAYMENT_CNT) 추출
+                # 3. [핵심] 업종명만 추출하여 Top 3 구성
                 upjong_list = []
                 for i in range(1, 6):
-                    # 매니저님이 말씀하신 RSB_SH_PAYMENT_CNT_1, _2... 순서대로 가져옵니다.
                     nm = found_shop.findtext(f"UPJONG_NM_{i}")
-                    cnt = found_shop.findtext(f"RSB_SH_PAYMENT_CNT_{i}")
+                    cnt = found_shop.findtext(f"RSB_SH_PAYMENT_CNT_{i}") # 정렬을 위해 건수는 가져오되 출력은 안 함
                     
                     if nm and nm != "-" and cnt:
                         try:
@@ -447,15 +446,14 @@ if loc:
                         except:
                             continue
 
-                # 4. 건수 많은 순으로 정렬 후 상위 3개만 문자열로 합치기
+                # 4. 건수 기준으로 정렬 후 "업종명"만 깔끔하게 연결
                 if upjong_list:
-                    # 내림차순 정렬
                     sorted_list = sorted(upjong_list, key=lambda x: x['count'], reverse=True)
-                    # "1위 업종(건수) / 2위 업종(건수)..." 형식
-                    rank_parts = [f"{idx+1}위 {item['name']}({item['count']:,}건)" for idx, item in enumerate(sorted_list[:3])]
+                    # "1위 업종명 / 2위 업종명 / 3위 업종명" 형식
+                    rank_parts = [f"{idx+1}위 {item['name']}" for idx, item in enumerate(sorted_list[:3])]
                     sales_rank = " / ".join(rank_parts)
                 else:
-                    sales_rank = "현재 집계된 실시간 업종 정보가 없습니다."
+                    sales_rank = "현재 집계된 업종 정보가 없습니다."
             else:
                 shop_lvl = "데이터 미제공"
                 sales_total = "0"

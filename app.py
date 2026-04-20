@@ -400,37 +400,42 @@ if loc:
                 
                 # --- 향후 12시간 전망: AI 예측 모델 시점 정밀 추출 ---
                 fcst_yn = root.findtext(".//FCST_YN", "N")
-                fcst_list = root.findall(".//FCST_PPLTN")
+                fcst_all = root.findall(".//FCST_PPLTN")
                 
-                # [중요] 변수가 유실되지 않도록 여기서 값을 확실히 할당합니다.
-                if fcst_yn == "Y" and fcst_list:
-                    # 첫 번째 예측 데이터(가장 가까운 미래) 추출
-                    target_fcst = fcst_list[0]
-                    f_time = target_fcst.findtext("FCST_TIME") 
-                    
-                    if f_time:
-                        try:
-                            # 시점 변환 (예: 2026-04-21 15:00 -> 오후 3시)
-                            dt_obj = datetime.strptime(f_time, "%Y-%m-%d %H:%M")
-                            ampm = "오전" if dt_obj.hour < 12 else "오후"
-                            hh_12 = dt_obj.hour if dt_obj.hour <= 12 else dt_obj.hour - 12
-                            if hh_12 == 0: hh_12 = 12
-                            
-                            # 최종 화면 출력용 변수 확정
-                            pop_time = f"{ampm} {hh_12}시 전망" 
-                        except:
-                            pop_time = "시간 분석 중"
+                max_val = -1
+                peak_time = ""
+                
+                # 2. 제안하신 MIN/MAX 중 MAX(최대치)가 가장 높은 시점을 피크 타임으로 잡습니다.
+                for fcst in fcst_all:
+                    try:
+                        f_max = int(fcst.findtext("FCST_PPLTN_MAX", "0"))
+                        f_time = fcst.findtext("FCST_TIME", "")
+                        
+                        if f_max > max_val:
+                            max_val = f_max
+                            peak_time = f_time
+                    except:
+                        continue
+                
+                # 3. 시간 포맷팅: 숫자 제외, "오전/오후 X시"만 남기기
+                if peak_time and max_val > 0:
+                    try:
+                        dt_obj = datetime.strptime(peak_time, "%Y-%m-%d %H:%M")
+                        ampm = "오전" if dt_obj.hour < 12 else "오후"
+                        hh_12 = dt_obj.hour if dt_obj.hour <= 12 else dt_obj.hour - 12
+                        if hh_12 == 0: hh_12 = 12
+                        
+                        # 최종 결과: "오후 6시" (글자가 짧아져서 가독성이 좋아집니다)
+                        pop_time = f"{ampm} {hh_12}시"
+                    except:
+                        pop_time = "분석 중"
                 else:
-                    # 예측 데이터가 없을 경우 실시간 기준 시간 표시
-                    p_time = root.findtext(".//PPLTN_TIME")
-                    if p_time:
-                        try:
-                            dt_obj = datetime.strptime(p_time, "%Y-%m-%d %H:%M")
-                            ampm = "오전" if dt_obj.hour < 12 else "오후"
-                            hh_12 = dt_obj.hour if dt_obj.hour <= 12 else dt_obj.hour - 12
-                            pop_time = f"{ampm} {hh_12 or 12}시 기준"
-                        except:
-                            pop_time = "실시간 분석 중"
+                    # 예측 데이터가 없는 경우를 대비한 현재 시간 포맷팅
+                    now = datetime.now()
+                    ampm = "오전" if now.hour < 12 else "오후"
+                    hh_12 = now.hour if now.hour <= 12 else now.hour - 12
+                    if hh_12 == 0: hh_12 = 12
+                    pop_time = f"{ampm} {hh_12}시"
                 
                 # 성별 비중 로직 (기존과 동일)
                 fem_r = float(root.findtext(".//FEMALE_PPLTN_RATE", "50"))

@@ -120,33 +120,46 @@ def fetch_moving_all(lawd_cd, year_month, u_lat, u_lon, u_dong, _t=None):
         "RTMSDataSvcSHTrade/getRTMSDataSvcSHTrade", "RTMSDataSvcSHRent/getRTMSDataSvcSHRent"
     ]
     
-    # 내 동네 키워드 (예: "쌍문")
-    my_dong_key = u_dong[:2]
+    # [개선] 내 동네 이름 정제 (예: "쌍문1동" -> "쌍문", "도봉구 쌍문동" -> "쌍문")
+    # 공백 제거 및 '동' 이전의 핵심 단어만 추출합니다.
+    my_dong_clean = u_dong.split()[-1].replace("제", "").replace("동", "")[:2]
     
     for path in paths:
         try:
             url = f"http://apis.data.go.kr/1613000/{path}"
-            p = {'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 'LAWD_CD': lawd_cd, 'DEAL_YMD': year_month, '_cache_buster': _t}
+            p = {
+                'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 
+                'LAWD_CD': lawd_cd, 
+                'DEAL_YMD': year_month,
+                '_cache_buster': _t
+            }
             r = requests.get(url, params=p, timeout=5)
             if r.status_code == 200:
                 root = ET.fromstring(r.text)
                 items = root.findall('.//item')
                 
                 for item in items:
+                    # API 기술문서의 법정동(umdNm) 태그 값 추출
                     umd_name = item.findtext('법정동', '').strip()
                     
-                    # 1순위: 내 동네 이름과 같으면 무조건 포함 (거리 계산 불필요)
-                    if my_dong_key in umd_name:
+                    # 1순위: 내 동네 이름이 포함되어 있으면 무조건 카운트 (가장 확실한 방법)
+                    if my_dong_clean in umd_name:
                         total += 1
                         continue
                     
-                    # 2순위: 다른 동네라면 CITY_POINTS에서 좌표를 찾아 거리 계산 (1.5km 필터)
+                    # 2순위: 다른 동네라면 거리 계산 (반경 1.5km)
                     target_geo = next((p for p in CITY_POINTS if umd_name[:2] in p['name']), None)
                     if target_geo:
                         dist = calculate_distance(u_lat, u_lon, target_geo['lat'], target_geo['lon'])
                         if dist <= 1.5:
                             total += 1
-        except: continue
+        except:
+            continue
+            
+    # [검증용] 만약 1.5km 필터링 후에도 0건이라면, 구 전체 데이터의 10%라도 반환 (테스트용)
+    # 실서비스에서는 아래 if문을 지우셔도 됩니다.
+    # if total == 0: return 1 # 데이터가 오고 있음을 확인하기 위한 임시 코드
+    
     return total
 
 # [신규 함수] 우리 동네 가전 이슈 리포트 출력 로직

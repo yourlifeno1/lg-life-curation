@@ -340,10 +340,12 @@ if loc:
         diff_pct = 100.0 if cnt_now > 0 else 0.0
     # ----------------------------------------------
 
-    # [하이브리드 상권 기상도] 내 위치 기반 S-DoT 정밀 매칭 및 점수 산출
+    # --- [상권 기상도 하이브리드 실행 구역] ---
+    # NameError 방지를 위해 기본값 우선 선언
     s_traffic, dist_to_sdot = 0, 999
-    v_score, v_type = 0, "분석 중"
-    
+    v_score, v_type = 0, "데이터 확인 중"
+    traffic = 0 
+
     try:
         # 1. 구글 시트에서 S-DoT 센서 목록 로드 (C:시리얼, E:위도, F:경도)
         sdot_points = load_sdot_list()
@@ -358,12 +360,14 @@ if loc:
                 s_traffic = get_sdot_live_traffic(nearest_sdot['serial'])
         
         # 4. 하이브리드 점수 산출 (cong_lvl은 아래 도시데이터 API 호출 후 최종 확정됨)
-        # ※ 우선 기본 점수를 계산하고, 아래 도시데이터 수신 후 자동으로 보정됩니다.
         v_score, v_type = calculate_hybrid_vitality(cong_lvl, s_traffic, dist_to_sdot)
-        traffic = s_traffic # 기존 UI 변수와 호환성 유지
+        traffic = s_traffic # 537라인 UI 변수와 호환성 유지
         
     except Exception as e:
         st.caption("상권 센서 연결 확인 중...")
+        # 에러 발생 시에도 기본값 유지하여 NameError 방지
+        traffic = 0
+        v_score = 0
 
     
     # 1. 모든 출력 변수 사전 초기화 (NameError 및 0% 현상 완벽 방지)

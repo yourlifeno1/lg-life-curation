@@ -291,8 +291,8 @@ if loc:
     t_stamp = int(time.time() / 60)
 
     # 3. 그 다음, 생성된 변수들을 사용하여 함수를 호출합니다.
-    cnt_now = fetch_moving_all(current_code, ym_now, u_lat, u_lon, _t=t_stamp)
-    cnt_last = fetch_moving_all(current_code, ym_last, u_lat, u_lon, _t=t_stamp)
+    cnt_now = fetch_moving_all(current_code, ym_now, u_lat, u_lon, u_dong, _t=t_stamp)
+    cnt_last = fetch_moving_all(current_code, ym_last, u_lat, u_lon, u_dong, _t=t_stamp)
     
     # [6] 전월 대비 증감 기록 산출
     diff = cnt_now - cnt_last

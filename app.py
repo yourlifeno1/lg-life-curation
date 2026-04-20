@@ -398,43 +398,31 @@ if loc:
                 traffic = s_traffic  # UI 화면에 방문자 수를 표시하기 위해 할당합니다.
                 # -----------------------------
                 
-                # 1. 인구 예측(FCST_PPLTN) 전체 데이터를 가져옵니다.
+                # --- [수정] 향후 12시간 전망: 실시간 흐름에 맞춰 가장 가까운 미래 시점 추출 ---
                 fcst_all = root.findall(".//FCST_PPLTN")
                 
-                max_val = -1
-                peak_time = ""
-                
-                # 2. 제안하신 MIN/MAX 중 MAX(최대치)가 가장 높은 시점을 피크 타임으로 잡습니다.
-                for fcst in fcst_all:
+                # 예측 데이터가 있다면 가장 첫 번째(가장 가까운 미래) 데이터를 사용합니다.
+                if fcst_all:
+                    first_fcst = fcst_all[0] 
+                    peak_time = first_fcst.findtext("FCST_TIME", "")
+                    
                     try:
-                        f_max = int(fcst.findtext("FCST_PPLTN_MAX", "0"))
-                        f_time = fcst.findtext("FCST_TIME", "")
-                        
-                        if f_max > max_val:
-                            max_val = f_max
-                            peak_time = f_time
-                    except:
-                        continue
-                
-                # 3. 시간 포맷팅: 숫자 제외, "오전/오후 X시"만 남기기
-                if peak_time and max_val > 0:
-                    try:
+                        # "2026-04-21 15:00" 형식을 "오후 3시"로 변환
                         dt_obj = datetime.strptime(peak_time, "%Y-%m-%d %H:%M")
                         ampm = "오전" if dt_obj.hour < 12 else "오후"
                         hh_12 = dt_obj.hour if dt_obj.hour <= 12 else dt_obj.hour - 12
                         if hh_12 == 0: hh_12 = 12
                         
-                        # 최종 결과: "오후 6시" (글자가 짧아져서 가독성이 좋아집니다)
-                        pop_time = f"{ampm} {hh_12}시"
+                        pop_time = f"{ampm} {hh_12}시 전망" 
                     except:
-                        pop_time = "분석 중"
+                        pop_time = "데이터 분석 중"
                 else:
-                    # 예측 데이터가 없는 경우를 대비한 현재 시간 포맷팅
+                    # 데이터가 없을 경우 현재 시간 표시
                     now = datetime.now()
                     ampm = "오전" if now.hour < 12 else "오후"
                     hh_12 = now.hour if now.hour <= 12 else now.hour - 12
                     if hh_12 == 0: hh_12 = 12
-                    pop_time = f"{ampm} {hh_12}시"
+                    pop_time = f"{ampm} {hh_12}시 기준"
 
                 
                 # 성별 비중 로직 (기존과 동일)

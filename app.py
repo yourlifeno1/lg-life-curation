@@ -252,18 +252,20 @@ if loc:
         st.session_state['active_region_code'] = current_code
         st.rerun() # 앱 재실행
 
-    # [5] 데이터 실제 호출 (타임스탬프 적용)
+    # 데이터 호출
     import time
     t_stamp = int(time.time() / 60)
     
-    # 여기서 cnt_now와 cnt_last를 확실히 생성합니다.
     cnt_now = fetch_moving_all(current_code, "202404", _t=t_stamp)
     cnt_last = fetch_moving_all(current_code, "202403", _t=t_stamp)
     
-    # 증감 계산
+    # [수정] 증감 및 퍼센트 계산 로직 정교화
     diff = cnt_now - cnt_last
-    diff_pct = (diff / cnt_last * 100) if cnt_last > 0 else 0
-    target = current_target
+    if cnt_last > 0:
+        diff_pct = (diff / cnt_last) * 100
+    else:
+        # 전월 데이터가 0이면 이번 달 데이터가 있는 경우 100% 상승으로 간주하거나 0 처리
+        diff_pct = 100.0 if cnt_now > 0 else 0.0
     # ----------------------------------------------
 
     # [상권 기상도] S-DoT 유동인구 정밀 매칭 (0명 & 잔상 해결 버전)
@@ -470,15 +472,16 @@ if loc:
 
     # 오른쪽 박스용 (%, 건수, 화살표까지 여기서 다 합칩니다)
     r_val = f"{cnt_now}건"
-    r_bg = "#F1F3F5" if diff == 0 else "#D1FAE5" if diff > 0 else "#FEE2E2"
     
-    if diff == 0:
-        r_msg = "변동 없음"
+    if diff > 0:
+        r_bg = "#D1FAE5" # 녹색 (상승)
+        r_msg = f"↑{abs(diff_pct):.0f}% 상승"
+    elif diff < 0:
+        r_bg = "#FEE2E2" # 빨간색 (하락)
+        r_msg = f"↓{abs(diff_pct):.0f}% 하락"
     else:
-        direction = "↑" if diff > 0 else "↓"
-        status = "상승" if diff > 0 else "하락"
-        # 여기서 포맷팅을 미리 끝냅니다 (HTML 안에서 :.0f 사용 금지)
-        r_msg = f"{direction}{int(abs(diff_pct))}% {status}"
+        r_bg = "#F1F3F5" # 회색 (변동없음)
+        r_msg = "전월 동일"
 
     # 3. 통합 HTML 출력 (중괄호 안에는 '순수 변수 이름'만 들어감)
     st.markdown(f"""

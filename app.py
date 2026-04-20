@@ -278,29 +278,24 @@ if loc:
         st.cache_data.clear()
         st.session_state['active_region_code'] = current_code
         st.rerun()
-
-    # [5] 이사 지수용: 현재 좌표(u_lat, u_lon) 기반 1.5km 반경 호출
-    # 이제 CITY_POINTS의 이름과 상관없이 내 반경 1.5km를 계산하도록 인자를 전달합니다.
-    cnt_now = fetch_moving_all(current_code, ym_now, u_lat, u_lon, _t=t_stamp)
-    cnt_last = fetch_moving_all(current_code, ym_last, u_lat, u_lon, _t=t_stamp)
     
-    # [4] 날짜 자동화 로직 (반드시 호출보다 위에 있어야 함)
+    # [5] 날짜 자동화 로직 (반드시 호출보다 위에 있어야 함)
     now_dt = datetime.now()
     
     # 1. 당월 (YYYYMM 형식) - 여기서 ym_now가 생성됩니다.
-    ym_now = now_dt.strftime('%Y%m')
+    # 1. 날짜 자동화 로직을 먼저 실행하여 변수를 생성합니다.
+    now_dt = datetime.now()
+    ym_now = now_dt.strftime('%Y%m') # 여기서 ym_now가 정의됩니다.
     
-    # 2. 전월 계산
     first_day_of_current_month = now_dt.replace(day=1)
     last_month_dt = first_day_of_current_month - pd.Timedelta(days=1)
     ym_last = last_month_dt.strftime('%Y%m')
 
-    # [5] 국토부 6개 API 데이터 통합 호출
+    # 2. 캐시 버스터용 타임스탬프 생성
     import time
     t_stamp = int(time.time() / 60)
-    
-    # 이제 ym_now가 위에서 정의되었으므로 에러가 나지 않습니다.
-    # 거리 기반 반경 1.5km 필터링을 위해 u_lat, u_lon을 전달합니다.
+
+    # 3. 그 다음, 생성된 변수들을 사용하여 함수를 호출합니다.
     cnt_now = fetch_moving_all(current_code, ym_now, u_lat, u_lon, _t=t_stamp)
     cnt_last = fetch_moving_all(current_code, ym_last, u_lat, u_lon, _t=t_stamp)
     

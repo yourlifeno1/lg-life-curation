@@ -218,26 +218,44 @@ if loc:
     u_lat, u_lon = loc['coords']['latitude'], loc['coords']['longitude']
     
     try:
+        # 1. 실시간 GPS 동네 이름 가져오기
         addr = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={u_lat}&lon={u_lon}", headers={'User-Agent':'LG_App'}).json()
         u_dong = addr.get('address', {}).get('suburb') or addr.get('address', {}).get('neighbourhood') or "서울시"
     except: u_dong = "현재 위치"
     
-# [수정] 변수명을 current_target으로 명확히 하여 강제 갱신
+    # --- [2번: 지역 변경 감지 및 캐시 초기화 로직] ---
+    # 현재 GPS 기반 가장 가까운 거점 찾기
     current_target = get_nearest_point(u_lat, u_lon)
+    current_code = current_target['code']
 
-    # 이제 확정된 current_target의 코드를 직접 집어넣습니다.
-    cnt_now = fetch_moving_all(current_target['code'], "202404")
-    cnt_last = fetch_moving_all(current_target['code'], "202403")
+    # 세션 상태에 마지막 지역 코드 저장
+    if "last_region_code" not in st.session_state:
+        st.session_state["last_region_code"] = current_code
+
+    # 지역이 바뀌었으면 캐시 비우고 재실행 (잔상 제거 핵심)
+    if st.session_state["last_region_code"] != current_code:
+        st.cache_data.clear() 
+        st.session_state["last_region_code"] = current_code
+        st.rerun() 
+
+    # --- [3번: 이사 지수 데이터 호출 및 계산] ---
+    import time
+    t_stamp = int(time.time() / 60) # 분 단위 갱신용 타임스탬프
+    
+    # 매니저님이 수정한 함수 호출 (타임스탬프 전달)
+    cnt_now = fetch_moving_all(current_code, "202404", _t=t_stamp)
+    cnt_last = fetch_moving_all(current_code, "202403", _t=t_stamp)
+    
     diff = cnt_now - cnt_last
     diff_pct = (diff / cnt_last * 100) if cnt_last > 0 else 0
     
-    # 기존 target 변수에도 새 값을 덮어씌워 UI와 동기화
+    # UI 출력을 위한 변수 동기화
     target = current_target
+    # ----------------------------------------------
 
-   # [상권 기상도] 실시간 GPS 동네 이름(u_dong) 기반 유동인구 매칭
+    # [상권 기상도] 유동인구 매칭 (3번 수정안 적용)
     traffic, v_score = 0, 0
     try:
-        # 1. 매니저님이 주신 명세에 따라 sDoTPeople API 호출 (넉넉하게 200개 조회)
         sdot_url = f"http://openapi.seoul.go.kr:8088/{SEOUL_API_KEY}/xml/sDoTPeople/1/200/"
         s_res = requests.get(sdot_url, timeout=5)
         
@@ -245,23 +263,21 @@ if loc:
             s_root = ET.fromstring(s_res.text)
             rows = s_root.findall(".//row")
             
-            # 2. [핵심] 현재 GPS로 파악된 동네 이름(u_dong)과 API의 행정구역명을 비교
-            # 예: u_dong이 "쌍문1동"이면 API 결과 중 ADMINISTRATIVE_DISTRICT가 "쌍문1동"인 것을 찾음
             matched_row = None
             for row in rows:
                 api_dong = row.findtext("ADMINISTRATIVE_DISTRICT", "")
-                if u_dong in api_dong or api_dong in u_dong:
+                # GPS 동네 이름과 API 데이터 정밀 매칭
+                if u_dong and (u_dong in api_dong or api_dong in u_dong):
                     matched_row = row
                     break
             
-            # 3. 매칭된 데이터가 있으면 유동인구수(VISITOR_COUNT) 추출
-            target_row = matched_row if matched_row is not None else rows[0]
-            v_val = target_row.findtext("VISITOR_COUNT", "0")
-            
-            if v_val:
+            if matched_row is not None:
+                v_val = matched_row.findtext("VISITOR_COUNT", "0")
                 traffic = int(float(v_val))
-                # 150명 기준 상권 활력 점수 환산
                 v_score = min(int((traffic / 150) * 100), 99)
+            else:
+                # 매칭 실패 시 0으로 초기화하여 이전 지역 잔상 방지
+                traffic, v_score = 0, 0
                 
     except Exception as e:
         st.caption("실시간 위치 기반 유동인구 센서 탐색 중...")

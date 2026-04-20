@@ -426,7 +426,7 @@ if loc:
                         if hh_12 == 0: hh_12 = 12
                         
                         # 최종 결과: "오후 6시" (글자가 짧아져서 가독성이 좋아집니다)
-                        pop_time = f"{ampm} {hh_12}시 예상"
+                        pop_time = f"{ampm} {hh_12}시"
                     except:
                         pop_time = "분석 중"
                 else:

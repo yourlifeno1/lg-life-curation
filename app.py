@@ -399,31 +399,34 @@ if loc:
                 # -----------------------------
                 
                 # --- [수정] 향후 12시간 전망: 실시간 흐름에 맞춰 가장 가까운 미래 시점 추출 ---
-                fcst_all = root.findall(".//FCST_PPLTN")
+                fcst_list = root.findall(".//FCST_PPLTN")
                 
-                # 예측 데이터가 있다면 가장 첫 번째(가장 가까운 미래) 데이터를 사용합니다.
-                if fcst_all:
-                    first_fcst = fcst_all[0] 
-                    peak_time = first_fcst.findtext("FCST_TIME", "")
+                if fcst_list:
+                    # 첫 번째 예측 시점 데이터 선택
+                    target_fcst = fcst_list[0]
+                    f_time = target_fcst.findtext("FCST_TIME")
                     
-                    try:
-                        # "2026-04-21 15:00" 형식을 "오후 3시"로 변환
-                        dt_obj = datetime.strptime(peak_time, "%Y-%m-%d %H:%M")
-                        ampm = "오전" if dt_obj.hour < 12 else "오후"
-                        hh_12 = dt_obj.hour if dt_obj.hour <= 12 else dt_obj.hour - 12
-                        if hh_12 == 0: hh_12 = 12
-                        
-                        pop_time = f"{ampm} {hh_12}시 전망" 
-                    except:
-                        pop_time = "데이터 분석 중"
+                    if f_time:
+                        try:
+                            # "2026-04-21 15:00" -> "오후 3시" 변환
+                            dt_obj = datetime.strptime(f_time, "%Y-%m-%d %H:%M")
+                            ampm = "오전" if dt_obj.hour < 12 else "오후"
+                            hh_12 = dt_obj.hour if dt_obj.hour <= 12 else dt_obj.hour - 12
+                            if hh_12 == 0: hh_12 = 12
+                            
+                            # 최종 변수에 할당 (이 값이 화면에 찍힙니다)
+                            pop_time = f"{ampm} {hh_12}시 전망" 
+                        except:
+                            pop_time = "시간 분석 중"
+                    else:
+                        pop_time = "예측 준비 중"
                 else:
-                    # 데이터가 없을 경우 현재 시간 표시
+                    # 예측 데이터가 없을 경우 현재 시간이라도 표시
                     now = datetime.now()
                     ampm = "오전" if now.hour < 12 else "오후"
                     hh_12 = now.hour if now.hour <= 12 else now.hour - 12
                     if hh_12 == 0: hh_12 = 12
                     pop_time = f"{ampm} {hh_12}시 기준"
-
                 
                 # 성별 비중 로직 (기존과 동일)
                 fem_r = float(root.findtext(".//FEMALE_PPLTN_RATE", "50"))

@@ -96,11 +96,19 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     R = 6371  # 지구 반지름 (km)
     dLat = math.radians(lat2 - lat1)
     dLon = math.radians(lon2 - lon1)
-    a = math.sin(dLat / 2) * math.sin(dLat / 2) + \
+    a = math.sin(dLat / 2) ** 2 + \
         math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * \
-        math.sin(dLon / 2) * math.sin(dLon / 2)
+        math.sin(dLon / 2) ** 2
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
+
+# [순서 2] 가장 가까운 거점 찾기 함수
+def get_nearest_point(u_lat, u_lon):
+    # 이 함수는 내부에서 calculate_distance를 사용하므로 그 뒤에 와야 합니다.
+    nearest_pt = min(CITY_POINTS, key=lambda p: calculate_distance(u_lat, u_lon, p['lat'], p['lon']))
+    # 거리값도 함께 반환하도록 수정 (에러 방지)
+    dist = calculate_distance(u_lat, u_lon, nearest_pt['lat'], nearest_pt['lon'])
+    return nearest_pt
     
 # --- 수정 포인트 2: 거리 기반 필터링 로직 적용 ---
 @st.cache_data(ttl=3600, show_spinner=False)

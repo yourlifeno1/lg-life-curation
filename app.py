@@ -141,6 +141,63 @@ def fetch_moving_all(lawd_cd, year_month, _t=None):
             continue
     return total
 
+# ==========================================================
+# [신규 추가] S-DoT 위치 로드 및 하이브리드 계산 함수
+# ==========================================================
+
+@st.cache_data(ttl=86400)
+def load_sdot_list():
+    """구글 시트(C:시리얼, E:위도, F:경도)에서 센서 목록을 읽어옵니다."""
+    try:
+        # 매니저님이 공유해주신 S-DoT 시트의 웹 게시 주소
+        SDOT_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRXnh3VI7oOzSbMWMUCI6Owk4G6oK_2hb1kWjTtNNgAfyox_ZgypeM0QK-P6e-nDaRfhpY02WEGTt9z/pub?gid=430558979&single=true&output=csv"
+        df = pd.read_csv(SDOT_URL)
+        points = []
+        for _, row in df.iterrows():
+            points.append({
+                'serial': str(row.iloc[2]), # C열: 시리얼번호
+                'lat': float(row.iloc[4]),    # E열: 위도
+                'lon': float(row.iloc[5])     # F열: 경도
+            })
+        return points
+    except Exception as e:
+        return []
+
+@st.cache_data(ttl=3600)
+def get_sdot_live_traffic(serial_no):
+    """S-DoT API를 통해 실시간 VISIT_COUNT(방문자수)를 가져옵니다."""
+    try:
+        url = f"http://openapi.seoul.go.kr:8088/{SEOUL_API_KEY}/json/SdotV2PeopleCount/1/1/{serial_no}"
+        res = requests.get(url, timeout=5).json()
+        if 'SdotV2PeopleCount' in res:
+            return int(res['SdotV2PeopleCount']['row'][0]['VISIT_COUNT'])
+        return 0
+    except:
+        return 0
+
+def calculate_hybrid_vitality(cong_lvl, s_traffic, dist_sdot):
+    """도시데이터와 S-DoT 데이터를 믹스하여 하이브리드 점수를 산출합니다."""
+    # (A) 도시데이터 인구 점수 (50점 만점 기준)
+    cong_map = {"여유": 15, "보통": 30, "약간 붐빔": 42, "붐빔": 50}
+    cong_score = cong_map.get(cong_lvl, 15)
+    
+    # (B) S-DoT 센서 점수 (50점 만점 기준)
+    # 500m(0.5km) 이내에 센서가 있을 때만 활성화
+    sdot_score = 0
+    if dist_sdot <= 0.5 and s_traffic > 0:
+        sdot_score = min(int((s_traffic / 50) * 50), 50)
+    
+    # (C) 하이브리드 판정
+    if sdot_score > 0:
+        final_v = cong_score + sdot_score
+        label = "하이브리드(거점+센서)"
+    else:
+        final_v = cong_score * 2
+        label = "광역 거점 기반"
+        
+    return final_v, label
+
+
 # [신규 함수] 우리 동네 가전 이슈 리포트 출력 로직
 # 1. 파일 상단 변수 설정 (이 주소로 꼭 바꿔주세요)
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSGEDlHeWG2PHspcMEtlO74lWt9UWdeIzwL9A9fpV6nTY5eSvYTUfeNOFlWvh8qHXFnNwHBsaKKG6cp/pub?gid=189297044&single=true&output=csv"
@@ -283,43 +340,30 @@ if loc:
         diff_pct = 100.0 if cnt_now > 0 else 0.0
     # ----------------------------------------------
 
-    # [상권 기상도] S-DoT 유동인구 정밀 매칭 (명세서 반영 버전)
-    traffic, v_score = 0, 0
+    # [하이브리드 상권 기상도] 내 위치 기반 S-DoT 정밀 매칭 및 점수 산출
+    s_traffic, dist_to_sdot = 0, 999
+    v_score, v_type = 0, "분석 중"
+    
     try:
-        # 호출 범위를 1000개로 늘려 현재 위치의 센서를 찾을 확률을 높입니다.
-        sdot_url = f"http://openapi.seoul.go.kr:8088/{SEOUL_API_KEY}/xml/sDoTPeople/1/1000/"
-        s_res = requests.get(sdot_url, timeout=5)
+        # 1. 구글 시트에서 S-DoT 센서 목록 로드 (C:시리얼, E:위도, F:경도)
+        sdot_points = load_sdot_list()
         
-        if s_res.status_code == 200:
-            s_root = ET.fromstring(s_res.text)
-            rows = s_root.findall(".//row")
+        if sdot_points:
+            # 2. 내 GPS 좌표와 가장 가까운 센서 탐색
+            nearest_sdot = min(sdot_points, key=lambda p: calculate_distance(u_lat, u_lon, p['lat'], p['lon']))
+            dist_to_sdot = calculate_distance(u_lat, u_lon, nearest_sdot['lat'], nearest_sdot['lon'])
             
-            matched_row = None
-            # GPS 동네 이름 전처리 (영문 매칭 대비)
-            search_name = u_dong.replace(" ", "").replace("제", "")[:3]
-            
-            for row in rows:
-                # 명세서상의 태그명: ADMINISTRATIVE_DISTRICT
-                api_dong = row.findtext("ADMINISTRATIVE_DISTRICT", "")
-                
-                # [수정] 한글 또는 영문 포함 여부를 유연하게 체크
-                if search_name in api_dong or api_dong.lower() in u_dong.lower():
-                    matched_row = row
-                    break
-            
-            if matched_row is not None:
-                # [핵심 수정] 명세서의 출력값 태그인 'VISIT_COUNT'를 사용합니다.
-                v_val = matched_row.findtext("VISIT_COUNT", "0")
-                traffic = int(float(v_val))
-                
-                # 센서 측정값이 낮으므로(CSV 기준) 기준값을 50으로 조정하여 기상도를 활성화합니다.
-                v_score = min(int((traffic / 50) * 100), 99)
-            else:
-                # 매칭 실패 시 기본값 부여 (이전 지역 잔상 제거)
-                traffic, v_score = 0, 0
-                
+            # 3. 500m 이내에 센서가 있을 때만 실시간 API 호출 (정밀 매칭)
+            if dist_to_sdot <= 0.5:
+                s_traffic = get_sdot_live_traffic(nearest_sdot['serial'])
+        
+        # 4. 하이브리드 점수 산출 (cong_lvl은 아래 도시데이터 API 호출 후 최종 확정됨)
+        # ※ 우선 기본 점수를 계산하고, 아래 도시데이터 수신 후 자동으로 보정됩니다.
+        v_score, v_type = calculate_hybrid_vitality(cong_lvl, s_traffic, dist_to_sdot)
+        traffic = s_traffic # 기존 UI 변수와 호환성 유지
+        
     except Exception as e:
-        st.caption("실시간 센서 동기화 중...")
+        st.caption("상권 센서 연결 확인 중...")
 
     
     # 1. 모든 출력 변수 사전 초기화 (NameError 및 0% 현상 완벽 방지)

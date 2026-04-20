@@ -738,7 +738,7 @@ if loc:
                 """, unsafe_allow_html=True)
 
             # 1위 가전 제품 이름 확보
-            top_app_name = top_apps[0] 
+            matched_app = top_apps[0]
             # 1위 가전 데이터만 필터링하여 그 안에서 1위 이슈를 찾습니다.
             target_app_df = df[df['가전'] == matched_app]
             

@@ -102,21 +102,36 @@ def get_nearest_point(u_lat, u_lon):
 @st.cache_data(ttl=3600)
 def fetch_moving_all(lawd_cd, year_month, _t=None):
     total = 0
-    paths = ["RTMSDataSvcAptRent/getRTMSDataSvcAptRent", "RTMSDataSvcRhRent/getRTMSDataSvcRhRent", "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent"]
+    # 매매(Trade) 3종 + 전월세(Rent) 3종 = 총 6개 API 경로 설정
+    paths = [
+        # 아파트
+        "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", 
+        "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
+        # 연립다세대
+        "RTMSDataSvcRhTrade/getRTMSDataSvcRhTrade",
+        "RTMSDataSvcRhRent/getRTMSDataSvcRhRent",
+        # 오피스텔
+        "RTMSDataSvcOffiTrade/getRTMSDataSvcOffiTrade",
+        "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent"
+    ]
+    
     for path in paths:
         try:
-            # 타임스탬프를 쿼리에 섞어 국토부 서버 캐시까지 우회
             url = f"http://apis.data.go.kr/1613000/{path}"
             p = {
                 'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 
                 'LAWD_CD': lawd_cd, 
                 'DEAL_YMD': year_month,
-                '_cache_buster': _t # 캐시 우회용 변수
+                '_cache_buster': _t
             }
             r = requests.get(url, params=p, timeout=5)
             if r.status_code == 200:
-                total += len(ET.fromstring(r.text).findall('.//item'))
-        except: continue
+                # 각 API 결과에서 <item> 태그 개수(계약 건수)를 추출하여 합산
+                root = ET.fromstring(r.text)
+                items = root.findall('.//item')
+                total += len(items)
+        except: 
+            continue
     return total
 
 # [신규 함수] 우리 동네 가전 이슈 리포트 출력 로직

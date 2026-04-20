@@ -99,8 +99,8 @@ def get_nearest_point(u_lat, u_lon):
         return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
     return min(CITY_POINTS, key=lambda p: haversine(u_lat, u_lon, p['lat'], p['lon']))
 
-@st.cache_data(ttl=3600) # 1시간 동안만 캐시 유지
-def fetch_moving_all(lawd_cd, year_month, _t=None): # _t 인자 추가
+@st.cache_data(ttl=3600)
+def fetch_moving_all(lawd_cd, year_month, _t=None):
     total = 0
     paths = ["RTMSDataSvcAptRent/getRTMSDataSvcAptRent", "RTMSDataSvcRhRent/getRTMSDataSvcRhRent", "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent"]
     for path in paths:
@@ -227,27 +227,6 @@ if loc:
     # 1. 현재 GPS 기반 가장 가까운 거점의 법정동 코드 추출
     current_target = get_nearest_point(u_lat, u_lon)
     current_code = current_target['code']
-
-    # 2. 지역 변경 감지 및 캐시 강제 삭제 (남영동/쌍문동 데이터 꼬임 방지)
-    if "last_region_code" not in st.session_state:
-        st.session_state["last_region_code"] = current_code
-
-    if st.session_state["last_region_code"] != current_code:
-        st.cache_data.clear() # 이전 지역 데이터 파괴
-        st.session_state["last_region_code"] = current_code
-        st.rerun() # 앱을 새로고침하여 새 데이터를 로드함
-
-    # 3. 국토부 이사 지수(계약 건수) 데이터 직접 호출
-    import time
-    t_stamp = int(time.time() / 60) # 분 단위 타임스탬프로 실시간성 확보
-    
-    # 매니저님이 수정한 fetch_moving_all 함수를 여기서 실제로 실행합니다.
-    cnt_now = fetch_moving_all(current_code, "202404", _t=t_stamp)
-    cnt_last = fetch_moving_all(current_code, "202403", _t=t_stamp)
-    
-    # 4. 증감 수치 계산
-    diff = cnt_now - cnt_last
-    diff_pct = (diff / cnt_last * 100) if cnt_last > 0 else 0
     
     # 5. 기존 UI 변수(target)와 동기화
     target = current_target

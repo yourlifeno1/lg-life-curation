@@ -99,18 +99,15 @@ def get_nearest_point(u_lat, u_lon):
         return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
     return min(CITY_POINTS, key=lambda p: haversine(u_lat, u_lon, p['lat'], p['lon']))
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600, show_spinner=False) # show_spinner=False 추가로 메시지 제거
 def fetch_moving_all(lawd_cd, year_month, _t=None):
     total = 0
-    # 매매(Trade) 3종 + 전월세(Rent) 3종 = 총 6개 API 경로 설정
+    # 매매(Trade) 3종 + 전월세(Rent) 3종 = 총 6개 API 경로 통합
     paths = [
-        # 아파트
         "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", 
         "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
-        # 연립다세대
         "RTMSDataSvcRhTrade/getRTMSDataSvcRhTrade",
         "RTMSDataSvcRhRent/getRTMSDataSvcRhRent",
-        # 오피스텔
         "RTMSDataSvcOffiTrade/getRTMSDataSvcOffiTrade",
         "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent"
     ]
@@ -122,11 +119,10 @@ def fetch_moving_all(lawd_cd, year_month, _t=None):
                 'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 
                 'LAWD_CD': lawd_cd, 
                 'DEAL_YMD': year_month,
-                '_cache_buster': _t
+                '_cache_buster': _t # 캐시 우회용 변수
             }
             r = requests.get(url, params=p, timeout=5)
             if r.status_code == 200:
-                # 각 API 결과에서 <item> 태그 개수(계약 건수)를 추출하여 합산
                 root = ET.fromstring(r.text)
                 items = root.findall('.//item')
                 total += len(items)

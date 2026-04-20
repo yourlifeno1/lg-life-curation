@@ -245,17 +245,18 @@ if loc:
             matched_row = None
             for row in rows:
                 api_dong = row.findtext("ADMINISTRATIVE_DISTRICT", "")
-                # GPS 동네 이름과 API 데이터 정밀 매칭
-                if u_dong and (u_dong in api_dong or api_dong in u_dong):
-                    matched_row = row
-                    break
+                # API 데이터가 None이 아님을 확인
+                if api_dong and u_dong:
+                    if u_dong in api_dong or api_dong in u_dong:
+                        matched_row = row
+                        break
             
             if matched_row is not None:
                 v_val = matched_row.findtext("VISITOR_COUNT", "0")
                 traffic = int(float(v_val))
                 v_score = min(int((traffic / 150) * 100), 99)
             else:
-                # 매칭 실패 시 0으로 초기화하여 이전 지역 잔상 방지
+                # 매칭 실패 시 초기화 (잔상 제거)
                 traffic, v_score = 0, 0
                 
     except Exception as e:

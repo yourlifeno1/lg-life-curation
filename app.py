@@ -390,6 +390,13 @@ if loc:
             found_cong = root.find(".//AREA_CONGEST_LVL")
             if found_cong is not None:
                 cong_lvl = found_cong.text
+
+                # --- [하이브리드 점수 확정] ---
+                # 서울시 혼잡도(cong_lvl)가 확인된 지금, S-DoT 데이터와 믹스하여 점수를 냅니다.
+                # v_type은 '하이브리드'인지 '광역 거점'인지를 알려주는 라벨입니다.
+                v_score, v_type = calculate_hybrid_vitality(cong_lvl, s_traffic, dist_to_sdot)
+                traffic = s_traffic  # UI 화면에 방문자 수를 표시하기 위해 할당합니다.
+                # -----------------------------
                 
                 # 1. 인구 예측(FCST_PPLTN) 전체 데이터를 가져옵니다.
                 fcst_all = root.findall(".//FCST_PPLTN")

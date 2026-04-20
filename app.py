@@ -255,13 +255,23 @@ if loc:
         st.session_state['active_region_code'] = current_code
         st.rerun()
 
-    # [5] 국토부 6개 API 데이터 통합 호출 (매매 3종 + 전월세 3종)
+    # [날짜 자동화 로직] 실행 시점 기준 당월/전월 계산
+    now_dt = datetime.now()
+    
+    # 1. 당월 (YYYYMM 형식)
+    ym_now = now_dt.strftime('%Y%m')
+    
+    # 2. 전월 계산 (1월일 경우 작년 12월로 넘어가야 함)
+    first_day_of_current_month = now_dt.replace(day=1)
+    last_month_dt = first_day_of_current_month - pd.Timedelta(days=1)
+    ym_last = last_month_dt.strftime('%Y%m')
+
+    # [5] 국토부 6개 API 데이터 통합 호출 (자동 계산된 날짜 적용)
     import time
     t_stamp = int(time.time() / 60)
     
-    # 매니저님이 주신 오피스텔 전월세를 포함한 6개 지표가 fetch_moving_all 내부에 반영되어야 합니다.
-    cnt_now = fetch_moving_all(current_code, "202404", _t=t_stamp)
-    cnt_last = fetch_moving_all(current_code, "202403", _t=t_stamp)
+    cnt_now = fetch_moving_all(current_code, ym_now, _t=t_stamp)
+    cnt_last = fetch_moving_all(current_code, ym_last, _t=t_stamp)
     
     # [6] 전월 대비 증감 기록 산출
     diff = cnt_now - cnt_last
@@ -507,7 +517,7 @@ if loc:
             </span>
         </div>
         <div style="flex:1; background:white; border:1px solid #E9ECEF; border-radius:12px; padding:15px; text-align:center; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
-            <p style="font-size:12px; color:#868E96; margin:0; white-space:nowrap;">4월 이사 지수</p>
+            <p style="..."> {now_dt.month}월 이사 지수</p>  <p style="..."> {r_val}</p>
             <p style="font-size:26px; font-weight:800; color:#212529; margin:8px 0; line-height:1.1;">{r_val}</p>
             <span style="display:inline-block; padding:3px 8px; border-radius:10px; font-size:10px; font-weight:700; background:{r_bg}; color:#475467; white-space:nowrap;">
                 {r_msg}

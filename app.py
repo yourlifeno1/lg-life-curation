@@ -742,20 +742,29 @@ if loc:
             # 전체가 아닌 1위 제품의 데이터만 따로 뽑습니다.
             top_app_data = df[df['가전'] == top_app_name]
             
-            if not top_app_data.empty:
-                # 1위 제품 내에서 가장 많이 발생한 이슈 1개 추출
-                matched_issue = top_app_data['이슈 키워드'].value_counts().idxmax()
+            if not target_app_df.empty:
+                # 1. 이슈 빈도 계산
+                app_issue_counts = target_app_df['이슈 키워드'].value_counts()
+                max_freq = app_issue_counts.max() # 가장 높은 빈도수 확인
+                
+                # 2. 가장 높은 빈도와 동일한 횟수를 가진 모든 이슈 추출
+                top_issues = app_issue_counts[app_issue_counts == max_freq].index.tolist()
+                
+                # 3. 이슈들을 '및'으로 연결 (예: 배터리 및 소음)
+                if len(top_issues) > 1:
+                    matched_issue = " 및 ".join(top_issues)
+                else:
+                    matched_issue = top_issues[0]
             else:
-                matched_issue = "성능 및 관리"
+                matched_issue = "성능 및 제품 관리"
 
-            # 3. 대응 가이드 (정확한 매칭 반영)
+            # 3. 대응 가이드 출력 (통합 이슈 반영)
             st.info(f"""
             **📢 {u_dong} 지역 현장 대응 가이드**
-            - 현재 **{top_app_name}** 제품의 **{matched_issue}** 이슈가 가장 지배적입니다.
+            - 현재 **{matched_app}** 제품의 **{matched_issue}** 이슈가 가장 지배적입니다.
             - 상담 시 이 부분을 먼저 체크하시면 고객 만족도를 크게 높일 수 있습니다.
-            - 이슈에 맞춰 LG전자 구독의 전문가 방문관리, 무상 A/s, 소모품 교체를 적절하게 언급하세요.
+            - 이슈에 맞춰 LG전자 구독의 전문가 방문관리, 무상 A/S, 소모품 교체를 적절하게 언급하세요.
             """)
-
             # 4. 실시간 소비 인구 비율 분석
             st.write("---")
             st.markdown(f"""

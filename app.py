@@ -737,6 +737,17 @@ if loc:
                 </div>
                 """, unsafe_allow_html=True)
 
+            # 1위 가전 제품 이름 확보
+            top_app_name = top_apps[0] 
+            # 1위 가전 데이터만 필터링하여 그 안에서 1위 이슈를 찾습니다.
+            top_app_data = df[df['가전'] == top_app_name]
+            
+            if not top_app_data.empty:
+                # 해당 제품 내에서 가장 빈도가 높은 키워드 추출
+                matched_issue = top_app_data['이슈 키워드'].value_counts().idxmax()
+            else:
+                matched_issue = "성능 및 관리" # 백업용
+
             # 3. 대응 가이드
             st.info(f"""
             **📢 {u_dong} 지역 현장 대응 가이드**

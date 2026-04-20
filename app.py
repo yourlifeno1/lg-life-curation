@@ -738,9 +738,8 @@ if loc:
                 """, unsafe_allow_html=True)
 
             # 1위 가전 제품 이름 확보
-            top_app_name = top_apps[0]
-            # 전체가 아닌 1위 제품의 데이터만 따로 뽑습니다.
-            top_app_data = df[df['가전'] == top_app_name]
+            matched_app = top_apps.index[0] # 1위 가전 제품명
+            target_app_df = df[df['가전'] == matched_app]
             
             if not target_app_df.empty:
                 # 1. 이슈 빈도 계산

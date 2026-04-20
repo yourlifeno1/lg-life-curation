@@ -224,32 +224,32 @@ if loc:
     except: u_dong = "현재 위치"
     
     # --- [2번: 지역 변경 감지 및 캐시 초기화 로직] ---
-    # 현재 GPS 기반 가장 가까운 거점 찾기
+    # 1. 현재 GPS 기반 가장 가까운 거점의 법정동 코드 추출
     current_target = get_nearest_point(u_lat, u_lon)
     current_code = current_target['code']
 
-    # 세션 상태에 마지막 지역 코드 저장
+    # 2. 지역 변경 감지 및 캐시 강제 삭제 (남영동/쌍문동 데이터 꼬임 방지)
     if "last_region_code" not in st.session_state:
         st.session_state["last_region_code"] = current_code
 
-    # 지역이 바뀌었으면 캐시 비우고 재실행 (잔상 제거 핵심)
     if st.session_state["last_region_code"] != current_code:
-        st.cache_data.clear() 
+        st.cache_data.clear() # 이전 지역 데이터 파괴
         st.session_state["last_region_code"] = current_code
-        st.rerun() 
+        st.rerun() # 앱을 새로고침하여 새 데이터를 로드함
 
-    # --- [3번: 이사 지수 데이터 호출 및 계산] ---
+    # 3. 국토부 이사 지수(계약 건수) 데이터 직접 호출
     import time
-    t_stamp = int(time.time() / 60) # 분 단위 갱신용 타임스탬프
+    t_stamp = int(time.time() / 60) # 분 단위 타임스탬프로 실시간성 확보
     
-    # 매니저님이 수정한 함수 호출 (타임스탬프 전달)
+    # 매니저님이 수정한 fetch_moving_all 함수를 여기서 실제로 실행합니다.
     cnt_now = fetch_moving_all(current_code, "202404", _t=t_stamp)
     cnt_last = fetch_moving_all(current_code, "202403", _t=t_stamp)
     
+    # 4. 증감 수치 계산
     diff = cnt_now - cnt_last
     diff_pct = (diff / cnt_last * 100) if cnt_last > 0 else 0
     
-    # UI 출력을 위한 변수 동기화
+    # 5. 기존 UI 변수(target)와 동기화
     target = current_target
     # ----------------------------------------------
 

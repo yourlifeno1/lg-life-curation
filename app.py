@@ -417,7 +417,7 @@ if loc:
                             
                             pop_time = f"{ampm} {hh_12}시 전망" 
                         except:
-                            pop_time = "시간 분석 중"
+                            # pop_time = "시간 분석 중"
                     else:
                         pop_time = "데이터 로딩 중"
                 else:

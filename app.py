@@ -417,14 +417,14 @@ if loc:
                 except:
                     sales_total = "0"
                 
-               # --- [실시간 결제 건수 기반 업종 순위 로직 수정] ---
+             # --- [수정] 실시간 결제 건수 기반 업종 순위 로직 ---
             found_shop = root.find(".//LIVE_CMRCL_STTS")
             
             if found_shop is not None:
-                # 상권 활력 단계 (예: 북적임 등)
+                # 1. 상권 활력 단계 (북적임 등)
                 shop_lvl = found_shop.findtext("AREA_CMRCL_LVL", "정보 없음")
                 
-                # 매출 총액 계산부 (기존 로직 유지)
+                # 2. 매출 총액 계산 (기존 유지)
                 sh_min = found_shop.findtext("AREA_SH_PAYMENT_AMT_MIN", "0")
                 sh_max = found_shop.findtext("AREA_SH_PAYMENT_AMT_MAX", "0")
                 sh_cnt = found_shop.findtext("AREA_SH_PAYMENT_CNT", "0")
@@ -434,11 +434,10 @@ if loc:
                 except:
                     sales_total = "0"
 
-                # [핵심 수정] 업종 순위 파싱 로직
+                # 3. [핵심] 업종별 결제 건수(RSB_SH_PAYMENT_CNT) 추출
                 upjong_list = []
-                # API 명세에 맞춰 1위부터 5위까지 정밀 탐색
                 for i in range(1, 6):
-                    # 업종명과 해당 업종의 결제 건수를 가져옵니다.
+                    # 매니저님이 말씀하신 RSB_SH_PAYMENT_CNT_1, _2... 순서대로 가져옵니다.
                     nm = found_shop.findtext(f"UPJONG_NM_{i}")
                     cnt = found_shop.findtext(f"RSB_SH_PAYMENT_CNT_{i}")
                     
@@ -448,17 +447,19 @@ if loc:
                         except:
                             continue
 
-                # 데이터가 있다면 건수순으로 재정렬 후 Top 3 추출
+                # 4. 건수 많은 순으로 정렬 후 상위 3개만 문자열로 합치기
                 if upjong_list:
+                    # 내림차순 정렬
                     sorted_list = sorted(upjong_list, key=lambda x: x['count'], reverse=True)
+                    # "1위 업종(건수) / 2위 업종(건수)..." 형식
                     rank_parts = [f"{idx+1}위 {item['name']}({item['count']:,}건)" for idx, item in enumerate(sorted_list[:3])]
                     sales_rank = " / ".join(rank_parts)
                 else:
-                    sales_rank = "현재 집계된 업종 정보가 없습니다."
+                    sales_rank = "현재 집계된 실시간 업종 정보가 없습니다."
             else:
                 shop_lvl = "데이터 미제공"
                 sales_total = "0"
-                sales_rank = "상권 정보를 불러올 수 없습니다."
+                sales_rank = "정보 없음"
                 
     except Exception as e:
         # 에러 발생 시 로그만 출력하고 기본값(0.0) 유지하여 NameError 방지

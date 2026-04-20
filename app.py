@@ -398,39 +398,39 @@ if loc:
                 traffic = s_traffic  # UI 화면에 방문자 수를 표시하기 위해 할당합니다.
                 # -----------------------------
                 
-                # --- 향후 12시간 전망: 실시간 흐름에 맞춰 가장 가까운 미래 시점 추출 ---
+                # --- 향후 12시간 전망: AI 예측 모델 시점 정밀 추출 ---
                 fcst_yn = root.findtext(".//FCST_YN", "N")
                 fcst_list = root.findall(".//FCST_PPLTN")
                 
+                # [중요] 변수가 유실되지 않도록 여기서 값을 확실히 할당합니다.
                 if fcst_yn == "Y" and fcst_list:
-                    # 2. 첫 번째 예측 덩어리에서 시점(FCST_TIME) 추출
+                    # 첫 번째 예측 데이터(가장 가까운 미래) 추출
                     target_fcst = fcst_list[0]
-                    f_time = target_fcst.findtext("FCST_TIME") # 부모 안에서 직접 찾기
+                    f_time = target_fcst.findtext("FCST_TIME") 
                     
                     if f_time:
                         try:
-                            # "2026-04-21 15:00" -> "오후 3시"
+                            # 시점 변환 (예: 2026-04-21 15:00 -> 오후 3시)
                             dt_obj = datetime.strptime(f_time, "%Y-%m-%d %H:%M")
                             ampm = "오전" if dt_obj.hour < 12 else "오후"
                             hh_12 = dt_obj.hour if dt_obj.hour <= 12 else dt_obj.hour - 12
                             if hh_12 == 0: hh_12 = 12
                             
+                            # 최종 화면 출력용 변수 확정
                             pop_time = f"{ampm} {hh_12}시 전망" 
                         except:
-                            # pop_time = "시간 분석 중"
-                    else:
-                        pop_time = "데이터 로딩 중"
+                            pop_time = "시간 분석 중"
                 else:
-                    # 3. 예측값이 없는 경우 실시간 업데이트 시간(PPLTN_TIME) 활용
+                    # 예측 데이터가 없을 경우 실시간 기준 시간 표시
                     p_time = root.findtext(".//PPLTN_TIME")
                     if p_time:
-                        dt_obj = datetime.strptime(p_time, "%Y-%m-%d %H:%M")
-                        ampm = "오전" if dt_obj.hour < 12 else "오후"
-                        hh_12 = dt_obj.hour if dt_obj.hour <= 12 else dt_obj.hour - 12
-                        if hh_12 == 0: hh_12 = 12
-                        pop_time = f"{ampm} {hh_12}시 기준"
-                    else:
-                        pop_time = "실시간 분석 중"
+                        try:
+                            dt_obj = datetime.strptime(p_time, "%Y-%m-%d %H:%M")
+                            ampm = "오전" if dt_obj.hour < 12 else "오후"
+                            hh_12 = dt_obj.hour if dt_obj.hour <= 12 else dt_obj.hour - 12
+                            pop_time = f"{ampm} {hh_12 or 12}시 기준"
+                        except:
+                            pop_time = "실시간 분석 중"
                 
                 # 성별 비중 로직 (기존과 동일)
                 fem_r = float(root.findtext(".//FEMALE_PPLTN_RATE", "50"))

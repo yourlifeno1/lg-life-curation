@@ -99,20 +99,13 @@ def get_nearest_point(u_lat, u_lon):
         return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
     return min(CITY_POINTS, key=lambda p: haversine(u_lat, u_lon, p['lat'], p['lon']))
 
-@st.cache_data(ttl=3600) # 1시간 동안만 캐시 유지
-def fetch_moving_all(lawd_cd, year_month, _t=None): # _t 인자 추가
+def fetch_moving_all(lawd_cd, year_month):
     total = 0
     paths = ["RTMSDataSvcAptRent/getRTMSDataSvcAptRent", "RTMSDataSvcRhRent/getRTMSDataSvcRhRent", "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent"]
     for path in paths:
         try:
-            # 타임스탬프를 쿼리에 섞어 국토부 서버 캐시까지 우회
             url = f"http://apis.data.go.kr/1613000/{path}"
-            p = {
-                'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 
-                'LAWD_CD': lawd_cd, 
-                'DEAL_YMD': year_month,
-                '_cache_buster': _t # 캐시 우회용 변수
-            }
+            p = {'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 'LAWD_CD': lawd_cd, 'DEAL_YMD': year_month}
             r = requests.get(url, params=p, timeout=5)
             if r.status_code == 200:
                 total += len(ET.fromstring(r.text).findall('.//item'))
@@ -217,26 +210,17 @@ loc = get_geolocation()
 if loc:
     u_lat, u_lon = loc['coords']['latitude'], loc['coords']['longitude']
     
-    # 1. 현재 위치 기반 거점 찾기
-    current_target = get_nearest_point(u_lat, u_lon)
-    current_code = current_target['code']
-
-    # 2. [추가] 지역 변경 감지 로직
-    if "last_region_code" not in st.session_state:
-        st.session_state["last_region_code"] = current_code
-
-    # 지역 코드가 달라졌다면? (예: 쌍문동 -> 남영동)
-    if st.session_state["last_region_code"] != current_code:
-        st.cache_data.clear() # 모든 캐시 데이터 즉시 삭제
-        st.session_state["last_region_code"] = current_code
-        st.rerun() # 앱을 처음부터 다시 실행해서 새 데이터를 읽어옴
-
-    # 3. 데이터 호출 시 타임스탬프 전달 (분 단위로 갱신)
-    import time
-    t_stamp = int(time.time() / 60) 
+    try:
+        addr = requests.get(f"https://nominatim.openstreetmap.org/reverse?format=json&lat={u_lat}&lon={u_lon}", headers={'User-Agent':'LG_App'}).json()
+        u_dong = addr.get('address', {}).get('suburb') or addr.get('address', {}).get('neighbourhood') or "서울시"
+    except: u_dong = "현재 위치"
     
-    cnt_now = fetch_moving_all(current_code, "202404", _t=t_stamp)
-    cnt_last = fetch_moving_all(current_code, "202403", _t=t_stamp)
+# [수정] 변수명을 current_target으로 명확히 하여 강제 갱신
+    current_target = get_nearest_point(u_lat, u_lon)
+
+    # 이제 확정된 current_target의 코드를 직접 집어넣습니다.
+    cnt_now = fetch_moving_all(current_target['code'], "202404")
+    cnt_last = fetch_moving_all(current_target['code'], "202403")
     diff = cnt_now - cnt_last
     diff_pct = (diff / cnt_last * 100) if cnt_last > 0 else 0
     
@@ -259,18 +243,18 @@ if loc:
             matched_row = None
             for row in rows:
                 api_dong = row.findtext("ADMINISTRATIVE_DISTRICT", "")
-                # GPS 동네 이름(u_dong)이 API 행정구역명에 포함되는지 확인
-                if u_dong and (u_dong in api_dong or api_dong in u_dong):
+                if u_dong in api_dong or api_dong in u_dong:
                     matched_row = row
                     break
             
-            # 매칭된 데이터가 있을 때만 traffic 계산, 없으면 0점 처리하여 '잔상' 방지
-            if matched_row is not None:
-                v_val = matched_row.findtext("VISITOR_COUNT", "0")
+            # 3. 매칭된 데이터가 있으면 유동인구수(VISITOR_COUNT) 추출
+            target_row = matched_row if matched_row is not None else rows[0]
+            v_val = target_row.findtext("VISITOR_COUNT", "0")
+            
+            if v_val:
                 traffic = int(float(v_val))
+                # 150명 기준 상권 활력 점수 환산
                 v_score = min(int((traffic / 150) * 100), 99)
-            else:
-                traffic, v_score = 0, 0 # 매칭 안되면 데이터 없음으로 표시
                 
     except Exception as e:
         st.caption("실시간 위치 기반 유동인구 센서 탐색 중...")

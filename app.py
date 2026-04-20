@@ -120,46 +120,33 @@ def fetch_moving_all(lawd_cd, year_month, u_lat, u_lon, u_dong, _t=None):
         "RTMSDataSvcSHTrade/getRTMSDataSvcSHTrade", "RTMSDataSvcSHRent/getRTMSDataSvcSHRent"
     ]
     
-    # [개선] 내 동네 이름 정제 (예: "쌍문1동" -> "쌍문", "도봉구 쌍문동" -> "쌍문")
-    # 공백 제거 및 '동' 이전의 핵심 단어만 추출합니다.
-    my_dong_clean = u_dong.split()[-1].replace("제", "").replace("동", "")[:2]
+    # [핵심] 내 동네 이름 정제: "쌍문동" -> "쌍문" (0건 방지용)
+    my_dong_key = u_dong.split()[-1].replace("동", "").replace("제", "")[:2]
     
     for path in paths:
         try:
             url = f"http://apis.data.go.kr/1613000/{path}"
-            p = {
-                'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 
-                'LAWD_CD': lawd_cd, 
-                'DEAL_YMD': year_month,
-                '_cache_buster': _t
-            }
+            p = {'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 'LAWD_CD': lawd_cd, 'DEAL_YMD': year_month, '_cache_buster': _t}
             r = requests.get(url, params=p, timeout=5)
             if r.status_code == 200:
                 root = ET.fromstring(r.text)
                 items = root.findall('.//item')
                 
                 for item in items:
-                    # API 기술문서의 법정동(umdNm) 태그 값 추출
-                    umd_name = item.findtext('법정동', '').strip()
+                    umd_name = item.findtext('법정동', '').strip() #
                     
-                    # 1순위: 내 동네 이름이 포함되어 있으면 무조건 카운트 (가장 확실한 방법)
-                    if my_dong_clean in umd_name:
+                    # 1순위: 내 동네 이름(키워드)이 포함되어 있으면 즉시 합산
+                    if my_dong_key in umd_name:
                         total += 1
                         continue
                     
-                    # 2순위: 다른 동네라면 거리 계산 (반경 1.5km)
+                    # 2순위: 다른 동네라면 CITY_POINTS에서 좌표를 찾아 거리 계산 (반경 1.5km)
                     target_geo = next((p for p in CITY_POINTS if umd_name[:2] in p['name']), None)
                     if target_geo:
                         dist = calculate_distance(u_lat, u_lon, target_geo['lat'], target_geo['lon'])
                         if dist <= 1.5:
                             total += 1
-        except:
-            continue
-            
-    # [검증용] 만약 1.5km 필터링 후에도 0건이라면, 구 전체 데이터의 10%라도 반환 (테스트용)
-    # 실서비스에서는 아래 if문을 지우셔도 됩니다.
-    # if total == 0: return 1 # 데이터가 오고 있음을 확인하기 위한 임시 코드
-    
+        except: continue
     return total
 
 # [신규 함수] 우리 동네 가전 이슈 리포트 출력 로직
@@ -289,21 +276,14 @@ if loc:
     
     # [5] 날짜 자동화 로직 (반드시 호출보다 위에 있어야 함)
     now_dt = datetime.now()
-    
-    # 1. 당월 (YYYYMM 형식) - 여기서 ym_now가 생성됩니다.
-    # 1. 날짜 자동화 로직을 먼저 실행하여 변수를 생성합니다.
-    now_dt = datetime.now()
-    ym_now = now_dt.strftime('%Y%m') # 여기서 ym_now가 정의됩니다.
-    
-    first_day_of_current_month = now_dt.replace(day=1)
-    last_month_dt = first_day_of_current_month - pd.Timedelta(days=1)
-    ym_last = last_month_dt.strftime('%Y%m')
+    ym_now = now_dt.strftime('%Y%m')
+    ym_last = (now_dt.replace(day=1) - pd.Timedelta(days=1)).strftime('%Y%m')
 
-    # 2. 캐시 버스터용 타임스탬프 생성
+    # [5] 국토부 API 호출부 (u_dong을 반드시 포함해야 함)
     import time
     t_stamp = int(time.time() / 60)
-
-    # 3. 그 다음, 생성된 변수들을 사용하여 함수를 호출합니다.
+    
+    # TypeError 방지: 함수 정의와 똑같이 5개의 인자를 순서대로 넣습니다.
     cnt_now = fetch_moving_all(current_code, ym_now, u_lat, u_lon, u_dong, _t=t_stamp)
     cnt_last = fetch_moving_all(current_code, ym_last, u_lat, u_lon, u_dong, _t=t_stamp)
     

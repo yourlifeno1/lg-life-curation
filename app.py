@@ -775,29 +775,37 @@ if loc:
             """)
 
             # (2) 구글 시트 연동 박스
+            # (2) 구글 시트 연동 박스 (분해 세척 분리 로직 반영)
             try:
-                # 시트 로드 및 데이터 정제 (공백 제거)
                 df_benefit_all = pd.read_csv(BENEFIT_SHEET_URL)
-                df_benefit_all.columns = df_benefit_all.columns.str.strip() # 컬럼명 공백 제거
                 df_benefit_all['가전'] = df_benefit_all['가전'].astype(str).str.strip()
                 df_benefit_all['이슈 키워드'] = df_benefit_all['이슈 키워드'].astype(str).str.strip()
                 
-                # 가전명 매핑 표준화
+                # 1. 제품명 표준화
                 APP_MAP = {
                     "의류관리기": "스타일러", "그램": "노트북", "GRAM": "노트북",
-                    "식기세척기": "식기세척기", "식세기": "식기세척기",
-                    "공기청정기": "공기청정기", "퓨리케어": "공기청정기",
-                    "TV": "TV", "티비": "TV"
+                    "식기세척기": "식기세척기", "공기청정기": "공기청정기", "티비": "TV"
                 }
                 standard_app = APP_MAP.get(matched_app, matched_app).strip()
                 
-                # 이슈 키워드 핵심 단어 추출 (시트 B열에 이 단어가 들어있으면 매칭)
-                main_issue_key = matched_issue.split('(')[0].strip()
+                # 2. 이슈 키워드 세분화 매칭 (분해 세척 별도 관리)
+                target_issue = matched_issue
+                
+                # '분해 세척' 키워드가 우선순위
+                if '분해세척' in matched_issue or '분해 세척' in matched_issue:
+                    target_issue = "분해 세척"
+                # 그 다음 일반 위생 관련
+                elif any(word in matched_issue for word in ['곰팡이', '냄새', '위생']):
+                    target_issue = "위생(곰팡이/냄새)"
+                elif '배터리' in matched_issue:
+                    target_issue = "배터리"
+                elif any(word in matched_issue for word in ['소음', '발열', '성능']):
+                    target_issue = "성능 저하"
 
-                # 매칭 시도 (포함 관계 분석)
+                # 3. 시트 매칭
                 matched_row = df_benefit_all[
                     (df_benefit_all['가전'] == standard_app) & 
-                    (df_benefit_all['이슈 키워드'].str.contains(main_issue_key, na=False))
+                    (df_benefit_all['이슈 키워드'] == target_issue)
                 ]
 
                 if not matched_row.empty:
@@ -805,7 +813,7 @@ if loc:
                     b_ment = matched_row.iloc[0]['현장 대응 멘트']
                     
                     st.markdown(f"""
-                    <div style="background-color: #FFF5F7; padding: 18px; border-radius: 10px; border: 1px solid #FFD1DF; margin-top: -10px;">
+                    <div style="background-color: #FFF5F7; padding: 18px; border-radius: 10px; border: 1px solid #FFD1DF; margin-top: -10px; margin-bottom: 20px;">
                         <div style="margin-bottom: 10px;">
                             <span style="background-color: #DA004B; color: white; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-right: 8px;">실전 솔루션</span>
                             <span style="font-size: 16px; font-weight: bold; color: #212529;">{b_name}</span>
@@ -816,12 +824,11 @@ if loc:
                     </div>
                     """, unsafe_allow_html=True)
                 else:
-                    # [진단용 메시지] 매칭이 안 될 때만 개발자용 힌트를 띄웁니다.
-                    st.caption(f"⚠️ 시트 매칭 대기 중 (찾는 값: 가전 '{standard_app}' / 키워드 '{main_issue_key}')")
-                    st.caption("위의 '찾는 값'이 혜택 시트의 A열, B열에 정확히 있는지 확인해 주세요.")
+                    # 매칭 실패 시 현재 매칭하려는 값을 띄워 시트 수정을 돕습니다.
+                    st.caption(f"💡 시트 매칭 확인: 가전 '{standard_app}' / 이슈 '{target_issue}'")
             
             except Exception as e:
-                st.error(f"시트 데이터를 읽는 중 오류가 발생했습니다: {e}")
+                pass
                           
             # 4. 실시간 소비 인구 비율 분석
             st.write("---")

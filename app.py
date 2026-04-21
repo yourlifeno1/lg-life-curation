@@ -18,6 +18,9 @@ SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRXnh3VI7oOzSbM
 # S-DoT 위치 정보 (구글 시트 웹 게시 URL)
 SDOT_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRXnh3VI7oOzSbMWMUCI6Owk4G6oK_2hb1kWjTtNNgAfyox_ZgypeM0QK-P6e-nDaRfhpY02WEGTt9z/pub?gid=430558979&single=true&output=csv"
 
+# 가전 이슈 나온 제품들에 대한 것을 LG전자 구독 장점 구글 시트  
+BENEFIT_SHEET_URL = "https://docs.google.com/spreadsheets/d/1BojNdEremNKsLd0isCGjbNOoUBW-OrAJ8KD22DFqThs/export?format=csv"
+
 # 2. 공식 거점 데이터
 CITY_POINTS = [
 # --- [1. 인구밀집지역] ---

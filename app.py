@@ -509,6 +509,10 @@ if loc:
         print(f"DEBUG: API Parsing Error -> {e}")
 
     # [중요] 짝꿍 except가 끝난 후 화면 구성 실행
+    u_gu_name = target.get('gu', '지역 미확인')
+    u_sido_name = target.get('sido', '서울시') # sido 변수도 선언 확인 필수!
+
+    # 2. 그 다음에 출력합니다. (이게 매니저님의 512라인입니다)
     st.info(f"📡 GPS 실시간 수신: {u_gu_name} {u_sido_name} (거점: {target['name']})")
     st.divider()
     

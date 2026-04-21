@@ -509,7 +509,7 @@ if loc:
         print(f"DEBUG: API Parsing Error -> {e}")
 
     # [중요] 짝꿍 except가 끝난 후 화면 구성 실행
-    st.info(f"🛰️ **GPS 실시간 수신:** {target['gu']} {u_dong} (거점: {target['name']})")
+    st.info(f"📡 GPS 실시간 수신: {u_gu_name} {u_sido_name} (거점: {target['name']})")
     st.divider()
     
     # 1. 기상 아이콘 및 상단 제목
@@ -559,7 +559,7 @@ if loc:
             </span>
         </div>
         <div style="flex:1; background:white; border:1px solid #E9ECEF; border-radius:12px; padding:15px; text-align:center; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
-            <p style="font-size:12px; color:#868E96; margin:0; white-space:nowrap;">{target['gu']} {now_dt.month}월 이사 지수</p>
+            <p style="font-size:12px; color:#868E96; margin:0; white-space:nowrap;">{u_gu_name}</b> {now_dt.month}월 이사 지수</p>
             <p style="font-size:26px; font-weight:800; color:#212529; margin:8px 0; line-height:1.1;">{r_val}</p>
             <span style="display:inline-block; padding:3px 8px; border-radius:10px; font-size:10px; font-weight:700; background:{r_bg}; color:#475467; white-space:nowrap;">
                 전월대비 {r_msg}

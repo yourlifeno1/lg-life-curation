@@ -783,12 +783,12 @@ if loc:
             - 가전 이슈 핵심 키워드를 체크 후 해당 제품 상담 시 고객 만족도를 크게 높일 수 있습니다.
             """)
 
-            # (2) 구글 시트 연동 맞춤형 솔루션 박스 (매니저님의 2번째 시트 기반)
+            # (2) 구글 시트 연동 맞춤형 솔루션 박스 (매칭 성공 시에만 출력)
             try:
-                # 혜택 시트 데이터 로드 (BENEFIT_SHEET_URL은 상단 정의 확인)
+                # 혜택 시트 데이터 로드
                 df_benefit_all = pd.read_csv(BENEFIT_SHEET_URL)
                 
-                # 가전명 매핑 (크롤링 D열의 '의류관리기' 등을 시트 A열의 '스타일러' 등으로 통역)
+                # 가전명 매핑 표준화
                 APP_MAP = {
                     "의류관리기": "스타일러", "그램": "노트북", "GRAM": "노트북",
                     "식기세척기": "식기세척기", "식세기": "식기세척기",
@@ -797,10 +797,10 @@ if loc:
                 }
                 standard_app = APP_MAP.get(matched_app, matched_app).strip()
                 
-                # 이슈 키워드 핵심 단어 추출 (예: '위생(곰팡이/냄새)' -> '위생'만으로 매칭)
+                # 이슈 키워드 핵심 단어 추출 (예: '위생'만으로 매칭)
                 main_issue_key = matched_issue.split('(')[0].strip()
 
-                # 시트 A열(가전)과 B열(이슈 키워드)이 포함 관계인지 확인하여 매칭
+                # 시트 매칭 로직 (가전 일치 AND 이슈 키워드 포함 여부)
                 df_benefit_all['가전'] = df_benefit_all['가전'].str.strip()
                 matched_row = df_benefit_all[
                     (df_benefit_all['가전'] == standard_app) & 
@@ -808,11 +808,11 @@ if loc:
                 ]
 
                 if not matched_row.empty:
-                    # 매칭된 시트 데이터 (C열: 혜택, D열: 멘트) 가져오기
+                    # 매칭된 시트 데이터 추출
                     b_name = matched_row.iloc[0]['맞춤형 구독 혜택']
                     b_ment = matched_row.iloc[0]['현장 대응 멘트']
                     
-                    # 시각적으로 강조된 솔루션 박스 디자인
+                    # 솔루션 박스 디자인 출력
                     st.markdown(f"""
                     <div style="background-color: #FFF5F7; padding: 18px; border-radius: 10px; border: 1px solid #FFD1DF; margin-top: -10px; margin-bottom: 20px;">
                         <div style="margin-bottom: 10px;">
@@ -827,7 +827,7 @@ if loc:
                     </div>
                     """, unsafe_allow_html=True)
             except Exception as e:
-                # 데이터 연동 실패 시 조용히 넘어가거나 디버깅 메시지 출력
+                # 오류 발생 시 사용자에게는 노출하지 않고 넘어감
                 pass
                           
             # 4. 실시간 소비 인구 비율 분석

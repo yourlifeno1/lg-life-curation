@@ -771,14 +771,16 @@ if loc:
             st.info(f"""
             **📢 {u_dong} 지역 현장 대응 가이드**
             - 현재 **{matched_app}** 제품은 **{matched_issue}** 이슈가 가장 지배적입니다.
-            - 이슈에 맞춰 LG전자 구독만의 전문가 방문관리, 무상 A/S, 소모품 교체를 적절하게 언급하세요.
-            - 가전 이슈 핵심 키워드를 체크 후 해당 제품 상담 시 고객 만족도를 크게 높일 수 있습니다.
+            - 이슈에 맞춰 LG전자 구독만의 전문가 방문관리, 무상 A/S, 소모품 교체를 제안하세요.
             """)
 
-            # (2) 구글 시트 연동 맞춤형 솔루션 박스 (매칭 성공 시에만 출력)
+            # (2) 구글 시트 연동 박스
             try:
-                # 혜택 시트 데이터 로드
+                # 시트 로드 및 데이터 정제 (공백 제거)
                 df_benefit_all = pd.read_csv(BENEFIT_SHEET_URL)
+                df_benefit_all.columns = df_benefit_all.columns.str.strip() # 컬럼명 공백 제거
+                df_benefit_all['가전'] = df_benefit_all['가전'].astype(str).str.strip()
+                df_benefit_all['이슈 키워드'] = df_benefit_all['이슈 키워드'].astype(str).str.strip()
                 
                 # 가전명 매핑 표준화
                 APP_MAP = {
@@ -789,38 +791,37 @@ if loc:
                 }
                 standard_app = APP_MAP.get(matched_app, matched_app).strip()
                 
-                # 이슈 키워드 핵심 단어 추출 (예: '위생'만으로 매칭)
+                # 이슈 키워드 핵심 단어 추출 (시트 B열에 이 단어가 들어있으면 매칭)
                 main_issue_key = matched_issue.split('(')[0].strip()
 
-                # 시트 매칭 로직 (가전 일치 AND 이슈 키워드 포함 여부)
-                df_benefit_all['가전'] = df_benefit_all['가전'].str.strip()
+                # 매칭 시도 (포함 관계 분석)
                 matched_row = df_benefit_all[
                     (df_benefit_all['가전'] == standard_app) & 
                     (df_benefit_all['이슈 키워드'].str.contains(main_issue_key, na=False))
                 ]
 
                 if not matched_row.empty:
-                    # 매칭된 시트 데이터 추출
                     b_name = matched_row.iloc[0]['맞춤형 구독 혜택']
                     b_ment = matched_row.iloc[0]['현장 대응 멘트']
                     
-                    # 솔루션 박스 디자인 출력
                     st.markdown(f"""
-                    <div style="background-color: #FFF5F7; padding: 18px; border-radius: 10px; border: 1px solid #FFD1DF; margin-top: -10px; margin-bottom: 20px;">
+                    <div style="background-color: #FFF5F7; padding: 18px; border-radius: 10px; border: 1px solid #FFD1DF; margin-top: -10px;">
                         <div style="margin-bottom: 10px;">
                             <span style="background-color: #DA004B; color: white; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-right: 8px;">실전 솔루션</span>
                             <span style="font-size: 16px; font-weight: bold; color: #212529;">{b_name}</span>
                         </div>
-                        <div style="border-top: 1px dashed #DEE2E6; padding-top: 10px;">
-                            <p style="font-size: 14.5px; color: #495057; line-height: 1.5; margin: 0;">
-                                <b>💬 추천 멘트:</b> "{b_ment}"
-                            </p>
-                        </div>
+                        <p style="font-size: 14.5px; color: #495057; line-height: 1.5; margin: 0;">
+                            <b>💬 추천 멘트:</b> "{b_ment}"
+                        </p>
                     </div>
                     """, unsafe_allow_html=True)
+                else:
+                    # [진단용 메시지] 매칭이 안 될 때만 개발자용 힌트를 띄웁니다.
+                    st.caption(f"⚠️ 시트 매칭 대기 중 (찾는 값: 가전 '{standard_app}' / 키워드 '{main_issue_key}')")
+                    st.caption("위의 '찾는 값'이 혜택 시트의 A열, B열에 정확히 있는지 확인해 주세요.")
+            
             except Exception as e:
-                # 오류 발생 시 사용자에게는 노출하지 않고 넘어감
-                pass
+                st.error(f"시트 데이터를 읽는 중 오류가 발생했습니다: {e}")
                           
             # 4. 실시간 소비 인구 비율 분석
             st.write("---")

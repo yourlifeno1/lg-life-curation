@@ -766,51 +766,51 @@ if loc:
             else:
                 matched_issue = "성능 및 제품 상태"
 
-            # 3. 대응 가이드 출력 (수정된 변수 matched_app 사용)
-            # (1) 기존 세 줄 요약 출력
+            # --- [최종 완성] 3. TOP 3 지역 현장 대응 가이드 출력 ---
+            # (1) 통합 헤더 출력
             st.info(f"""
-            **📢 {u_dong} 지역 현장 대응 가이드**
-            - 현재 **{matched_app}** 제품은 **{matched_issue}** 이슈가 가장 지배적입니다.
-            - 이슈에 맞춰 LG전자 구독만의 전문가 방문관리, 무상 A/S, 소모품 교체를 제안하세요.
+            **📢 {u_dong} 지역 현장 대응 가이드 (TOP 3)**
+            - 지역 내 언급량이 가장 많은 가전별 맞춤형 대응 방안입니다.
+            - 전문가 방문관리, 무상 A/S, 소모품 교체 혜택을 적극 제안하세요.
             """)
 
-            # (2) 구글 시트 연동 박스
-            st.info(f"
-            **📢 가전 이슈 TOP 3 응대 가이드 **
-            ")
-
             try:
-                # 혜택 시트 데이터 로드 및 정제
+                # 혜택 시트 데이터 로드
                 df_benefit_all = pd.read_csv(BENEFIT_SHEET_URL)
                 df_benefit_all['가전'] = df_benefit_all['가전'].astype(str).str.strip()
                 df_benefit_all['이슈 키워드'] = df_benefit_all['이슈 키워드'].astype(str).str.strip()
                 
-                # 상위 3개 가전 추출
+                # 상위 3개 가전 리스트
                 display_apps = top_apps[:3]
 
                 for idx, app_item in enumerate(display_apps):
-                    # 해당 가전의 이슈 키워드 가져오기
-                    issue_item = top_issues_list[idx] if idx < len(top_issues_list) else "성능 및 제품 상태"
+                    # --- [추가] 각 순위별 가전의 '1위 이슈'를 실시간으로 추출합니다 ---
+                    app_issue_data = df[df['가전'] == app_item]
+                    if not app_issue_data.empty:
+                        # 해당 가전에서 가장 많이 언급된 이슈 키워드 1순위 추출
+                        current_issue = app_issue_data['이슈 키워드'].value_counts().index[0]
+                    else:
+                        current_issue = "성능 저하"
                     
-                    # 1. 제품명 표준화 (APP_MAP 활용)
+                    # 1. 제품명 표준화 (시트 A열과 매칭)
                     APP_MAP = {
                         "의류관리기": "스타일러", "그램": "노트북", "GRAM": "노트북",
                         "식기세척기": "식기세척기", "공기청정기": "공기청정기", "티비": "TV"
                     }
                     standard_app = APP_MAP.get(app_item, app_item).strip()
                     
-                    # 2. 이슈 키워드 매칭 변환
-                    target_issue = issue_item
-                    if '분해세척' in issue_item:
+                    # 2. 이슈 키워드 표준화 로직 (시트 B열과 매칭)
+                    target_issue = current_issue
+                    if '분해세척' in current_issue:
                         target_issue = "분해 세척"
-                    elif any(word in issue_item for word in ['곰팡이', '냄새', '위생']):
+                    elif any(word in current_issue for word in ['곰팡이', '냄새', '위생']):
                         target_issue = "위생(곰팡이/냄새)"
-                    elif '배터리' in issue_item:
+                    elif '배터리' in current_issue:
                         target_issue = "배터리"
-                    elif any(word in issue_item for word in ['소음', '발열', '성능']):
+                    elif any(word in current_issue for word in ['소음', '발열', '성능']):
                         target_issue = "성능 저하"
 
-                    # 3. 시트에서 매칭되는 행 찾기
+                    # 3. 시트 매칭 로직
                     matched_row = df_benefit_all[
                         (df_benefit_all['가전'] == standard_app) & 
                         (df_benefit_all['이슈 키워드'] == target_issue)
@@ -820,27 +820,29 @@ if loc:
                         b_name = matched_row.iloc[0]['맞춤형 구독 혜택']
                         b_ment = matched_row.iloc[0]['현장 대응 멘트']
                         
-                        # 순위별 디자인 박스 출력
+                        # 깔끔한 디자인 박스 출력
                         st.markdown(f"""
-                        <div style="background-color: #FFF5F7; padding: 15px; border-radius: 10px; border: 1px solid #FFD1DF; margin-bottom: 15px;">
-                            <div style="margin-bottom: 8px;">
-                                <span style="background-color: #DA004B; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 5px;">{idx+1}위 이슈</span>
-                                <b style="font-size: 16px;">{standard_app}</b> <small style="color: #666;">({target_issue})</small>
+                        <div style="background-color: #FFF5F7; padding: 18px; border-radius: 12px; border: 1px solid #FFD1DF; margin-bottom: 15px;">
+                            <div style="margin-bottom: 10px; display: flex; align-items: center;">
+                                <span style="background-color: #DA004B; color: white; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; margin-right: 10px;">TOP {idx+1}</span>
+                                <b style="font-size: 17px; color: #212529;">{standard_app}</b>
+                                <span style="margin-left: 8px; font-size: 13px; color: #6C757D;">| 주요이슈: {target_issue}</span>
                             </div>
-                            <div style="background-color: white; padding: 12px; border-radius: 6px; border: 1px solid #FFE0E9;">
-                                <p style="margin-bottom: 5px; font-size: 14px; font-weight: bold; color: #DA004B;">✅ {b_name}</p>
-                                <p style="font-size: 13.5px; color: #495057; line-height: 1.5; margin: 0; font-style: italic;">
-                                    <b>💬 멘트:</b> "{b_ment}"
+                            <div style="background-color: rgba(255, 255, 255, 0.6); padding: 12px; border-radius: 8px;">
+                                <p style="margin: 0 0 8px 0; font-size: 15px; font-weight: bold; color: #DA004B;">✨ {b_name}</p>
+                                <p style="font-size: 14px; color: #495057; line-height: 1.5; margin: 0;">
+                                    <b>💬 대응 멘트:</b> "{b_ment}"
                                 </p>
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
                     else:
-                        # 매칭 데이터가 없는 경우 간략히 표시
-                        st.caption(f"📍 {idx+1}위 {standard_app} ({target_issue}): 맞춤 혜택 준비 중")
+                        # 매칭 실패 시 안내 (시트 수정 가이드)
+                        st.caption(f"📍 {idx+1}위 {standard_app} ({target_issue}): 혜택 시트에 정보가 없습니다.")
 
             except Exception as e:
-                st.error("현장 가이드를 불러오는 중 오류가 발생했습니다.")
+                # 에러 메시지를 더 구체적으로 표시하여 진단을 돕습니다.
+                st.error(f"현장 가이드 분석 중 오류가 발생했습니다: {e}")
                           
             # 4. 실시간 소비 인구 비율 분석
             st.write("---")

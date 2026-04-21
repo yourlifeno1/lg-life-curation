@@ -820,7 +820,7 @@ if loc:
                         <div style="background-color: #FFF5F7; padding: 15px; border-radius: 10px; border: 1px solid #FFD1DF; margin-bottom: 15px;">
                             <div style="margin-bottom: 8px;">
                                 <span style="background-color: #DA004B; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 8px;">TOP {idx+1}</span>
-                                <b style="font-size: 16px;">{standard_app}</b> <small style="color: #666;">({target_issue})</small>
+                                <b style="font-size: 16px;">{standard_app}</b> <small style="color: #666;">-{target_issue}</small>
                             </div>
                             <div style="background-color: white; padding: 12px; border-radius: 6px; border: 1px solid #FFE0E9;">
                                 <p style="margin-bottom: 5px; font-size: 14.5px; font-weight: bold; color: #DA004B;">✅ {b_name}</p>

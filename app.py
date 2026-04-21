@@ -18,7 +18,7 @@ SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRXnh3VI7oOzSbM
 # S-DoT 위치 정보 (구글 시트 웹 게시 URL)
 SDOT_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRXnh3VI7oOzSbMWMUCI6Owk4G6oK_2hb1kWjTtNNgAfyox_ZgypeM0QK-P6e-nDaRfhpY02WEGTt9z/pub?gid=430558979&single=true&output=csv"
 
-# 가전 이슈 나온 제품들에 대한 것을 LG전자 구독 장점 구글 시트  
+# LG전자 구독 혜택 가이드 시트 주소 (공유해주신 주소의 CSV 추출용)
 BENEFIT_SHEET_URL = "https://docs.google.com/spreadsheets/d/1BojNdEremNKsLd0isCGjbNOoUBW-OrAJ8KD22DFqThs/export?format=csv"
 
 # 2. 공식 거점 데이터
@@ -767,12 +767,54 @@ if loc:
                 matched_issue = "성능 및 제품 상태"
 
             # 3. 대응 가이드 출력 (수정된 변수 matched_app 사용)
+            # (1) 기존 세 줄 요약 출력
             st.info(f"""
             **📢 {u_dong} 지역 현장 대응 가이드**
             - 현재 **{matched_app}** 제품은 **{matched_issue}** 이슈가 가장 지배적입니다.
             - 이슈에 맞춰 LG전자 구독만의 전문가 방문관리, 무상 A/S, 소모품 교체를 적절하게 언급하세요.
             - 가전 이슈 핵심 키워드를 체크 후 해당 제품 상담 시 고객 만족도를 크게 높일 수 있습니다.
             """)
+
+            # (2) 구글 시트 연동 맞춤형 솔루션 박스 추가
+            try:
+                # 시트 데이터 실시간 로드
+                df_benefit_all = pd.read_csv(SHEET_CSV_URL)
+                
+                # 제품명 및 이슈 키워드 매칭 준비
+                APP_MAP = {
+                    "의류관리기": "스타일러", "그램": "노트북", "gram": "노트북",
+                    "드럼세탁기": "세탁기", "통돌이": "세탁기", "식세기": "식기세척기",
+                    "퓨리케어": "공기청정기", "티비": "TV"
+                }
+                standard_app = APP_MAP.get(matched_app, matched_app)
+                main_issue = matched_issue.split('(')[0].strip()
+
+                # 시트 매칭
+                matched_row = df_benefit_all[
+                    (df_benefit_all['가전'].str.strip() == standard_app) & 
+                    (df_benefit_all['이슈 키워드'].str.contains(main_issue, na=False))
+                ]
+
+                if not matched_row.empty:
+                    b_name = matched_row.iloc[0]['맞춤형 구독 혜택']
+                    b_ment = matched_row.iloc[0]['현장 대응 멘트']
+                    
+                    # 시트 데이터를 기반으로 한 실전 솔루션 박스
+                    st.markdown(f"""
+                    <div style="background-color: #FFF5F7; padding: 18px; border-radius: 10px; border: 1px solid #FFD1DF; margin-top: -10px; margin-bottom: 20px;">
+                        <div style="margin-bottom: 10px;">
+                            <span style="background-color: #DA004B; color: white; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-right: 8px;">실전 솔루션</span>
+                            <span style="font-size: 16px; font-weight: bold; color: #212529;">{b_name}</span>
+                        </div>
+                        <div style="border-top: 1px dashed #DEE2E6; padding-top: 10px;">
+                            <p style="font-size: 14.5px; color: #495057; line-height: 1.5; margin: 0;">
+                                <b>💬 추천 멘트:</b> "{b_ment}"
+                            </p>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            except:
+                pass # 시트 로드 실패 시 조용히 넘어감 (기존 세 줄은 유지됨)
                           
             # 4. 실시간 소비 인구 비율 분석
             st.write("---")

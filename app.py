@@ -777,31 +777,35 @@ if loc:
 
             # (2) 구글 시트 연동 맞춤형 솔루션 박스 추가
             try:
-                # [수정] 크롤링 시트가 아닌 '혜택 시트' 주소를 직접 사용합니다.
-                df_benefit_all = pd.read_csv(BENEFIT_SHEET_URL) 
+                # 시트 로드
+                df_benefit_all = pd.read_csv(BENEFIT_SHEET_URL)
                 
-                # 제품명 및 이슈 키워드 매칭 준비 (매니저님의 최신 맵핑 반영)
+                # 1. 제품명 표준화 (시트와 100% 일치하도록 보정)
                 APP_MAP = {
                     "의류관리기": "스타일러", "그램": "노트북", "gram": "노트북",
-                    "드럼세탁기": "세탁기", "통돌이": "세탁기", "식세기": "식기세척기",
-                    "퓨리케어": "공기청정기", "티비": "TV"
+                    "식기세척기": "식기세척기", "식세기": "식기세척기",
+                    "공기청정기": "공기청정기", "퓨리케어": "공기청정기",
+                    "TV": "TV", "티비": "TV"
                 }
-                standard_app = APP_MAP.get(matched_app, matched_app)
+                standard_app = APP_MAP.get(matched_app, matched_app).strip()
                 
-                # 이슈 키워드 매칭 (예: '위생(곰팡이/냄새)'에서 '위생'만 추출하여 검색)
-                main_issue = matched_issue.split('(')[0].strip()
+                # 2. 이슈 키워드 단순화 (예: '위생(곰팡이)' -> '위생')
+                # 시트의 B열 단어가 포함되어 있기만 하면 매칭되도록 합니다.
+                main_issue_key = matched_issue.split('(')[0].strip()
 
-                # 시트 매칭 로직
+                # 3. 매칭 로직 강화 (공백 제거 및 포함 관계 확인)
+                # 가전 이름이 같고, 이슈 키워드가 시트의 '이슈 키워드'란에 포함되어 있는지 확인
+                df_benefit_all['가전'] = df_benefit_all['가전'].str.strip()
+                
                 matched_row = df_benefit_all[
-                    (df_benefit_all['가전'].str.strip() == standard_app) & 
-                    (df_benefit_all['이슈 키워드'].str.contains(main_issue, na=False))
+                    (df_benefit_all['가전'] == standard_app) & 
+                    (df_benefit_all['이슈 키워드'].str.contains(main_issue_key, na=False))
                 ]
 
                 if not matched_row.empty:
                     b_name = matched_row.iloc[0]['맞춤형 구독 혜택']
                     b_ment = matched_row.iloc[0]['현장 대응 멘트']
                     
-                    # 최종 출력 디자인
                     st.markdown(f"""
                     <div style="background-color: #FFF5F7; padding: 18px; border-radius: 10px; border: 1px solid #FFD1DF; margin-top: -10px; margin-bottom: 20px;">
                         <div style="margin-bottom: 10px;">
@@ -815,9 +819,11 @@ if loc:
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
+                else:
+                    # 매칭 실패 시 디버깅을 위해 정보 살짝 표시 (나중에 pass로 변경)
+                    st.caption(f"💡 시트 매칭 대기 중 (찾는 값: {standard_app} / {main_issue_key})")
             except Exception as e:
-                # 에러 확인용 (개발 완료 후 pass로 변경 가능)
-                st.caption(f"시트 연동 확인 중... ({e})")
+                pass
                           
             # 4. 실시간 소비 인구 비율 분석
             st.write("---")

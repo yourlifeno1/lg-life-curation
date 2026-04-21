@@ -775,60 +775,70 @@ if loc:
             """)
 
             # (2) 구글 시트 연동 박스
-            # (2) 구글 시트 연동 박스 (분해 세척 분리 로직 반영)
+            st.info(f"**📢 가전 이슈 TOP 3 응대 가이드 **")
+
             try:
+                # 혜택 시트 데이터 로드 및 정제
                 df_benefit_all = pd.read_csv(BENEFIT_SHEET_URL)
                 df_benefit_all['가전'] = df_benefit_all['가전'].astype(str).str.strip()
                 df_benefit_all['이슈 키워드'] = df_benefit_all['이슈 키워드'].astype(str).str.strip()
                 
-                # 1. 제품명 표준화
-                APP_MAP = {
-                    "의류관리기": "스타일러", "그램": "노트북", "GRAM": "노트북",
-                    "식기세척기": "식기세척기", "공기청정기": "공기청정기", "티비": "TV"
-                }
-                standard_app = APP_MAP.get(matched_app, matched_app).strip()
-                
-                # 2. 이슈 키워드 세분화 매칭 (분해 세척 별도 관리)
-                target_issue = matched_issue
-                
-                # '분해 세척' 키워드가 우선순위
-                if '분해세척' in matched_issue or '분해 세척' in matched_issue:
-                    target_issue = "분해 세척"
-                # 그 다음 일반 위생 관련
-                elif any(word in matched_issue for word in ['곰팡이', '냄새', '위생']):
-                    target_issue = "위생(곰팡이/냄새)"
-                elif '배터리' in matched_issue:
-                    target_issue = "배터리"
-                elif any(word in matched_issue for word in ['소음', '발열', '성능']):
-                    target_issue = "성능 저하"
+                # 상위 3개 가전 추출
+                display_apps = top_apps[:3]
 
-                # 3. 시트 매칭
-                matched_row = df_benefit_all[
-                    (df_benefit_all['가전'] == standard_app) & 
-                    (df_benefit_all['이슈 키워드'] == target_issue)
-                ]
-
-                if not matched_row.empty:
-                    b_name = matched_row.iloc[0]['맞춤형 구독 혜택']
-                    b_ment = matched_row.iloc[0]['현장 대응 멘트']
+                for idx, app_item in enumerate(display_apps):
+                    # 해당 가전의 이슈 키워드 가져오기
+                    issue_item = top_issues_list[idx] if idx < len(top_issues_list) else "성능 및 제품 상태"
                     
-                    st.markdown(f"""
-                    <div style="background-color: #FFF5F7; padding: 18px; border-radius: 10px; border: 1px solid #FFD1DF; margin-top: -10px; margin-bottom: 20px;">
-                        <div style="margin-bottom: 10px;">
-                            <span style="background-color: #DA004B; color: white; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-right: 8px;">실전 솔루션</span>
-                            <span style="font-size: 16px; font-weight: bold; color: #212529;">{b_name}</span>
+                    # 1. 제품명 표준화 (APP_MAP 활용)
+                    APP_MAP = {
+                        "의류관리기": "스타일러", "그램": "노트북", "GRAM": "노트북",
+                        "식기세척기": "식기세척기", "공기청정기": "공기청정기", "티비": "TV"
+                    }
+                    standard_app = APP_MAP.get(app_item, app_item).strip()
+                    
+                    # 2. 이슈 키워드 매칭 변환
+                    target_issue = issue_item
+                    if '분해세척' in issue_item:
+                        target_issue = "분해 세척"
+                    elif any(word in issue_item for word in ['곰팡이', '냄새', '위생']):
+                        target_issue = "위생(곰팡이/냄새)"
+                    elif '배터리' in issue_item:
+                        target_issue = "배터리"
+                    elif any(word in issue_item for word in ['소음', '발열', '성능']):
+                        target_issue = "성능 저하"
+
+                    # 3. 시트에서 매칭되는 행 찾기
+                    matched_row = df_benefit_all[
+                        (df_benefit_all['가전'] == standard_app) & 
+                        (df_benefit_all['이슈 키워드'] == target_issue)
+                    ]
+
+                    if not matched_row.empty:
+                        b_name = matched_row.iloc[0]['맞춤형 구독 혜택']
+                        b_ment = matched_row.iloc[0]['현장 대응 멘트']
+                        
+                        # 순위별 디자인 박스 출력
+                        st.markdown(f"""
+                        <div style="background-color: #FFF5F7; padding: 15px; border-radius: 10px; border: 1px solid #FFD1DF; margin-bottom: 15px;">
+                            <div style="margin-bottom: 8px;">
+                                <span style="background-color: #DA004B; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 5px;">{idx+1}위 이슈</span>
+                                <b style="font-size: 16px;">{standard_app}</b> <small style="color: #666;">({target_issue})</small>
+                            </div>
+                            <div style="background-color: white; padding: 12px; border-radius: 6px; border: 1px solid #FFE0E9;">
+                                <p style="margin-bottom: 5px; font-size: 14px; font-weight: bold; color: #DA004B;">✅ {b_name}</p>
+                                <p style="font-size: 13.5px; color: #495057; line-height: 1.5; margin: 0; font-style: italic;">
+                                    <b>💬 멘트:</b> "{b_ment}"
+                                </p>
+                            </div>
                         </div>
-                        <p style="font-size: 14.5px; color: #495057; line-height: 1.5; margin: 0;">
-                            <b>💬 추천 멘트:</b> "{b_ment}"
-                        </p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    # 매칭 실패 시 현재 매칭하려는 값을 띄워 시트 수정을 돕습니다.
-                    st.caption(f"💡 시트 매칭 확인: 가전 '{standard_app}' / 이슈 '{target_issue}'")
-            
+                        """, unsafe_allow_html=True)
+                    else:
+                        # 매칭 데이터가 없는 경우 간략히 표시
+                        st.caption(f"📍 {idx+1}위 {standard_app} ({target_issue}): 맞춤 혜택 준비 중")
+
             except Exception as e:
-                pass
+                st.error("현장 가이드를 불러오는 중 오류가 발생했습니다.")
                           
             # 4. 실시간 소비 인구 비율 분석
             st.write("---")

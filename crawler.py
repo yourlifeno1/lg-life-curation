@@ -84,7 +84,7 @@ def refine_category(title, summary, initial_item):
         "식기세척기": ["식기세척기", "식세기"],
         "의류관리기": ["의류관리기", "스타일러", "에어드레서"],
         "사운드바": ["사운드바", "홈시어터", "오디오"],
-        "공기청정기": ["공기청정기", "퓨리케어", "비스포크 큐브", "블루스카이", "미세먼지"],
+        "공기청정기": ["공기청정기", "공청기", "탈취", "퓨리케어", "비스포크 큐브", "블루스카이", "미세먼지"],
     }
     for category, keywords in category_map.items():
         if any(key in combined for key in keywords):

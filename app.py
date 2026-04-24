@@ -715,6 +715,84 @@ if loc:
             st.session_state['page_mode'] = 'main'
             st.rerun()
 
+        # 4. 실시간 소비 인구 비율 분석
+            st.write("---")
+            st.markdown(f"""
+                <div style="display: flex; align-items: baseline; margin-top: 15px; margin-bottom: 15px;">
+                    <span style="font-size: 22px; margin-right: 8px;">💳</span>
+                    <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px;">
+                        실시간 소비 인구 비율
+                    </span>
+                </div>
+            """, unsafe_allow_html=True)
+                          
+            # 데이터 추출
+            m_pay_r = float(root.findtext(".//CMRCL_MALE_RATE", "0"))
+            f_pay_r = float(root.findtext(".//CMRCL_FEMALE_RATE", "0"))
+            p_pay_r = float(root.findtext(".//CMRCL_PERSONAL_RATE", "0"))
+            c_pay_r = float(root.findtext(".//CMRCL_CORPORATION_RATE", "0"))
+
+            age_data = {
+                "10대↓": float(root.findtext(".//CMRCL_10_RATE", "0")),
+                "20대": float(root.findtext(".//CMRCL_20_RATE", "0")),
+                "30대": float(root.findtext(".//CMRCL_30_RATE", "0")),
+                "40대": float(root.findtext(".//CMRCL_40_RATE", "0")),
+                "50대": float(root.findtext(".//CMRCL_50_RATE", "0")),
+                "60대↑": float(root.findtext(".//CMRCL_60_RATE", "0"))
+            }
+
+            # (1) 성별 소비 비중
+            st.write("**👫 성별 소비 비중**")
+            t_g = m_pay_r + f_pay_r
+            m_w = m_pay_r if t_g > 0 else 50
+            f_w = f_pay_r if t_g > 0 else 50
+            st.markdown(f"""
+            <div style="display:flex; height:35px; border-radius:10px; overflow:hidden; border:1px solid #E9ECEF; margin-bottom:20px;">
+                <div style="width:{m_w}%; background:#3B82F6; color:white; text-align:center; line-height:35px; font-size:12px; font-weight:bold;">남 {m_pay_r:.0f}%</div>
+                <div style="width:{f_w}%; background:#EC4899; color:white; text-align:center; line-height:35px; font-size:12px; font-weight:bold;">여 {f_pay_r:.0f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # (2) 개인/법인 비중
+            st.write("**🏢 개인/법인 비중**")
+            t_c = p_pay_r + c_pay_r
+            p_w = p_pay_r if t_c > 0 else 50
+            c_w = c_pay_r if t_c > 0 else 50
+            st.markdown(f"""
+            <div style="display:flex; height:35px; border-radius:10px; overflow:hidden; border:1px solid #E9ECEF; margin-bottom:20px;">
+                <div style="width:{p_w}%; background:#475467; color:white; text-align:center; line-height:35px; font-size:12px; font-weight:bold;">개인 {p_pay_r:.0f}%</div>
+                <div style="width:{c_w}%; background:#ADB5BD; color:white; text-align:center; line-height:35px; font-size:12px; font-weight:bold;">법인 {c_pay_r:.0f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # --- 2) 연령대별 소비 비중 (세로 리스트) ---
+            st.write("")
+            st.write("**🎂 연령대별 소비 비중**")
+            for age, val in age_data.items():
+                st.markdown(f"""
+                <div style="display:flex; align-items:center; margin-bottom:8px;">
+                    <div style="width:55px; font-size:12px; color:#495057;">{age}</div>
+                    <div style="flex:1; background:#F1F3F5; height:12px; border-radius:6px; overflow:hidden; margin:0 10px;">
+                        <div style="width:{val}%; background:linear-gradient(90deg, #3B82F6, #2563EB); height:100%;"></div>
+                    </div>
+                    <div style="width:35px; font-size:12px; text-align:right; font-weight:bold; color:#212529;">{val:.0f}%</div>
+                </div>
+                """, unsafe_allow_html=True)
+               
+            # (4) 상권 분석 요약
+            max_age_key = max(age_data, key=age_data.get)
+            dominant_g = "남성" if m_pay_r > f_pay_r else "여성"
+            corp_type = "개인 고객" if p_pay_r > c_pay_r else "법인/단체"
+            st.success(f"""
+            **📌 {u_dong} 상권 분석 요약**
+            - **핵심 타겟**: 현재 **{dominant_g}**({max(m_pay_r, f_pay_r):.0f}%) 및 **{max_age_key}**의 소비가 가장 집중되어 있습니다.
+            - **소비 성향**: 법인보다는 **{corp_type}** 중심의 결제가 대다수({max(p_pay_r, c_pay_r):.0f}%)를 차지합니다.
+            - **전략 제언**: {max_age_key} {dominant_g} 선호도가 높은 가전 라인업을 우선 제안하시고, {corp_type} 맞춤형 결제 혜택을 강조하세요.
+            """)
+
+        except Exception as e:
+            st.error(f"상세 데이터를 분석하는 중 오류가 발생했습니다: {e}")
+
         try:
             # 1. 가전별 주요 분석 카드
             df = pd.read_csv(SHEET_CSV_URL)
@@ -864,83 +942,6 @@ if loc:
             except Exception as e:
                 st.error(f"가이드 분석 중 오류 발생: {e}")
 
-            # 4. 실시간 소비 인구 비율 분석
-            st.write("---")
-            st.markdown(f"""
-                <div style="display: flex; align-items: baseline; margin-top: 15px; margin-bottom: 15px;">
-                    <span style="font-size: 22px; margin-right: 8px;">💳</span>
-                    <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px;">
-                        실시간 소비 인구 비율
-                    </span>
-                </div>
-            """, unsafe_allow_html=True)
-                          
-            # 데이터 추출
-            m_pay_r = float(root.findtext(".//CMRCL_MALE_RATE", "0"))
-            f_pay_r = float(root.findtext(".//CMRCL_FEMALE_RATE", "0"))
-            p_pay_r = float(root.findtext(".//CMRCL_PERSONAL_RATE", "0"))
-            c_pay_r = float(root.findtext(".//CMRCL_CORPORATION_RATE", "0"))
-
-            age_data = {
-                "10대↓": float(root.findtext(".//CMRCL_10_RATE", "0")),
-                "20대": float(root.findtext(".//CMRCL_20_RATE", "0")),
-                "30대": float(root.findtext(".//CMRCL_30_RATE", "0")),
-                "40대": float(root.findtext(".//CMRCL_40_RATE", "0")),
-                "50대": float(root.findtext(".//CMRCL_50_RATE", "0")),
-                "60대↑": float(root.findtext(".//CMRCL_60_RATE", "0"))
-            }
-
-            # (1) 성별 소비 비중
-            st.write("**👫 성별 소비 비중**")
-            t_g = m_pay_r + f_pay_r
-            m_w = m_pay_r if t_g > 0 else 50
-            f_w = f_pay_r if t_g > 0 else 50
-            st.markdown(f"""
-            <div style="display:flex; height:35px; border-radius:10px; overflow:hidden; border:1px solid #E9ECEF; margin-bottom:20px;">
-                <div style="width:{m_w}%; background:#3B82F6; color:white; text-align:center; line-height:35px; font-size:12px; font-weight:bold;">남 {m_pay_r:.0f}%</div>
-                <div style="width:{f_w}%; background:#EC4899; color:white; text-align:center; line-height:35px; font-size:12px; font-weight:bold;">여 {f_pay_r:.0f}%</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # (2) 개인/법인 비중
-            st.write("**🏢 개인/법인 비중**")
-            t_c = p_pay_r + c_pay_r
-            p_w = p_pay_r if t_c > 0 else 50
-            c_w = c_pay_r if t_c > 0 else 50
-            st.markdown(f"""
-            <div style="display:flex; height:35px; border-radius:10px; overflow:hidden; border:1px solid #E9ECEF; margin-bottom:20px;">
-                <div style="width:{p_w}%; background:#475467; color:white; text-align:center; line-height:35px; font-size:12px; font-weight:bold;">개인 {p_pay_r:.0f}%</div>
-                <div style="width:{c_w}%; background:#ADB5BD; color:white; text-align:center; line-height:35px; font-size:12px; font-weight:bold;">법인 {c_pay_r:.0f}%</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # --- 2) 연령대별 소비 비중 (세로 리스트) ---
-            st.write("")
-            st.write("**🎂 연령대별 소비 비중**")
-            for age, val in age_data.items():
-                st.markdown(f"""
-                <div style="display:flex; align-items:center; margin-bottom:8px;">
-                    <div style="width:55px; font-size:12px; color:#495057;">{age}</div>
-                    <div style="flex:1; background:#F1F3F5; height:12px; border-radius:6px; overflow:hidden; margin:0 10px;">
-                        <div style="width:{val}%; background:linear-gradient(90deg, #3B82F6, #2563EB); height:100%;"></div>
-                    </div>
-                    <div style="width:35px; font-size:12px; text-align:right; font-weight:bold; color:#212529;">{val:.0f}%</div>
-                </div>
-                """, unsafe_allow_html=True)
-               
-            # (4) 상권 분석 요약
-            max_age_key = max(age_data, key=age_data.get)
-            dominant_g = "남성" if m_pay_r > f_pay_r else "여성"
-            corp_type = "개인 고객" if p_pay_r > c_pay_r else "법인/단체"
-            st.success(f"""
-            **📌 {u_dong} 상권 분석 요약**
-            - **핵심 타겟**: 현재 **{dominant_g}**({max(m_pay_r, f_pay_r):.0f}%) 및 **{max_age_key}**의 소비가 가장 집중되어 있습니다.
-            - **소비 성향**: 법인보다는 **{corp_type}** 중심의 결제가 대다수({max(p_pay_r, c_pay_r):.0f}%)를 차지합니다.
-            - **전략 제언**: {max_age_key} {dominant_g} 선호도가 높은 가전 라인업을 우선 제안하시고, {corp_type} 맞춤형 결제 혜택을 강조하세요.
-            """)
-
-        except Exception as e:
-            st.error(f"상세 데이터를 분석하는 중 오류가 발생했습니다: {e}")
 
     # 공통 하단 구분선
     st.divider()

@@ -125,6 +125,9 @@ def fetch_moving_all(lawd_cd, year_month, _t=None):
         "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
         "RTMSDataSvcOffiTrade/getRTMSDataSvcOffiTrade", "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent",
         "RTMSDataSvcSHTrade/getRTMSDataSvcSHTrade", "RTMSDataSvcSHRent/getRTMSDataSvcSHRent"
+        # --- [추가] 단독/다가구 데이터 (이걸 넣어야 엑셀 수치가 나옵니다) ---
+        "RTMSDataSvcSHTownTrade/getRTMSDataSvcSHTownTrade", 
+        "RTMSDataSvcSHTownRent/getRTMSDataSvcSHTownRent"
     ]
     
     for path in paths:

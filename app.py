@@ -317,17 +317,17 @@ if loc:
     
     # [3] 거점 확정 및 지역 코드 추출
     current_target = get_nearest_point(u_lat, u_lon)
-    target = current_target
+    target = current_target 
     
-    # --- [매니저님 핵심 요청: GPS 기반 실제 행정구역 이사지수 추출] ---
-    # 시티포인트와 상관없이, 현재 GPS 좌표의 행정구역 코드를 직접 가져옵니다.
-    def get_actual_lawd_code(lat, lon):
+    # --- [이사지수 독립화: GPS 기반 실제 구 데이터 추출] ---
+    # 시티포인트 리스트와 무관하게 실제 GPS 좌표가 속한 '구'의 데이터를 가져옵니다.
+    def get_real_time_lawd_code(lat, lon):
         try:
-            # 카카오 '좌표-행정구역정보' API를 통해 10자리 행정코드를 가져옵니다.
+            # 카카오 API를 통해 현재 좌표의 10자리 행정코드를 가져옵니다.
             url = f"https://dapi.kakao.com/v2/local/geo/coord2regioncode.json?x={lon}&y={lat}"
-            headers = {"Authorization": f"KakaoAK {SEOUL_API_KEY}"} # 기존 키 활용
+            headers = {"Authorization": f"KakaoAK {SEOUL_API_KEY}"}
             res = requests.get(url, headers=headers, timeout=5).json()
-            # 법정동(B) 기준 코드의 앞 5자리가 국토부 LAWD_CD입니다.
+            # 법정동(B) 기준 앞 5자리가 국토부 LAWD_CD와 100% 일치합니다.
             for doc in res.get('documents', []):
                 if doc.get('region_type') == 'B':
                     return doc.get('code')[:5]
@@ -335,15 +335,15 @@ if loc:
             return None
         return None
 
-    # 실제 내 위치의 5자리 구 코드 추출 (평택이면 41220, 강북구면 11110)
-    actual_lawd_code = get_actual_lawd_code(u_lat, u_lon)
+    # 실제 현재 위치의 구 코드 추출 (쌍문동이면 도봉구 코드 11320 반환)
+    actual_lawd_code = get_real_time_lawd_code(u_lat, u_lon)
     
-    # 만약 코드를 못 가져올 경우에만 안전장치로 거점 코드를 사용하거나 00000 처리
+    # 매칭 실패 시에만 거점 코드를 사용하도록 하여 '0건' 현상을 방지합니다.
     if not actual_lawd_code:
-        actual_lawd_code = "00000"
-    # ---------------------------------------------------------
+        actual_lawd_code = current_target['code']
+    # ---------------------------------------------------
 
-    # [2] 날짜 자동화 및 이사지수 호출
+    # [4] 날짜 자동화 및 이사 지수 호출
     now_dt = datetime.now()
     ym_now = now_dt.strftime('%Y%m')
     ym_last = (now_dt.replace(day=1) - pd.Timedelta(days=1)).strftime('%Y%m')
@@ -351,7 +351,7 @@ if loc:
     import time
     t_stamp = int(time.time() / 60)
     
-    # [수정] 거점 코드가 아닌, 방금 추출한 '실제 위치 코드'를 넣습니다.
+    # [수정] 거점 코드가 아닌, 실제 위치 기반 코드로 데이터를 가져옵니다.
     cnt_now = fetch_moving_all(actual_lawd_code, ym_now, _t=t_stamp)
     cnt_last = fetch_moving_all(actual_lawd_code, ym_last, _t=t_stamp)
     

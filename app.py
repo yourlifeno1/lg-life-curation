@@ -690,7 +690,7 @@ if loc:
     show_voc_section(u_dong)
 
     # ==========================================
-    # 여기서부터 상세 리포트 페이지 로직 시작 (덮어쓰기 구간)
+    # 여기서부터 상세 리포트 페이지 로직 시작
     # ==========================================
     if st.session_state.get('page_mode') == 'detail':
         st.write("---") 
@@ -883,74 +883,54 @@ if loc:
             st.info(f"""
             **📢 {u_dong} 지역 현장 대응 가이드**
             - 현재 **{matched_app}** 제품은 **{matched_issue}** 이슈가 가장 지배적입니다.
-            - 이슈에 맞춰 LG전자 구독만의 전문가 방문관리, 무상 A/S, 소모품 교체를 제안하세요.
+            - 키워드 이슈에 맞춰 LG전자 구독만의 전문가 방문관리, 무상 A/S, 소모품 교체를 제안하세요.
             """)
 
             # (2) 가전 이슈 TOP 3 상세 응대 가이드
             st.markdown(f"##### 💡 가전 이슈 TOP 3 상세 응대 가이드")
 
-            try:
-                # 혜택 시트 데이터 로드
-                df_benefit_all = pd.read_csv(BENEFIT_SHEET_URL)
-                df_benefit_all['가전'] = df_benefit_all['가전'].astype(str).str.strip()
-                df_benefit_all['이슈 키워드'] = df_benefit_all['이슈 키워드'].astype(str).str.strip()
-                
-                display_apps = top_apps[:3]
+            # 혜택 시트 데이터 로드 (try 블록 안으로 안전하게 배치)
+            df_benefit_all = pd.read_csv(BENEFIT_SHEET_URL)
+            df_benefit_all['가전'] = df_benefit_all['가전'].astype(str).str.strip()
+            df_benefit_all['이슈 키워드'] = df_benefit_all['이슈 키워드'].astype(str).str.strip()
+            
+            display_apps = top_apps[:3]
 
-                for idx, app_item in enumerate(display_apps):
-                    # [핵심] 1위(idx 0)만 펼쳐두기, 2/3위는 접어두기
-                    is_expanded = True if idx == 0 else False
+            for idx, app_item in enumerate(display_apps):
+                # 1위 가전만 펼쳐두기
+                is_expanded = True if idx == 0 else False
+                
+                with st.expander(f"📢 TOP {idx+1} {app_item} 가이드", expanded=is_expanded):
+                    app_issue_data = df[df['가전'] == app_item]
+                    current_issue = app_issue_data['이슈 키워드'].value_counts().index[0] if not app_issue_data.empty else "성능 저하"
                     
-                    with st.expander(f"📢 TOP {idx+1} {app_item} 가이드", expanded=is_expanded):
-                        # 각 순위별 가전의 실시간 1위 이슈 추출
-                        app_issue_data = df[df['가전'] == app_item]
-                        current_issue = app_issue_data['이슈 키워드'].value_counts().index[0] if not app_issue_data.empty else "성능 저하"
-                    
-                    # 1. 제품명 표준화
-                    APP_MAP = {
-                        "의류관리기": "스타일러", "그램": "노트북", "gram": "노트북",
-                        "식기세척기": "식기세척기", "공기청정기": "공기청정기", "티비": "TV"
-                    }
+                    APP_MAP = {"의류관리기": "스타일러", "그램": "노트북", "gram": "노트북", "식기세척기": "식기세척기", "공기청정기": "공기청정기", "티비": "TV"}
                     standard_app = APP_MAP.get(app_item, app_item).strip()
                     
-                    # 2. 이슈 키워드 표준화 (시트 매칭용)
                     target_issue = current_issue
                     if '분해세척' in current_issue: target_issue = "분해 세척"
                     elif any(word in current_issue for word in ['곰팡이', '냄새', '위생']): target_issue = "위생(곰팡이/냄새)"
                     elif '배터리' in current_issue: target_issue = "배터리"
-                    elif '소음' in current_issue: target_issue = "소음" # 스타일러 소음 대응용
+                    elif '소음' in current_issue: target_issue = "소음"
                     elif any(word in current_issue for word in ['발열', '성능']): target_issue = "성능 저하"
 
-                    # 3. 시트 매칭
-                    matched_row = df_benefit_all[
-                        (df_benefit_all['가전'] == standard_app) & 
-                        (df_benefit_all['이슈 키워드'] == target_issue)
-                    ]
+                    matched_row = df_benefit_all[(df_benefit_all['가전'] == standard_app) & (df_benefit_all['이슈 키워드'] == target_issue)]
 
                     if not matched_row.empty:
-                        b_name = matched_row.iloc[0]['맞춤형 구독 혜택']
-                        b_ment = matched_row.iloc[0]['현장 대응 멘트']
-                        
-                        # 깔끔한 카드형 디자인
+                        b_name, b_ment = matched_row.iloc[0]['맞춤형 구독 혜택'], matched_row.iloc[0]['현장 대응 멘트']
                         st.markdown(f"""
-                        <div style="background-color: #FFF5F7; padding: 15px; border-radius: 10px; border: 1px solid #FFD1DF; margin-bottom: 15px;">
-                            <div style="margin-bottom: 8px;">
-                                <span style="background-color: #DA004B; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 8px;">TOP {idx+1}</span>
-                                <b style="font-size: 16px;">{standard_app}</b> <small style="color: #666;">-{target_issue}</small>
-                            </div>
+                        <div style="background-color: #FFF5F7; padding: 15px; border-radius: 10px; border: 1px solid #FFD1DF; margin-bottom: 10px;">
+                            <p style="margin-bottom: 5px; font-size: 14.5px; font-weight: bold; color: #DA004B;">✅ {b_name}</p>
                             <div style="background-color: white; padding: 12px; border-radius: 6px; border: 1px solid #FFE0E9;">
-                                <p style="margin-bottom: 5px; font-size: 14.5px; font-weight: bold; color: #DA004B;">✅ {b_name}</p>
-                                <p style="font-size: 13.5px; color: #495057; line-height: 1.5; margin: 0;">
-                                    <b>💬 멘트:</b> "{b_ment}"
-                                </p>
+                                <p style="font-size: 13.5px; color: #495057; line-height: 1.5; margin: 0;"><b>💬 멘트:</b> "{b_ment}"</p>
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
                     else:
                         st.caption(f"📍 {idx+1}위 {standard_app} ({target_issue}): 정보 준비 중")
 
-            except Exception as e:
-                st.error(f"가이드 분석 중 오류 발생: {e}")
+        except Exception as e:
+            st.error(f"상세 분석 로직 실행 중 오류가 발생했습니다: {e}")
 
             
     # 공통 하단 구분선

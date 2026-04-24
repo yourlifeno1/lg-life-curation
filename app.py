@@ -317,23 +317,43 @@ if loc:
     
     # [3] 거점 확정 및 지역 코드 추출
     current_target = get_nearest_point(u_lat, u_lon)
-    current_code = current_target['code']
-    target = current_target 
+    target = current_target
     
-    # [4] 날짜 자동화 로직 (반드시 호출보다 위에 있어야 함)
+    # --- [매니저님 핵심 요청: GPS 기반 실제 행정구역 이사지수 추출] ---
+    # 시티포인트와 상관없이, 현재 GPS 좌표의 행정구역 코드를 직접 가져옵니다.
+    def get_actual_lawd_code(lat, lon):
+        try:
+            # 카카오 '좌표-행정구역정보' API를 통해 10자리 행정코드를 가져옵니다.
+            url = f"https://dapi.kakao.com/v2/local/geo/coord2regioncode.json?x={lon}&y={lat}"
+            headers = {"Authorization": f"KakaoAK {SEOUL_API_KEY}"} # 기존 키 활용
+            res = requests.get(url, headers=headers, timeout=5).json()
+            # 법정동(B) 기준 코드의 앞 5자리가 국토부 LAWD_CD입니다.
+            for doc in res.get('documents', []):
+                if doc.get('region_type') == 'B':
+                    return doc.get('code')[:5]
+        except:
+            return None
+        return None
+
+    # 실제 내 위치의 5자리 구 코드 추출 (평택이면 41220, 강북구면 11110)
+    actual_lawd_code = get_actual_lawd_code(u_lat, u_lon)
+    
+    # 만약 코드를 못 가져올 경우에만 안전장치로 거점 코드를 사용하거나 00000 처리
+    if not actual_lawd_code:
+        actual_lawd_code = "00000"
+    # ---------------------------------------------------------
+
+    # [2] 날짜 자동화 및 이사지수 호출
     now_dt = datetime.now()
     ym_now = now_dt.strftime('%Y%m')
     ym_last = (now_dt.replace(day=1) - pd.Timedelta(days=1)).strftime('%Y%m')
 
-    # [5] 이사 지수용: 시티포인트/법정동 필터링 없이 '구 전체' 합산
-    # 매니저님의 원칙: 이사 지수는 시티포인트를 활용하지 않고 자치구 단위로 집계합니다.
     import time
     t_stamp = int(time.time() / 60)
     
-    # current_code는 [3]번에서 내 GPS와 가장 가까운 거점이 속한 '구 코드'입니다.
-    # 이 코드를 사용하여 해당 구 전체의 이사 유동을 가져옵니다.
-    cnt_now = fetch_moving_all(current_code, ym_now, _t=t_stamp)
-    cnt_last = fetch_moving_all(current_code, ym_last, _t=t_stamp)
+    # [수정] 거점 코드가 아닌, 방금 추출한 '실제 위치 코드'를 넣습니다.
+    cnt_now = fetch_moving_all(actual_lawd_code, ym_now, _t=t_stamp)
+    cnt_last = fetch_moving_all(actual_lawd_code, ym_last, _t=t_stamp)
     
     # [6] 전월 대비 증감 기록 산출
     diff = cnt_now - cnt_last

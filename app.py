@@ -150,14 +150,19 @@ def fetch_moving_all(lawd_cd, year_month, _t=None):
                 '_cache_buster': _t
             }
             r = requests.get(url, params=p, timeout=5)
-            if r.status_code == 200:
-                root = ET.fromstring(r.text)
-                # 결과 코드가 정상(00)인지 확인하는 로직이 있으면 더 정확합니다.
+            root = ET.fromstring(r.text)
+            
+            # API 결과가 성공(00)인지 체크
+            result_code = root.findtext('.//resultCode')
+            if result_code == '00':
                 items = root.findall('.//item')
-                total += len(items) 
+                total += len(items)
+            else:
+                # 에러가 난다면 어떤 API에서 났는지 화면에 표시 (디버깅용)
+                st.warning(f"{path} 호출 실패: {root.findtext('.//resultMsg')}")
         except Exception as e:
-            # 에러가 난다면 화면에 살짝 표시해서 디버깅할 수 있습니다.
-            # st.write(f"Error in {path}: {e}") 
+            # 아예 접속조차 안 될 경우 에러 표시
+            st.error(f"{path} 연결 에러: {e}")
             continue
     return total
 

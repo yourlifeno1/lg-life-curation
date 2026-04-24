@@ -790,9 +790,7 @@ if loc:
             - **전략 제언**: {max_age_key} {dominant_g} 선호도가 높은 가전 라인업을 우선 제안하시고, {corp_type} 맞춤형 결제 혜택을 강조하세요.
             """)
 
-        except Exception as e:
-            st.error(f"상세 데이터를 분석하는 중 오류가 발생했습니다: {e}")
-
+        
         try:
             # 1. 가전별 주요 분석 카드
             df = pd.read_csv(SHEET_CSV_URL)

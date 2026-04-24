@@ -841,6 +841,8 @@ if loc:
             """, unsafe_allow_html=True)
 
             top_apps = df['가전'].value_counts().head(3).index.tolist()
+
+            st.divider()
             
             # 가로 3열 배치 (스크롤 압축)
             cols = st.columns(3)
@@ -853,8 +855,6 @@ if loc:
                         <div style="font-size:20px; font-weight:bold; color:#212529;">{total_cnt}건</div>
                     </div>
                     """, unsafe_allow_html=True)
-
-            st.divider()
 
             # 1위 가전 제품 이름 확보
             matched_app = top_apps[0] 

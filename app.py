@@ -809,7 +809,7 @@ if loc:
                 <div style="display: flex; align-items: baseline; margin-top: 15px; margin-bottom: 10px;">
                     <span style="font-size: 22px; margin-right: 8px;">🔍</span>
                     <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px;">
-                        핵심 키워드 빈도 TOP 5
+                        가전 이슈 키워드 빈도 TOP 5
                     </span>
                 </div>
             """, unsafe_allow_html=True)
@@ -837,7 +837,7 @@ if loc:
                 <div style="display: flex; align-items: baseline; margin-top: 15px; margin-bottom: 10px;">
                     <span style="font-size: 22px; margin-right: 8px;">💡</span>
                     <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px;">
-                        가전별 주요 분석
+                        이슈 제품 순위 분석
                     </span>
                 </div>
             """, unsafe_allow_html=True)

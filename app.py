@@ -831,14 +831,6 @@ if loc:
                 </div>
                 """, unsafe_allow_html=True)
 
-            # --- [최종 완성] 3. TOP 3 지역 현장 대응 가이드 출력 ---
-            # (1) 지역 현장 대응 가이드 (매니저님이 강조하신 핵심 3줄 요약)
-            st.info(f"""
-            **📢 {u_dong} 지역 현장 대응 가이드**
-            - 현재 **{matched_app}** 제품은 **{matched_issue}** 이슈가 가장 지배적입니다.
-            - 키워드 이슈에 맞춰 LG전자 구독만의 전문가 방문관리, 무상 A/S, 소모품 교체를 제안하세요.
-            """)
-
             st.divider()
             
             st.markdown(f"""
@@ -885,6 +877,14 @@ if loc:
                     matched_issue = top_issues[0]
             else:
                 matched_issue = "성능 및 제품 상태"
+
+            # --- [최종 완성] 3. TOP 3 지역 현장 대응 가이드 출력 ---
+            # (1) 지역 현장 대응 가이드 (매니저님이 강조하신 핵심 3줄 요약)
+            st.info(f"""
+            **📢 {u_dong} 지역 현장 대응 가이드**
+            - 현재 **{matched_app}** 제품은 **{matched_issue}** 이슈가 가장 지배적입니다.
+            - 키워드 이슈에 맞춰 LG전자 구독만의 전문가 방문관리, 무상 A/S, 소모품 교체를 제안하세요.
+            """)
 
             # (2) 가전 이슈 TOP 3 상세 응대 가이드
             st.markdown(f"##### 💡 가전 이슈 TOP 3 상세 응대 가이드")

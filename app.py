@@ -117,9 +117,9 @@ def get_nearest_point(u_lat, u_lon):
     return nearest_pt
     
 # --- 수정 포인트 2: 거리 기반 필터링 로직 적용 ---
-@st.cache_data(ttl=3600, show_spinner=False)
 def fetch_moving_all(lawd_cd, year_month, _t=None):
     total = 0
+
     paths = [
         "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
         "RTMSDataSvcOffiTrade/getRTMSDataSvcOffiTrade", "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent",
@@ -134,22 +134,17 @@ def fetch_moving_all(lawd_cd, year_month, _t=None):
                 'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 
                 'LAWD_CD': lawd_cd, 
                 'DEAL_YMD': year_month,
-                'numOfRows': '999' # 한 번에 다 가져오도록 추가
+                'numOfRows': '999',  # [필수] 이 설정이 없으면 10건만 가져옵니다.
+                '_cache_buster': _t
             }
-            r = requests.get(url, params=p, timeout=5)
-            root = ET.fromstring(r.text)
-            
-            # API 결과가 성공(00)인지 체크
-            result_code = root.findtext('.//resultCode')
-            if result_code == '00':
+            # 서버 부하를 줄이기 위해 타임아웃을 7초로 늘립니다.
+            r = requests.get(url, params=p, timeout=7)
+            if r.status_code == 200:
+                root = ET.fromstring(r.text)
                 items = root.findall('.//item')
                 total += len(items)
-            else:
-                # 에러가 난다면 어떤 API에서 났는지 화면에 표시 (디버깅용)
-                st.warning(f"{path} 호출 실패: {root.findtext('.//resultMsg')}")
         except Exception as e:
-            # 아예 접속조차 안 될 경우 에러 표시
-            st.error(f"{path} 연결 에러: {e}")
+            # 에러가 나도 멈추지 않고 다음 API로 넘어가도록 처리
             continue
     return total
 

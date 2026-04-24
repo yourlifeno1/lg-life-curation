@@ -120,6 +120,7 @@ def get_nearest_point(u_lat, u_lon):
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_moving_all(lawd_cd, year_month, _t=None):
     total = 0
+    # 매니저님의 엑셀 수치(매매+전세+월세)를 모두 잡기 위한 6개 경로
     paths = [
         "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
         "RTMSDataSvcOffiTrade/getRTMSDataSvcOffiTrade", "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent",
@@ -133,14 +134,18 @@ def fetch_moving_all(lawd_cd, year_month, _t=None):
                 'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 
                 'LAWD_CD': lawd_cd, 
                 'DEAL_YMD': year_month,
+                'numOfRows': '999',  # [핵심 추가] 한 페이지에 999건을 요청해야 누락이 없습니다!
                 '_cache_buster': _t
             }
             r = requests.get(url, params=p, timeout=5)
             if r.status_code == 200:
                 root = ET.fromstring(r.text)
+                # 결과 코드가 정상(00)인지 확인하는 로직이 있으면 더 정확합니다.
                 items = root.findall('.//item')
-                total += len(items) # 필터링 없이 구 전체 합산
-        except:
+                total += len(items) 
+        except Exception as e:
+            # 에러가 난다면 화면에 살짝 표시해서 디버깅할 수 있습니다.
+            # st.write(f"Error in {path}: {e}") 
             continue
     return total
 

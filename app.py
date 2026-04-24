@@ -120,23 +120,11 @@ def get_nearest_point(u_lat, u_lon):
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_moving_all(lawd_cd, year_month, _t=None):
     total = 0
-    # 매니저님의 엑셀 수치(매매+전세+월세)를 모두 잡기 위한 6개 경로
     paths = [
-        # 1. 아파트 (매매 / 전월세)
-        "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", 
-        "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
-
-        # 2. 오피스텔 (매매 / 전월세)
-        "RTMSDataSvcOffiTrade/getRTMSDataSvcOffiTrade", 
-        "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent",
-
-        # 4. 단독/다가구 (주택 합계를 위해 필수)
-        "RTMSDataSvcSHTrade/getRTMSDataSvcSHTrade", 
-        "RTMSDataSvcSHRent/getRTMSDataSvcSHRent",
-
-        # 3. 연립다세대 (방금 신청하신 것!)
-        "RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade", 
-        "RTMSDataSvcRHRent/getRTMSDataSvcRHRent"
+        "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
+        "RTMSDataSvcOffiTrade/getRTMSDataSvcOffiTrade", "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent",
+        "RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade", "RTMSDataSvcRHRent/getRTMSDataSvcRHRent",
+        "RTMSDataSvcSHTrade/getRTMSDataSvcSHTrade", "RTMSDataSvcSHRent/getRTMSDataSvcSHRent"
     ]
     
     for path in paths:
@@ -146,8 +134,7 @@ def fetch_moving_all(lawd_cd, year_month, _t=None):
                 'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 
                 'LAWD_CD': lawd_cd, 
                 'DEAL_YMD': year_month,
-                'numOfRows': '999',  # [핵심 추가] 한 페이지에 999건을 요청해야 누락이 없습니다!
-                '_cache_buster': _t
+                'numOfRows': '999' # 한 번에 다 가져오도록 추가
             }
             r = requests.get(url, params=p, timeout=5)
             root = ET.fromstring(r.text)

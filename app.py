@@ -802,29 +802,6 @@ if loc:
         try:
             df = pd.read_csv(SHEET_CSV_URL)
             df['이슈 키워드'] = df['이슈 키워드'].replace(['냄새', '곰팡이'], '위생(곰팡이/냄새)')
-            
-            st.markdown(f"""
-                <div style="display: flex; align-items: baseline; margin-top: 15px; margin-bottom: 10px;">
-                    <span style="font-size: 22px; margin-right: 8px;">💡</span>
-                    <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px;">
-                        가전별 주요 분석
-                    </span>
-                </div>
-            """, unsafe_allow_html=True)
-
-            top_apps = df['가전'].value_counts().head(3).index.tolist()
-            
-            # 가로 3열 배치 (스크롤 압축)
-            cols = st.columns(3)
-            for idx, appliance in enumerate(top_apps):
-                with cols[idx]:
-                    total_cnt = len(df[df['가전'] == appliance])
-                    st.markdown(f"""
-                    <div style="background:#FFFFFF; border:1px solid #007BFF; border-radius:10px; padding:10px; text-align:center;">
-                        <div style="font-size:12px; color:#6C757D;">{appliance}</div>
-                        <div style="font-size:20px; font-weight:bold; color:#212529;">{total_cnt}건</div>
-                    </div>
-                    """, unsafe_allow_html=True)
 
             # 2. 핵심 키워드 빈도 TOP 5
             st.write("") # 간격 조절용
@@ -853,6 +830,29 @@ if loc:
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
+            
+            st.markdown(f"""
+                <div style="display: flex; align-items: baseline; margin-top: 15px; margin-bottom: 10px;">
+                    <span style="font-size: 22px; margin-right: 8px;">💡</span>
+                    <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px;">
+                        가전별 주요 분석
+                    </span>
+                </div>
+            """, unsafe_allow_html=True)
+
+            top_apps = df['가전'].value_counts().head(3).index.tolist()
+            
+            # 가로 3열 배치 (스크롤 압축)
+            cols = st.columns(3)
+            for idx, appliance in enumerate(top_apps):
+                with cols[idx]:
+                    total_cnt = len(df[df['가전'] == appliance])
+                    st.markdown(f"""
+                    <div style="background:#FFFFFF; border:1px solid #007BFF; border-radius:10px; padding:10px; text-align:center;">
+                        <div style="font-size:12px; color:#6C757D;">{appliance}</div>
+                        <div style="font-size:20px; font-weight:bold; color:#212529;">{total_cnt}건</div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
             st.divider()
 

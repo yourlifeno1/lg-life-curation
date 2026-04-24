@@ -121,10 +121,14 @@ def fetch_moving_all(lawd_cd, year_month, _t=None):
     total = 0
 
     paths = [
-        "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
-        "RTMSDataSvcOffiTrade/getRTMSDataSvcOffiTrade", "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent",
-        "RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade", "RTMSDataSvcRHRent/getRTMSDataSvcRHRent",
-        "RTMSDataSvcSHTrade/getRTMSDataSvcSHTrade", "RTMSDataSvcSHRent/getRTMSDataSvcSHRent"
+        "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", # 아파트 매매
+        "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",         # 아파트 전월세
+        "RTMSDataSvcOffiTrade/getRTMSDataSvcOffiTrade",    # 오피스텔 매매
+        "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent",      # 오피스텔 전월세
+        "RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade",        # 연립다세대 매매
+        "RTMSDataSvcRHRent/getRTMSDataSvcRHRent",          # 연립다세대 전월세
+        "RTMSDataSvcSHTrade/getRTMSDataSvcSHTrade",        # 단독다가구 매매
+        "RTMSDataSvcSHRent/getRTMSDataSvcSHRent"           # 단독다가구 전월세
     ]
     
     for path in paths:

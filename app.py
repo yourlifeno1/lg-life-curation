@@ -716,154 +716,6 @@ if loc:
             st.rerun()
        
         try:
-            # 1. 가전별 주요 분석 카드
-            df = pd.read_csv(SHEET_CSV_URL)
-            df['이슈 키워드'] = df['이슈 키워드'].replace(['냄새', '곰팡이'], '위생(곰팡이/냄새)')
-            
-            st.markdown(f"""
-                <div style="display: flex; align-items: baseline; margin-top: 15px; margin-bottom: 10px;">
-                    <span style="font-size: 22px; margin-right: 8px;">💡</span>
-                    <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px;">
-                        가전별 주요 분석
-                    </span>
-                </div>
-            """, unsafe_allow_html=True)
-
-            top_apps = df['가전'].value_counts().head(3).index.tolist()
-            
-            cols = st.columns(len(top_apps))
-            for idx, appliance in enumerate(top_apps):
-                with cols[idx]:
-                    app_data = df[df['가전'] == appliance]
-                    total_cnt = len(app_data)
-                    st.markdown(f"""
-                    <div style="background:#FFFFFF; border:2px solid #007BFF; border-radius:15px; padding:20px; text-align:center; min-height:160px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-                        <div style="font-size:14px; color:#6C757D;">{appliance}</div>
-                        <div style="font-size:28px; font-weight:900; color:#212529; margin:10px 0;">{total_cnt}건</div>
-                        <div style="font-size:12px; color:#007BFF; font-weight:bold;">관심도 {idx+1}위</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-            # 2. 핵심 키워드 빈도 TOP 5
-            st.write("") # 간격 조절용
-            st.markdown(f"""
-                <div style="display: flex; align-items: baseline; margin-top: 15px; margin-bottom: 10px;">
-                    <span style="font-size: 22px; margin-right: 8px;">🔍</span>
-                    <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px;">
-                        핵심 키워드 빈도 TOP 5
-                    </span>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            all_keywords = df['이슈 키워드'].value_counts().head(5)
-            
-            for kw, count in all_keywords.items():
-                max_cnt = all_keywords.max()
-                progress = (count / max_cnt) * 100
-                st.markdown(f"""
-                <div style="margin-bottom:15px;">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                        <span style="font-weight:bold; font-size:14px;">{kw}</span>
-                        <span style="font-size:12px; color:#868E96;">{count}건</span>
-                    </div>
-                    <div style="background:#E9ECEF; height:10px; border-radius:5px; overflow:hidden;">
-                        <div style="width:{progress}%; background:linear-gradient(90deg, #007BFF, #6610F2); height:100%;"></div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            # 1위 가전 제품 이름 확보
-            matched_app = top_apps[0] 
-            
-            # 2. 전체 데이터에서 해당 제품 데이터만 필터링
-            target_app_df = df[df['가전'] == matched_app]
-            
-            if not target_app_df.empty:
-                # 3. 이슈 빈도 계산 및 최대 빈도수 확인
-                app_issue_counts = target_app_df['이슈 키워드'].value_counts()
-                max_freq = app_issue_counts.max()
-                
-                # 4. 동점인 모든 이슈를 리스트로 추출
-                top_issues = app_issue_counts[app_issue_counts == max_freq].index.tolist()
-                
-                # 5. 이슈들을 '및'으로 연결 (예: 배터리 및 발열)
-                if len(top_issues) > 1:
-                    matched_issue = " 및 ".join(top_issues)
-                else:
-                    matched_issue = top_issues[0]
-            else:
-                matched_issue = "성능 및 제품 상태"
-
-            # --- [최종 완성] 3. TOP 3 지역 현장 대응 가이드 출력 ---
-            # (1) 지역 현장 대응 가이드 (매니저님이 강조하신 핵심 3줄 요약)
-            st.info(f"""
-            **📢 {u_dong} 지역 현장 대응 가이드**
-            - 현재 **{matched_app}** 제품은 **{matched_issue}** 이슈가 가장 지배적입니다.
-            - 이슈에 맞춰 LG전자 구독만의 전문가 방문관리, 무상 A/S, 소모품 교체를 제안하세요.
-            """)
-
-            # (2) 가전 이슈 TOP 3 상세 응대 가이드
-            st.markdown(f"##### 💡 가전 이슈 TOP 3 상세 응대 가이드")
-
-            try:
-                # 혜택 시트 데이터 로드
-                df_benefit_all = pd.read_csv(BENEFIT_SHEET_URL)
-                df_benefit_all['가전'] = df_benefit_all['가전'].astype(str).str.strip()
-                df_benefit_all['이슈 키워드'] = df_benefit_all['이슈 키워드'].astype(str).str.strip()
-                
-                display_apps = top_apps[:3]
-
-                for idx, app_item in enumerate(display_apps):
-                    # 각 순위별 가전의 실시간 1위 이슈 추출
-                    app_issue_data = df[df['가전'] == app_item]
-                    current_issue = app_issue_data['이슈 키워드'].value_counts().index[0] if not app_issue_data.empty else "성능 저하"
-                    
-                    # 1. 제품명 표준화
-                    APP_MAP = {
-                        "의류관리기": "스타일러", "그램": "노트북", "GRAM": "노트북",
-                        "식기세척기": "식기세척기", "공기청정기": "공기청정기", "티비": "TV"
-                    }
-                    standard_app = APP_MAP.get(app_item, app_item).strip()
-                    
-                    # 2. 이슈 키워드 표준화 (시트 매칭용)
-                    target_issue = current_issue
-                    if '분해세척' in current_issue: target_issue = "분해 세척"
-                    elif any(word in current_issue for word in ['곰팡이', '냄새', '위생']): target_issue = "위생(곰팡이/냄새)"
-                    elif '배터리' in current_issue: target_issue = "배터리"
-                    elif '소음' in current_issue: target_issue = "소음" # 스타일러 소음 대응용
-                    elif any(word in current_issue for word in ['발열', '성능']): target_issue = "성능 저하"
-
-                    # 3. 시트 매칭
-                    matched_row = df_benefit_all[
-                        (df_benefit_all['가전'] == standard_app) & 
-                        (df_benefit_all['이슈 키워드'] == target_issue)
-                    ]
-
-                    if not matched_row.empty:
-                        b_name = matched_row.iloc[0]['맞춤형 구독 혜택']
-                        b_ment = matched_row.iloc[0]['현장 대응 멘트']
-                        
-                        # 깔끔한 카드형 디자인
-                        st.markdown(f"""
-                        <div style="background-color: #FFF5F7; padding: 15px; border-radius: 10px; border: 1px solid #FFD1DF; margin-bottom: 15px;">
-                            <div style="margin-bottom: 8px;">
-                                <span style="background-color: #DA004B; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 8px;">TOP {idx+1}</span>
-                                <b style="font-size: 16px;">{standard_app}</b> <small style="color: #666;">-{target_issue}</small>
-                            </div>
-                            <div style="background-color: white; padding: 12px; border-radius: 6px; border: 1px solid #FFE0E9;">
-                                <p style="margin-bottom: 5px; font-size: 14.5px; font-weight: bold; color: #DA004B;">✅ {b_name}</p>
-                                <p style="font-size: 13.5px; color: #495057; line-height: 1.5; margin: 0;">
-                                    <b>💬 멘트:</b> "{b_ment}"
-                                </p>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.caption(f"📍 {idx+1}위 {standard_app} ({target_issue}): 정보 준비 중")
-
-            except Exception as e:
-                st.error(f"가이드 분석 중 오류 발생: {e}")
-
             # 4. 실시간 소비 인구 비율 분석
             st.write("---")
             st.markdown(f"""
@@ -941,7 +793,166 @@ if loc:
 
         except Exception as e:
             st.error(f"상세 데이터를 분석하는 중 오류가 발생했습니다: {e}")
+                          
+        st.divider()
+                          
+        # ---------------------------------------------------------
+        # [설계 6번] 가전별 주요 분석 & 핵심 키워드
+        # ---------------------------------------------------------
+        try:
+            df = pd.read_csv(SHEET_CSV_URL)
+            df['이슈 키워드'] = df['이슈 키워드'].replace(['냄새', '곰팡이'], '위생(곰팡이/냄새)')
+            
+            st.markdown(f"""
+                <div style="display: flex; align-items: baseline; margin-top: 15px; margin-bottom: 10px;">
+                    <span style="font-size: 22px; margin-right: 8px;">💡</span>
+                    <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px;">
+                        가전별 주요 분석
+                    </span>
+                </div>
+            """, unsafe_allow_html=True)
 
+            top_apps = df['가전'].value_counts().head(3).index.tolist()
+            
+            # 가로 3열 배치 (스크롤 압축)
+            cols = st.columns(3)
+            for idx, appliance in enumerate(top_apps):
+                with cols[idx]:
+                    total_cnt = len(df[df['가전'] == appliance])
+                    st.markdown(f"""
+                    <div style="background:#FFFFFF; border:1px solid #007BFF; border-radius:10px; padding:10px; text-align:center;">
+                        <div style="font-size:12px; color:#6C757D;">{appliance}</div>
+                        <div style="font-size:20px; font-weight:bold; color:#212529;">{total_cnt}건</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            # 2. 핵심 키워드 빈도 TOP 5
+            st.write("") # 간격 조절용
+            st.markdown(f"""
+                <div style="display: flex; align-items: baseline; margin-top: 15px; margin-bottom: 10px;">
+                    <span style="font-size: 22px; margin-right: 8px;">🔍</span>
+                    <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px;">
+                        핵심 키워드 빈도 TOP 5
+                    </span>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            all_keywords = df['이슈 키워드'].value_counts().head(5)
+            
+            for kw, count in all_keywords.items():
+                max_cnt = all_keywords.max()
+                progress = (count / max_cnt) * 100
+                st.markdown(f"""
+                <div style="margin-bottom:15px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                        <span style="font-weight:bold; font-size:14px;">{kw}</span>
+                        <span style="font-size:12px; color:#868E96;">{count}건</span>
+                    </div>
+                    <div style="background:#E9ECEF; height:10px; border-radius:5px; overflow:hidden;">
+                        <div style="width:{progress}%; background:linear-gradient(90deg, #007BFF, #6610F2); height:100%;"></div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.divider()
+
+            # 1위 가전 제품 이름 확보
+            matched_app = top_apps[0] 
+            
+            # 2. 전체 데이터에서 해당 제품 데이터만 필터링
+            target_app_df = df[df['가전'] == matched_app]
+            
+            if not target_app_df.empty:
+                # 3. 이슈 빈도 계산 및 최대 빈도수 확인
+                app_issue_counts = target_app_df['이슈 키워드'].value_counts()
+                max_freq = app_issue_counts.max()
+                
+                # 4. 동점인 모든 이슈를 리스트로 추출
+                top_issues = app_issue_counts[app_issue_counts == max_freq].index.tolist()
+                
+                # 5. 이슈들을 '및'으로 연결 (예: 배터리 및 발열)
+                if len(top_issues) > 1:
+                    matched_issue = " 및 ".join(top_issues)
+                else:
+                    matched_issue = top_issues[0]
+            else:
+                matched_issue = "성능 및 제품 상태"
+
+            # --- [최종 완성] 3. TOP 3 지역 현장 대응 가이드 출력 ---
+            # (1) 지역 현장 대응 가이드 (매니저님이 강조하신 핵심 3줄 요약)
+            st.info(f"""
+            **📢 {u_dong} 지역 현장 대응 가이드**
+            - 현재 **{matched_app}** 제품은 **{matched_issue}** 이슈가 가장 지배적입니다.
+            - 이슈에 맞춰 LG전자 구독만의 전문가 방문관리, 무상 A/S, 소모품 교체를 제안하세요.
+            """)
+
+            # (2) 가전 이슈 TOP 3 상세 응대 가이드
+            st.markdown(f"##### 💡 가전 이슈 TOP 3 상세 응대 가이드")
+
+            try:
+                # 혜택 시트 데이터 로드
+                df_benefit_all = pd.read_csv(BENEFIT_SHEET_URL)
+                df_benefit_all['가전'] = df_benefit_all['가전'].astype(str).str.strip()
+                df_benefit_all['이슈 키워드'] = df_benefit_all['이슈 키워드'].astype(str).str.strip()
+                
+                display_apps = top_apps[:3]
+
+                for idx, app_item in enumerate(display_apps):
+                    # [핵심] 1위(idx 0)만 펼쳐두기, 2/3위는 접어두기
+                    is_expanded = True if idx == 0 else False
+                    
+                    with st.expander(f"📢 TOP {idx+1} {app_item} 가이드", expanded=is_expanded):
+                        # 각 순위별 가전의 실시간 1위 이슈 추출
+                        app_issue_data = df[df['가전'] == app_item]
+                        current_issue = app_issue_data['이슈 키워드'].value_counts().index[0] if not app_issue_data.empty else "성능 저하"
+                    
+                    # 1. 제품명 표준화
+                    APP_MAP = {
+                        "의류관리기": "스타일러", "그램": "노트북", "gram": "노트북",
+                        "식기세척기": "식기세척기", "공기청정기": "공기청정기", "티비": "TV"
+                    }
+                    standard_app = APP_MAP.get(app_item, app_item).strip()
+                    
+                    # 2. 이슈 키워드 표준화 (시트 매칭용)
+                    target_issue = current_issue
+                    if '분해세척' in current_issue: target_issue = "분해 세척"
+                    elif any(word in current_issue for word in ['곰팡이', '냄새', '위생']): target_issue = "위생(곰팡이/냄새)"
+                    elif '배터리' in current_issue: target_issue = "배터리"
+                    elif '소음' in current_issue: target_issue = "소음" # 스타일러 소음 대응용
+                    elif any(word in current_issue for word in ['발열', '성능']): target_issue = "성능 저하"
+
+                    # 3. 시트 매칭
+                    matched_row = df_benefit_all[
+                        (df_benefit_all['가전'] == standard_app) & 
+                        (df_benefit_all['이슈 키워드'] == target_issue)
+                    ]
+
+                    if not matched_row.empty:
+                        b_name = matched_row.iloc[0]['맞춤형 구독 혜택']
+                        b_ment = matched_row.iloc[0]['현장 대응 멘트']
+                        
+                        # 깔끔한 카드형 디자인
+                        st.markdown(f"""
+                        <div style="background-color: #FFF5F7; padding: 15px; border-radius: 10px; border: 1px solid #FFD1DF; margin-bottom: 15px;">
+                            <div style="margin-bottom: 8px;">
+                                <span style="background-color: #DA004B; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-right: 8px;">TOP {idx+1}</span>
+                                <b style="font-size: 16px;">{standard_app}</b> <small style="color: #666;">-{target_issue}</small>
+                            </div>
+                            <div style="background-color: white; padding: 12px; border-radius: 6px; border: 1px solid #FFE0E9;">
+                                <p style="margin-bottom: 5px; font-size: 14.5px; font-weight: bold; color: #DA004B;">✅ {b_name}</p>
+                                <p style="font-size: 13.5px; color: #495057; line-height: 1.5; margin: 0;">
+                                    <b>💬 멘트:</b> "{b_ment}"
+                                </p>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.caption(f"📍 {idx+1}위 {standard_app} ({target_issue}): 정보 준비 중")
+
+            except Exception as e:
+                st.error(f"가이드 분석 중 오류 발생: {e}")
+
+            
     # 공통 하단 구분선
     st.divider()
     st.markdown("""

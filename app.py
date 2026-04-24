@@ -134,7 +134,7 @@ def fetch_moving_all(lawd_cd, year_month, _t=None):
                 'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 
                 'LAWD_CD': lawd_cd, 
                 'DEAL_YMD': year_month,
-                'numOfRows': '999',  # [필수] 이 설정이 없으면 10건만 가져옵니다.
+                'numOfRows': '9999',  # [필수] 이 설정이 없으면 10건만 가져옵니다.
                 '_cache_buster': _t
             }
             # 서버 부하를 줄이기 위해 타임아웃을 7초로 늘립니다.

@@ -122,12 +122,21 @@ def fetch_moving_all(lawd_cd, year_month, _t=None):
     total = 0
     # 매니저님의 엑셀 수치(매매+전세+월세)를 모두 잡기 위한 6개 경로
     paths = [
-        "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
-        "RTMSDataSvcOffiTrade/getRTMSDataSvcOffiTrade", "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent",
-        "RTMSDataSvcSHTrade/getRTMSDataSvcSHTrade", "RTMSDataSvcSHRent/getRTMSDataSvcSHRent"
-        # --- [추가] 단독/다가구 데이터 (이걸 넣어야 엑셀 수치가 나옵니다) ---
-        "RTMSDataSvcSHTownTrade/getRTMSDataSvcSHTownTrade", 
-        "RTMSDataSvcSHTownRent/getRTMSDataSvcSHTownRent"
+        # 1. 아파트 (매매 / 전월세)
+        "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", 
+        "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
+
+        # 2. 오피스텔 (매매 / 전월세)
+        "RTMSDataSvcOffiTrade/getRTMSDataSvcOffiTrade", 
+        "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent",
+
+        # 4. 단독/다가구 (주택 합계를 위해 필수)
+        "RTMSDataSvcSHTrade/getRTMSDataSvcSHTrade", 
+        "RTMSDataSvcSHRent/getRTMSDataSvcSHRent",
+
+        # 3. 연립다세대 (방금 신청하신 것!)
+        "RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade", 
+        "RTMSDataSvcRHRent/getRTMSDataSvcRHRent"
     ]
     
     for path in paths:

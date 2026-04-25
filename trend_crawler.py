@@ -51,12 +51,15 @@ def run_trend_crawler():
 
     # 구글 시트로 데이터 전송 (앱스 스크립트 실행)
     if payload:
-        response = requests.post(GOOGLE_WEBAPP_URL, data=json.dumps(payload))
-        if response.status_code == 200:
-            print(f"✅ 'LG_가전_Week_Trend' 시트에 기록 완료! (총 {len(payload)}개 품목)")
-        else:
-            print(f"❌ 시트 전송 실패 (상태 코드: {response.status_code})")
-            print("앱스 스크립트 배포 시 '액세스 권한: 모든 사용자'로 설정했는지 확인해주세요.")
-
+    print(f"📡 데이터를 전송합니다: {GOOGLE_WEBAPP_URL}")
+    response = requests.post(GOOGLE_WEBAPP_URL, data=json.dumps(payload))
+    
+    print(f"📥 응답 상태 코드: {response.status_code}")
+    print(f"📥 응답 내용: {response.text}") # 이 부분이 중요합니다!
+    
+    if response.status_code == 200:
+        print(f"✅ 시트에 기록 완료!")
+    else:
+        print("❌ 시트 전송 실패")
 if __name__ == "__main__":
     run_trend_crawler()

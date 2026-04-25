@@ -303,20 +303,7 @@ def show_voc_section(u_dong):
         st.caption("데이터 연결 상태를 확인 중입니다...")
 
 # [신규 함수] 네이버 쇼핑 인사이트 주간 TOP5 출력
-def show_shopping_trend_section():
-    """새로 만든 LG_가전_Week_Trend 시트에서 데이터를 읽어와 상위 5위 출력"""
-    import datetime
-    import pandas as pd
-    import streamlit as st
-
-    # 1. 날짜 표시 설정 (현재 날짜 기준 이번 주 월요일~금요일)
-    today = datetime.datetime.now()
-    monday = today - datetime.timedelta(days=today.weekday())
-    friday = monday + datetime.timedelta(days=4)
-    
-    week_title = monday.strftime('%Y.%m.%d.') + " 주간"
-    week_range = f"{monday.strftime('%Y.%m.%d.')} ~ {friday.strftime('%Y.%m.%d.')}"
-
+def show_trend_section():
     # 2. 매니저님이 주신 새로운 구글 시트 CSV URL
     TREND_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1Qox47HWyzFZT4mm3ZQsU8IYI2_PWtWb0Cg4_8YxaZsu7vBeUv7urCQO5z-Tcd5JhfZXkeG4bvqkw/pub?gid=0&single=true&output=csv"
 
@@ -324,33 +311,62 @@ def show_shopping_trend_section():
         # 시트 데이터 읽기
         df = pd.read_csv(TREND_CSV_URL)
         
-        # 3. 로직 핵심: 19개 품목 중 '클릭지수'가 높은 순으로 실시간 정렬
-        # 시트의 컬럼명이 '클릭지수'여야 합니다.
-        df_sorted = df.sort_values(by='클릭지수', ascending=False).reset_index(drop=True)
-        top5 = df_sorted.head(5)
+        # 화면 좌우 분할
+        col1, col2 = st.columns(2)
 
-        # --- [디자인 출력 시작] ---
-        st.markdown(f"""
-            <div style="background: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 25px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); text-align: center;">
-                <div style="font-size: 22px; font-weight: 800; color: #212529; margin-bottom: 5px;">{week_title}</div>
-                <div style="font-size: 15px; color: #ADB5BD; margin-bottom: 20px;">({week_range})</div>
-                <hr style="border: 0; border-top: 1px solid #F1F3F5; margin-bottom: 20px; width: 40px; margin: 0 auto;">
-                <div style="text-align: left; max-width: 250px; margin: 0 auto;">
-        """, unsafe_allow_html=True)
-
-        # 4. 정렬된 상위 5개 품목 출력
-        for idx, row in top5.iterrows():
-            st.markdown(f"""
-                <div style="display: flex; align-items: center; margin-bottom: 15px;">
-                    <span style="font-size: 16px; font-weight: 900; color: #212529; width: 35px;">{idx+1}</span>
-                    <span style="font-size: 16px; font-weight: 500; color: #495057;">{row['품목명']}</span>
-                </div>
-            """, unsafe_allow_html=True)
+        # --- [좌측: 주간 TOP 5] ---
+        with col1:
+            # WEEKLY 데이터만 추출하여 정렬
+            weekly_df = df[df['구분'] == 'WEEKLY'].sort_values(by='클릭지수', ascending=False).reset_index(drop=True)
+            top5_weekly = weekly_df.head(5)
             
-        st.markdown("</div></div>", unsafe_allow_html=True)
+            # 집계 기간 가져오기 (데이터가 있을 때만)
+            w_period = weekly_df['집계기간'].iloc[0] if not weekly_df.empty else "기간 확인 중"
+
+            st.markdown(f"""
+                <div style="background: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 25px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); text-align: center; height: 400px;">
+                    <div style="font-size: 20px; font-weight: 800; color: #212529; margin-bottom: 5px;">📅 주간 가전 트렌드</div>
+                    <div style="font-size: 13px; color: #ADB5BD; margin-bottom: 20px;">({w_period})</div>
+                    <hr style="border: 0; border-top: 1px solid #F1F3F5; margin-bottom: 20px; width: 40px; margin: 0 auto;">
+                    <div style="text-align: left; max-width: 200px; margin: 0 auto;">
+            """, unsafe_allow_html=True)
+
+            for idx, row in top5_weekly.iterrows():
+                st.markdown(f"""
+                    <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                        <span style="font-size: 16px; font-weight: 900; color: #FF4B4B; width: 35px;">{idx+1}</span>
+                        <span style="font-size: 16px; font-weight: 500; color: #495057;">{row['품목명']}</span>
+                    </div>
+                """, unsafe_allow_html=True)
+            st.markdown("</div></div>", unsafe_allow_html=True)
+
+        # --- [우측: 일간 TOP 5] ---
+        with col2:
+            # DAILY 데이터만 추출하여 정렬
+            daily_df = df[df['구분'] == 'DAILY'].sort_values(by='클릭지수', ascending=False).reset_index(drop=True)
+            top5_daily = daily_df.head(5)
+            
+            # 집계 기간 가져오기
+            d_period = daily_df['집계기간'].iloc[0] if not daily_df.empty else "기간 확인 중"
+
+            st.markdown(f"""
+                <div style="background: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 25px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); text-align: center; height: 400px;">
+                    <div style="font-size: 20px; font-weight: 800; color: #212529; margin-bottom: 5px;">🔥 일간 급상승</div>
+                    <div style="font-size: 13px; color: #ADB5BD; margin-bottom: 20px;">({d_period})</div>
+                    <hr style="border: 0; border-top: 1px solid #F1F3F5; margin-bottom: 20px; width: 40px; margin: 0 auto;">
+                    <div style="text-align: left; max-width: 200px; margin: 0 auto;">
+            """, unsafe_allow_html=True)
+
+            for idx, row in top5_daily.iterrows():
+                st.markdown(f"""
+                    <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                        <span style="font-size: 16px; font-weight: 900; color: #3182CE; width: 35px;">{idx+1}</span>
+                        <span style="font-size: 16px; font-weight: 500; color: #495057;">{row['품목명']}</span>
+                    </div>
+                """, unsafe_allow_html=True)
+            st.markdown("</div></div>", unsafe_allow_html=True)
 
     except Exception as e:
-        # 데이터가 비어있거나 URL 오류 시 출력
         st.info("📊 현재 가전 쇼핑 트렌드 순위를 업데이트 중입니다.")
         
 # --- UI 메인 ---

@@ -139,15 +139,21 @@ def push_to_sheet(channel, region, category, title, summary, post_date, issue_ta
 # B. 라이프스타일 트렌드 전송 (Lifestyle_Trend 시트)
 def push_lifestyle_to_sheet(stage, persona, keyword, score):
     params = {
-        "sheetName": "Lifestyle_Trend",
-        "col1": "네이버 데이터랩 API", "col2": stage, "col3": persona,
-        "col4": keyword, "col5": score
+        "sheetName": "Lifestyle_Trend", # 이 이름이 시트 탭 이름과 100% 같아야 함
+        "col1": "네이버 데이터랩 API",
+        "col2": stage,
+        "col3": persona,
+        "col4": keyword,
+        "col5": str(score) # 숫자를 문자로 변환해서 안정성 확보
     }
     try:
         res = requests.post(GAS_URL, data=params, timeout=10)
-        print(f"📡 API 데이터 전송: {stage} - {keyword} ({score})")
-    except:
-        pass
+        # 중요: 구글 서버가 뭐라고 대답하는지 출력합니다.
+        print(f"📡 시트 전송 결과: {res.text}") 
+        if "Success" not in res.text:
+            print(f"⚠️ 경고: 시트 기록 실패! (응답: {res.text})")
+    except Exception as e:
+        print(f"❌ 네트워크 에러: {e}")
 
 # ==========================================
 # 3. 크롤링 엔진

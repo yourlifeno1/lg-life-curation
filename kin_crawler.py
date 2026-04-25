@@ -134,25 +134,42 @@ def setup_driver():
 def crawl_naver_kin(item, sub):
     query = f"{item} {sub}"
     url = f"https://kin.naver.com/search/list.naver?query={query}&sort=date"
+    
     try:
-        res = requests.get(url, headers=HEADERS)
+        res = requests.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(res.text, 'html.parser')
-        for it in soup.select('ul.basic1 > li')[:5]:
-            title = it.select_one('._searchListTitleAnchor').text.strip()
+        
+        # 지식iN 검색 결과 리스트의 각 항목(li)
+        items = soup.select('ul.basic1 > li')
+        
+        for it in items[:5]:
+            title_el = it.select_one('._searchListTitleAnchor')
+            if not title_el: continue
             
-            if title.replace(" ", "").upper().strip() in GLOBAL_TITLES: continue
+            title = title_el.text.strip()
             
-            summary = it.select_one('.answer_content, .txt_inline + dl dt + dd')
-            summary_txt = summary.text.strip() if summary else "내용 없음"
-            date_txt = it.select_one('.txt_inline').text
+            # [수정된 내용 추출 로직] 
+            # 1순위: 질문 본문 요약 클래스 / 2순위: 답변 요약 클래스
+            summary_el = it.select_one('.question_text') # 최근 가장 많이 쓰이는 본문 요약 클래스
+            if not summary_el:
+                summary_el = it.select_one('dl > dd:nth-of-type(2)') # 답변 내용이 담긴 태그 위치
             
-            final_cat = refine_category(title, summary_txt, item)
-            brand_name = extract_brand(title + summary_txt)
-            region_name = extract_region(title + summary_txt)
+            summary_txt = summary_el.text.strip() if summary_el else "본문 요약 없음"
             
-            push_to_sheet("네이버 지식iN", region_name, final_cat, title, summary_txt, date_txt, sub, brand_name)
-    except: pass
-
+            # 날짜 추출
+            date_el = it.select_one('.txt_inline')
+            date_txt = date_el.text.strip() if date_el else ""
+            
+            # 중복 체크 및 전송
+            combined_text = title + " " + summary_txt
+            region = extract_region(combined_text)
+            brand = extract_brand(combined_text)
+            
+            # 시트로 전송 (push_to_sheet 함수 사용)
+            push_to_sheet("네이버 지식iN", region, item, title, summary_txt, date_txt, sub, brand)
+            
+    except Exception as e:
+        print(f"   └ ❌ 크롤링 에러 ({query}): {e}")
 # ==========================================
 # 4. 메인 실행
 # ==========================================

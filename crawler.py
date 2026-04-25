@@ -190,16 +190,23 @@ def fetch_naver_trends():
             response = requests.post(url, headers=headers, data=json.dumps(body))
             res_data = response.json()
             
-            # API 결과에서 트렌드 점수(ratio) 추출
-            if 'results' in res_data:
-                ratio = res_data['results'][0]['data'][-1]['ratio']
-                # 대표 키워드로 시트에 전송
-                push_lifestyle_to_sheet(stage, info['persona'], info['seed'][0], round(ratio, 2))
-                print(f"✅ {stage} 분석 완료 (점수: {ratio})")
+            # [진단] 네이버가 뭐라고 대답했는지 직접 확인
+            if 'results' in res_data and len(res_data['results'][0]['data']) > 0:
+                # 데이터가 있을 때만 추출
+                latest_data = res_data['results'][0]['data'][-1]
+                ratio = latest_data.get('ratio', 0)
+                
+                print(f"📊 {stage} 데이터 발견: 키워드={info['seed'][0]}, 값={ratio}")
+                
+                # 시트로 전송
+                push_lifestyle_to_sheet(stage, info['persona'], info['seed'][0], ratio)
+            else:
+                # [진단] 데이터가 없는 경우 이유 출력
+                print(f"⚠️ {stage}: 네이버 API 응답에 데이터가 비어있습니다. (키워드/연령대 확인 필요)")
             
-            time.sleep(0.5) # API 호출 간격 조절
+            time.sleep(0.7)
         except Exception as e:
-            print(f"❌ {stage} API 호출 오류: {e}")
+            print(f"❌ {stage} API 처리 중 오류 발생: {e}")
 
 # 가전 VOC 수집 (지식iN)        
 def crawl_naver_kin(item, sub):

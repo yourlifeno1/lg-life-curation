@@ -2,8 +2,8 @@ name: Naver Kin Crawler Auto Run
 
 on:
   schedule:
-    # 매일 아침 9시(한국 시간)에 실행 (UTC 기준 00:00)
-    - cron: '0 0 * * *'
+    # 매일 오전 3시(한국 시간)에 실행 (UTC 기준 00:00)
+    - cron: '0 18 * * *'
   workflow_dispatch: # 직접 실행 버튼을 만들기 위한 옵션
 
 jobs:

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 def run_trend_crawler():
     # --- 설정 영역 ---
-    CLIENT_ID = "IlynXlpQmqqD8GfQRJj6"
+    CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"
     CLIENT_SECRET = "28cZQMwaJ9"
     GOOGLE_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzRXThSGjg2VGD4qAsIXaZwT8X_NuzHECA1ii2EsDAEAt_BL-SFVZPEFWPUdG1TMcjC/exec" 
     

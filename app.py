@@ -118,7 +118,8 @@ def get_nearest_point(u_lat, u_lon):
     
 # --- 수정 포인트 2: 거리 기반 필터링 로직 적용 ---
 def fetch_moving_all(lawd_cd, year_month, _t=None):
-    total = 0
+    #total = 0
+    all_deals = set()
 
     paths = [
         "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", # 아파트 매매
@@ -169,6 +170,7 @@ def fetch_moving_all(lawd_cd, year_month, _t=None):
     # 호출 방식을 재점검해야 합니다.
     
     return len(unique_deals)
+    
                 #total += len(items)
         #except Exception as e:
             ## 에러가 나도 멈추지 않고 다음 API로 넘어가도록 처리

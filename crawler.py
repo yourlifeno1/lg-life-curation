@@ -39,7 +39,7 @@ def get_existing_titles():
         url = f"{SHEET_CSV_URL}&t={int(time.time())}"
         df = pd.read_csv(url)
         # 제목의 공백을 제거하고 대문자로 통일하여 비교 정확도 극대화
-        GLOBAL_TITLES = [str(t).replace(" ", "").upper().strip() for t in df['제목(VOC)'].tolist()]
+        GLOBAL_TITLES = {str(t).replace(" ", "").upper().strip() for t in df['제목(VOC)'].tolist()}
         print(f"📊 기존 데이터 {len(GLOBAL_TITLES)}건 로드 완료")
     except Exception as e:
         print(f"⚠️ 기존 데이터 로드 실패(첫 실행일 수 있음): {e}")

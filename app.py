@@ -304,50 +304,59 @@ def show_voc_section(u_dong):
 
 # [신규 함수] 네이버 쇼핑 인사이트 주간 TOP5 출력
 def show_trend_section():
-    TREND_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1Qox47HWyzFZT4mm3ZQsU8IYI2_PWtWb0Cg4_8YxaZsu7vBeUv7urCQO5z-Tcd5JhfZXkeG4bvqkw/pub?gid=0&single=true&output=csv"
+    CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1Qox47HWyzFZT4mm3ZQsU8IYI2_PWtWb0Cg4_8YxaZsu7vBeUv7urCQO5z-Tcd5JhfZXkeG4bvqkw/pub?output=csv"
 
     try:
-        df = pd.read_csv(TREND_CSV_URL)
+        df = pd.read_csv(CSV_URL)
         df.columns = df.columns.str.strip()
 
-        # 데이터 필터링
-        weekly_df = df[df['구분'] == 'WEEKLY'].sort_values('클릭지수', ascending=False).reset_index(drop=True).head(5)
-        daily_df = df[df['구분'] == 'DAILY'].sort_values('클릭지수', ascending=False).reset_index(drop=True).head(5)
+        # 1. 클릭지수 높은 순 -> 품목명 가나다 순으로 정렬
+        w_df_all = df[df['구분'] == 'WEEKLY'].sort_values(by=['클릭지수', '품목명'], ascending=[False, True]).reset_index(drop=True)
+        d_df_all = df[df['구분'] == 'DAILY'].sort_values(by=['클릭지수', '품목명'], ascending=[False, True]).reset_index(drop=True)
         
-        w_period = weekly_df['집계기간'].iloc[0] if not weekly_df.empty else "-"
-        d_period = daily_df['집계기간'].iloc[0] if not daily_df.empty else "-"
+        w_top5 = w_df_all.head(5)
+        d_top5 = d_df_all.head(5)
+        
+        w_p = w_top5['집계기간'].iloc[0] if not w_top5.empty else "-"
+        d_p = d_top5['집계기간'].iloc[0] if not d_top5.empty else "-"
 
-        # HTML 조립 (f-string 중괄호 에러 방지를 위해 나누어 조립)
-        html_start = """
+        # HTML 조립 시작
+        html_code = """
         <div style="background-color: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); margin: 10px 0;">
             <div style="display: flex; justify-content: space-between;">
                 <div style="flex: 1; border-right: 1px solid #F1F3F5; padding-right: 15px;">
                     <div style="font-size: 16px; font-weight: 800; color: #212529; text-align: center; margin-bottom: 2px;">📅 주간 트렌드</div>
-                    <div style="font-size: 10px; color: #ADB5BD; text-align: center; margin-bottom: 12px;">""" + w_period + """</div>
+                    <div style="font-size: 10px; color: #ADB5BD; text-align: center; margin-bottom: 12px;">""" + w_p + """</div>
         """
+        # 주간 순위 출력 (공동 순위 로직)
+        for i, row in w_top5.iterrows():
+            rank = "1" if row['클릭지수'] == 100 else str(i+1)
+            html_code += f'<div style="font-size: 14px; margin-bottom: 10px; display: flex; align-items: center;"><b style="color:#FF4B4B; width: 20px;">{rank}</b> <span style="color:#495057;">{row["품목명"]}</span></div>'
 
-        # 주간 항목 추가
-        for i, row in weekly_df.iterrows():
-            html_start += f'<div style="font-size: 14px; margin-bottom: 10px; display: flex; align-items: center;"><b style="color:#FF4B4B; width: 20px;">{i+1}</b> <span style="color:#495057;">{row["품목명"]}</span></div>'
-
-        html_mid = """
+        html_code += """
                 </div>
                 <div style="flex: 1; padding-left: 15px;">
                     <div style="font-size: 16px; font-weight: 800; color: #212529; text-align: center; margin-bottom: 2px;">🔥 일간 급상승</div>
-                    <div style="font-size: 10px; color: #ADB5BD; text-align: center; margin-bottom: 12px;">""" + d_period + """</div>
+                    <div style="font-size: 10px; color: #ADB5BD; text-align: center; margin-bottom: 12px;">""" + d_p + """</div>
         """
+        # 일간 순위 출력 (공동 순위 로직)
+        for i, row in d_top5.iterrows():
+            rank = "1" if row['클릭지수'] == 100 else str(i+1)
+            html_code += f'<div style="font-size: 14px; margin-bottom: 10px; display: flex; align-items: center;"><b style="color:#3182CE; width: 20px;">{rank}</b> <span style="color:#495057;">{row["품목명"]}</span></div>'
 
-        # 일간 항목 추가
-        for i, row in daily_df.iterrows():
-            html_mid += f'<div style="font-size: 14px; margin-bottom: 10px; display: flex; align-items: center;"><b style="color:#3182CE; width: 20px;">{i+1}</b> <span style="color:#495057;">{row["품목명"]}</span></div>'
-
-        html_end = "</div></div></div>"
-
-        # 최종 합체 후 출력
-        st.markdown(html_start + html_mid + html_end, unsafe_allow_html=True)
+        # 하단 디스크레이머(Disclaimer) 추가
+        html_code += """
+                </div>
+            </div>
+            <div style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #F1F3F5; font-size: 11px; color: #ADB5BD; text-align: center;">
+                * 클릭지수 100점 동점 품목은 공동 1위로 표시되며 가나다순으로 정렬됩니다.
+            </div>
+        </div>
+        """
+        st.markdown(html_code, unsafe_allow_html=True)
 
     except Exception as e:
-        st.caption("데이터 분석 중...")
+        st.caption("가전 트렌드 데이터를 불러오는 중입니다...")
 
         
 # --- UI 메인 ---

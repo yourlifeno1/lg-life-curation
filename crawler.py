@@ -126,6 +126,9 @@ def push_to_sheet(channel, region, category, title, summary, post_date, issue_ta
 
 # 2. 네이버 카페 API 수집 함수 추가
 def search_naver_cafe_api(final_cat, sub):
+    # 밖에 선언된 GLOBAL_TITLES를 이 함수에서 사용하겠다는 선언
+    global GLOBAL_TITLES 
+    
     print(f"🔎 [카페 API] {final_cat} - {sub} 수집 중...")
     url = "https://openapi.naver.com/v1/search/cafearticle.json"
     
@@ -134,7 +137,6 @@ def search_naver_cafe_api(final_cat, sub):
         "X-Naver-Client-Secret": NAVER_CLIENT_SECRET
     }
     
-    # 검색어 조합: 가전 카테고리 + 세부 키워드
     query = f"{final_cat} {sub}"
     params = {
         "query": query,
@@ -148,28 +150,24 @@ def search_naver_cafe_api(final_cat, sub):
         items = res.json().get('items', [])
         
         for item in items:
-            # HTML 태그 제거
             title = item['title'].replace('<b>', '').replace('</b>', '')
             summary = item['description'].replace('<b>', '').replace('</b>', '')
             
-            # 중복 체크 (제목+요약 기준)
-            if (title + summary) in existing_titles:
+            # [수정] existing_titles 대신 GLOBAL_TITLES 사용
+            combined_id = title + summary
+            if combined_id in GLOBAL_TITLES:
                 continue
             
-            # 핵심: 매니저님이 이미 만드신 함수를 그대로 사용!
-            # 제목과 요약을 합친 텍스트에서 지역과 브랜드를 추출합니다.
             combined_text = title + " " + summary
-            region_name = extract_region(combined_text) # 기존 함수 호출
-            brand_name = extract_brand(combined_text)   # 기존 함수 호출
+            region_name = extract_region(combined_text)
+            brand_name = extract_brand(combined_text)
             
-            # 작성일 (pubDate 그대로 사용하거나 포맷팅)
             post_date = item['pubDate'] 
             
-            # 시트 전송
             push_to_sheet("네이버 카페(API)", region_name, final_cat, title, summary, post_date, sub, brand_name)
             
-            # 수집된 제목 저장하여 중복 방지
-            existing_titles.add(title + summary)
+            # [수정] GLOBAL_TITLES에 추가하여 이후 지식iN 수집 시 중복 방지
+            GLOBAL_TITLES.add(combined_id)
             
     except Exception as e:
         print(f"❌ 카페 API 오류: {e}")
@@ -213,13 +211,6 @@ def crawl_naver_kin(item, sub):
 if __name__ == "__main__":
     get_existing_titles()
 
-    # [방법 1] 카페 API 먼저 싹 돌리기 (빠름)
-    print("\n🚀 [STEP 1] 네이버 카페 API 수집 시작")
-    for cat, subs in appliance_settings.items():
-        for sub in subs:
-            search_naver_cafe_api(cat, sub)
-            time.sleep(0.3)
-
     # 2. 가전 VOC 수집 설정 및 실행
     driver = setup_driver()
     
@@ -236,7 +227,15 @@ if __name__ == "__main__":
         "사운드바": ["고장수리", "파손", "소음", "연결오류"],
         "공기청정기": ["필터 관리", "냄새", "악취", "먼지 센서", "소음", "고장수리", "해지/문의"]
     }
-    
+
+    # [STEP 1] 네이버 카페 API 수집 시작
+    print("\n🚀 [STEP 1] 네이버 카페 API 수집 시작")
+    for cat, subs in appliance_settings.items():
+        for sub in subs:
+            search_naver_cafe_api(cat, sub)
+            time.sleep(0.3)
+            
+    # [STEP 2] 기존 가전 VOC 수집 시작 (지식iN)        
     print("\n⚙️ [STEP 2] 기존 가전 VOC 수집 시작")
     for item, subs in appliance_settings.items():
         for sub in subs:

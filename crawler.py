@@ -136,12 +136,12 @@ def search_naver_cafe_api(final_cat, sub):
         "X-Naver-Client-Secret": NAVER_CLIENT_SECRET
     }
     
-    query = f"{final_cat} {sub}"
-    params = {"query": query, "display": 20, "start": 1, "sort": "date"}
-
+    query = f"{final_cat} {sub}" 
+    params = {"query": query, "display": 30, "start": 1, "sort": "sim"}
     try:
         res = requests.get(url, headers=headers, params=params)
-        items = res.json().get('items', [])
+        data = res.json()
+        items = data.get('items', [])
         
         if not items:
             print(f"   └ ❌ 검색 결과 없음")

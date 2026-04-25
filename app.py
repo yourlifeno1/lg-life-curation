@@ -304,22 +304,23 @@ def show_voc_section(u_dong):
 
 # [신규 함수] 네이버 쇼핑 인사이트 주간 TOP5 출력
 def show_shopping_trend_section():
-    """네이버 쇼핑인사이트 실시간 주간 TOP 5 출력 (이미지 디자인 반영)"""
-    from datetime import datetime, timedelta
+    """네이버 쇼핑인사이트 실시간 주간 TOP 5 출력 (안전 모드)"""
+    import datetime  # 함수 내에서 안전하게 import
     
-    # 1. 날짜 계산 (월요일 기준 주간 표시)
-    today = datetime.now()
-    monday = today - timedelta(days=today.weekday())
-    friday = monday + timedelta(days=4)
+    # 1. 날짜 계산 (네이버는 오늘 데이터가 바로 안 나올 수 있어 어제/지난주 월요일 기준)
+    today = datetime.datetime.now()
+    yesterday = today - datetime.timedelta(days=1)
+    # 이번 주 월요일 계산
+    monday = yesterday - datetime.timedelta(days=yesterday.weekday())
+    friday = monday + datetime.timedelta(days=4)
     
     week_title = monday.strftime('%Y.%m.%d.') + " 주간"
     week_range = f"{monday.strftime('%Y.%m.%d.')} ~ {friday.strftime('%Y.%m.%d.')}"
 
-    # 2. API 호출 설정
     url = "https://openapi.naver.com/v1/datalab/shopping/category/keywords"
     body = {
         "startDate": monday.strftime('%Y-%m-%d'),
-        "endDate": today.strftime('%Y-%m-%d'),
+        "endDate": yesterday.strftime('%Y-%m-%d'), # 어제 날짜로 설정해야 안전함
         "timeUnit": "week",
         "category": "50000003", # 가전제품
         "device": "", "gender": "", "ages": []
@@ -333,29 +334,35 @@ def show_shopping_trend_section():
     try:
         res = requests.post(url, headers=headers, data=json.dumps(body))
         if res.status_code == 200:
-            items = res.json()['results'][0]['data']
-            sorted_items = sorted(items, key=lambda x: x['ratio'], reverse=True)[:5]
+            res_json = res.json()
+            if 'results' in res_json and res_json['results'][0]['data']:
+                items = res_json['results'][0]['data']
+                sorted_items = sorted(items, key=lambda x: x['ratio'], reverse=True)[:5]
 
-            # --- [디자인 출력 시작] ---
-            st.markdown(f"""
-                <div style="background: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 25px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); text-align: center;">
-                    <div style="font-size: 24px; font-weight: 800; color: #212529; margin-bottom: 5px;">{week_title}</div>
-                    <div style="font-size: 16px; color: #ADB5BD; margin-bottom: 20px;">{week_range}</div>
-                    <hr style="border: 0; border-top: 1px solid #F1F3F5; margin-bottom: 20px; width: 40px; margin-left: auto; margin-right: auto;">
-                    <div style="text-align: left; max-width: 250px; margin: 0 auto;">
-            """, unsafe_allow_html=True)
-
-            for i, item in enumerate(sorted_items):
+                # 디자인 출력
                 st.markdown(f"""
-                    <div style="display: flex; align-items: center; margin-bottom: 15px;">
-                        <span style="font-size: 16px; font-weight: 900; color: #212529; width: 30px;">{i+1}</span>
-                        <span style="font-size: 16px; font-weight: 500; color: #495057;">{item['name']}</span>
-                    </div>
+                    <div style="background: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 25px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); text-align: center;">
+                        <div style="font-size: 22px; font-weight: 800; color: #212529; margin-bottom: 5px;">{week_title}</div>
+                        <div style="font-size: 15px; color: #ADB5BD; margin-bottom: 20px;">({week_range})</div>
+                        <hr style="border: 0; border-top: 1px solid #F1F3F5; margin-bottom: 20px; width: 40px; margin: 0 auto;">
+                        <div style="text-align: left; max-width: 250px; margin: 0 auto;">
                 """, unsafe_allow_html=True)
 
-            st.markdown("</div></div>", unsafe_allow_html=True)
-    except:
-        st.caption("실시간 주간 트렌드를 불러오는 중입니다...")
+                for i, item in enumerate(sorted_items):
+                    st.markdown(f"""
+                        <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                            <span style="font-size: 16px; font-weight: 900; color: #212529; width: 35px;">{i+1}</span>
+                            <span style="font-size: 16px; font-weight: 500; color: #495057;">{item['name']}</span>
+                        </div>
+                    """, unsafe_allow_html=True)
+                st.markdown("</div></div>", unsafe_allow_html=True)
+            else:
+                st.info("📊 해당 주간의 쇼핑 트렌드 집계 데이터를 불러오고 있습니다.")
+        else:
+            # API 에러 확인용 (출력이 안될 때 원인 파악용)
+            st.write(f"API 응답 오류: {res.status_code}")
+    except Exception as e:
+        st.write(f"시스템 연결 오류: {e}")
         
 # --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")

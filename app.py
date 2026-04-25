@@ -335,18 +335,18 @@ def show_trend_section():
         <div style="background-color:white; border:1px solid #E9ECEF; border-radius:15px; padding:20px; box-shadow:0 4px 6px rgba(0,0,0,0.02); margin:10px 0;">
             <div style="display:flex; justify-content:space-between;">
                 <div style="flex:1; border-right:1px solid #F1F3F5; padding-right:15px;">
-                    <div style="font-size:16px; font-weight:800; color:#212529; text-align:center; margin-bottom:2px;">📅 주간 트렌드</div>
+                    <div style="font-size:16px; font-weight:800; color:#212529; text-align:center; margin-bottom:2px;">📅주간가전검색어</div>
                     <div style="font-size:10px; color:#ADB5BD; text-align:center; margin-bottom:12px;">{w_p}</div>
                     <div style="padding-left:10px;">{w_items_html}</div>
                 </div>
                 <div style="flex:1; padding-left:15px;">
-                    <div style="font-size:16px; font-weight:800; color:#212529; text-align:center; margin-bottom:2px;">🔥 일간 급상승</div>
+                    <div style="font-size:16px; font-weight:800; color:#212529; text-align:center; margin-bottom:2px;">🔥일간가전검색어 </div>
                     <div style="font-size:10px; color:#ADB5BD; text-align:center; margin-bottom:12px;">{d_p}</div>
                     <div style="padding-left:10px;">{d_items_html}</div>
                 </div>
             </div>
             <div style="margin-top:15px; padding-top:10px; border-top:1px dashed #F1F3F5; font-size:10px; color:#ADB5BD; text-align:center;">
-                * 클릭지수 100점 동점 품목은 공동 1위로 표시되며 가나다순으로 정렬됩니다. (상위 10개 표시)
+                * 클릭지수 100점 동점 품목은 공동 1위로 표시되며 가나다순으로 정렬(상위 10개 표시)
             </div>
         </div>
         """
@@ -1006,6 +1006,7 @@ if loc:
             <div style="font-size: 11px; color: #868E96; line-height: 1.6;">
                 ※ 서울 실시간 도시데이터 V8.5 API 기반<br>
                 ※ 이사 지수: <b>국토교통부</b> 실거래가 오픈 API 자료 활용<br>
+                ※ 가전 VOC: <b>네이버 지식iN</b> 및 주요 커뮤니티 실시간 크롤링 분석<br>
                 ※ 가전 VOC: <b>네이버 지식iN</b> 및 주요 커뮤니티 실시간 크롤링 분석<br>
                 <span style="color: #ADB5BD;">데이터 갱신: 실시간 (Live Update)</span>
             </div>

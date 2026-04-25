@@ -11,6 +11,8 @@ import math
 SEOUL_API_KEY = "5658537164796f7539376a424f4f66"
 CITY_DATA_KEY = "444d537a57796f7537385949716278"
 MOLIT_API_KEY = "cea470e38c930cce42ece10e65d31edd837b1eca751387d260737bcf63315379"
+NAVER_CLIENT_ID = "IlynXlpQmqqD8GfQRJj6"
+NAVER_CLIENT_SECRET = "28cZQMwaJ9"
 
 # 매니저님이 방금 추출하신 구글 시트 웹 게시 주소
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRXnh3VI7oOzSbMWMUCI6Owk4G6oK_2hb1kWjTtNNgAfyox_ZgypeM0QK-P6e-nDaRfhpY02WEGTt9z/pub?gid=430558979&single=true&output=csv"
@@ -286,6 +288,9 @@ def show_voc_section(u_dong):
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
+
+            # [수정] 카드 아래, 버튼 위에 주간 트렌드 박스 출력
+            show_shopping_trend_section()
             
             st.write("")
             if st.button("🔍 지역 이슈 심층 리포트 보기", use_container_width=True):
@@ -297,6 +302,60 @@ def show_voc_section(u_dong):
     except Exception as e:
         st.caption("데이터 연결 상태를 확인 중입니다...")
 
+# [신규 함수] 네이버 쇼핑 인사이트 주간 TOP5 출력
+def show_shopping_trend_section():
+    """네이버 쇼핑인사이트 실시간 주간 TOP 5 출력 (이미지 디자인 반영)"""
+    from datetime import datetime, timedelta
+    
+    # 1. 날짜 계산 (월요일 기준 주간 표시)
+    today = datetime.now()
+    monday = today - timedelta(days=today.weekday())
+    friday = monday + timedelta(days=4)
+    
+    week_title = monday.strftime('%Y.%m.%d.') + " 주간"
+    week_range = f"{monday.strftime('%Y.%m.%d.')} ~ {friday.strftime('%Y.%m.%d.')}"
+
+    # 2. API 호출 설정
+    url = "https://openapi.naver.com/v1/datalab/shopping/category/keywords"
+    body = {
+        "startDate": monday.strftime('%Y-%m-%d'),
+        "endDate": today.strftime('%Y-%m-%d'),
+        "timeUnit": "week",
+        "category": "50000003", # 가전제품
+        "device": "", "gender": "", "ages": []
+    }
+    headers = {
+        "X-Naver-Client-Id": "IlynXlpQmqqD8GfQRJj6",
+        "X-Naver-Client-Secret": "28cZQMwaJ9",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        res = requests.post(url, headers=headers, data=json.dumps(body))
+        if res.status_code == 200:
+            items = res.json()['results'][0]['data']
+            sorted_items = sorted(items, key=lambda x: x['ratio'], reverse=True)[:5]
+
+            # --- [디자인 출력 시작] ---
+            st.markdown(f"""
+                <div style="background: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 25px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); text-align: center;">
+                    <div style="font-size: 24px; font-weight: 800; color: #212529; margin-bottom: 5px;">{week_title}</div>
+                    <div style="font-size: 16px; color: #ADB5BD; margin-bottom: 20px;">{week_range}</div>
+                    <hr style="border: 0; border-top: 1px solid #F1F3F5; margin-bottom: 20px; width: 40px; margin-left: auto; margin-right: auto;">
+                    <div style="text-align: left; max-width: 250px; margin: 0 auto;">
+            """, unsafe_allow_html=True)
+
+            for i, item in enumerate(sorted_items):
+                st.markdown(f"""
+                    <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                        <span style="font-size: 16px; font-weight: 900; color: #212529; width: 30px;">{i+1}</span>
+                        <span style="font-size: 16px; font-weight: 500; color: #495057;">{item['name']}</span>
+                    </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown("</div></div>", unsafe_allow_html=True)
+    except:
+        st.caption("실시간 주간 트렌드를 불러오는 중입니다...")
         
 # --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")

@@ -39,6 +39,7 @@ def run_trend_crawler():
 
     # ⚠️ 중요: 네이버 제한에 따라 3개씩 끊어서 호출합니다.
     for i in range(0, len(categories), 3):
+        # i부터 i+3까지 슬라이싱 (마지막 남은 1개도 자동으로 포함됨)
         chunk = categories[i:i+3]
         
         body = {
@@ -57,15 +58,23 @@ def run_trend_crawler():
             results = res.json().get('results', [])
             for r in results:
                 item_name = r['title']
-                if 'data' in r and len(r['data']) > 0:
-                    last_ratio = r['data'][-1]['ratio']
-                else:
-                    last_ratio = 0
-                payload.append({"name": item_name, "ratio": last_ratio})
+                # 데이터가 존재할 경우 최근 ratio, 없을 경우 0
+                last_ratio = r['data'][-1]['ratio'] if 'data' in r and len(r['data']) > 0 else 0
+                
+                payload.append({
+                    "name": item_name, 
+                    "ratio": last_ratio,
+                    "period": collection_period
+                })
         else:
             print(f"⚠️ 네이버 API 호출 실패: {res.status_code} | 사유: {res.text}")
+            # 실패 시 해당 묶음의 항목들을 0점으로라도 추가하여 개수 유지
             for c in chunk:
-                payload.append({"name": c['name'], "ratio": 0})
+                payload.append({
+                    "name": c['name'], 
+                    "ratio": 0,
+                    "period": collection_period
+                })
 
     # 구글 시트로 데이터 전송
     if payload:

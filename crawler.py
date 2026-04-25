@@ -25,7 +25,7 @@ HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 ONE_YEAR_AGO = datetime.now() - timedelta(days=365)
 
 # 전역 중복 체크 리스트 (프로그램 실행 중 실시간 업데이트)
-GLOBAL_TITLES = []
+GLOBAL_TITLES = set()
 
 # ==========================================
 # 2. 정밀 분석 및 중복 체크 로직
@@ -117,7 +117,7 @@ def push_to_sheet(channel, region, category, title, summary, post_date, issue_ta
     try:
         res = requests.post(GAS_URL, data=payload, timeout=15)
         if res.status_code == 200:
-            GLOBAL_TITLES.append(check_title) # 실시간 중복 방지 추가
+            GLOBAL_TITLES.add(check_title) # 실시간 중복 방지 추가
             print(f"✅ 전송성공: [{region}/{brand}] {title[:12]}...")
             return True
     except Exception as e:

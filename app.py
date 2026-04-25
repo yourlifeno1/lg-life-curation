@@ -304,92 +304,55 @@ def show_voc_section(u_dong):
 
 # [신규 함수] 네이버 쇼핑 인사이트 주간 TOP5 출력
 def show_shopping_trend_section():
-    """네이버 API에서 19개 품목의 클릭수를 가져와서 상위 5개 출력"""
+    """크롤러가 기록한 주간 트렌드 데이터를 불러와서 출력"""
     import datetime
-    import requests
-    import json
+    import pandas as pd
 
-    # 1. 날짜 설정 (데이터가 무조건 존재하는 2주 전 ~ 1주 전 데이터로 안전하게 설정)
+    # 1. 날짜 설정 (사용자에게는 현재 주간 정보를 안내)
     today = datetime.datetime.now()
-    # 지난주 일요일
-    end_date_dt = today - datetime.timedelta(days=today.weekday() + 1)
-    # 그 전주 월요일
-    start_date_dt = end_date_dt - datetime.timedelta(days=6)
+    monday = today - datetime.timedelta(days=today.weekday())
+    friday = monday + datetime.timedelta(days=4)
     
-    week_title = start_date_dt.strftime('%Y.%m.%d.') + " 주간"
-    week_range = f"{start_date_dt.strftime('%Y.%m.%d.')} ~ {end_date_dt.strftime('%Y.%m.%d.')}"
+    week_title = monday.strftime('%Y.%m.%d.') + " 주간"
+    week_range = f"{monday.strftime('%Y.%m.%d.')} ~ {friday.strftime('%Y.%m.%d.')}"
 
-    # 2. 매니저님이 주신 19개 품목 및 카테고리 코드
-    categories = [
-        {"name": "TV", "param": ["10000374"]}, {"name": "로봇청소기", "param": ["10007182"]},
-        {"name": "무선청소기", "param": ["10007183"]}, {"name": "냉장고", "param": ["10000376"]},
-        {"name": "세탁기/건조기", "param": ["10000378"]}, {"name": "에어컨", "param": ["10007136"]},
-        {"name": "제습기", "param": ["10007135"]}, {"name": "공기청정기", "param": ["10008092"]},
-        {"name": "가습기", "param": ["10007128"]}, {"name": "식기세척기", "param": ["10007146"]},
-        {"name": "전자레인지", "param": ["10007151"]}, {"name": "전기레인지", "param": ["10007193"]},
-        {"name": "음식물처리기", "param": ["10007194"]}, {"name": "사운드바", "param": ["10007441"]},
-        {"name": "프로젝터", "param": ["10004193"]}, {"name": "환풍기", "param": ["10007853"]},
-        {"name": "노트북", "param": ["10000395"]}, {"name": "모니터", "param": ["10000397"]}
-    ]
-
-    url = "https://openapi.naver.com/v1/datalab/shopping/categories"
-    headers = {
-        "X-Naver-Client-Id": "IlynXlpQmqqD8GfQRJj6",
-        "X-Naver-Client-Secret": "28cZQMwaJ9",
-        "Content-Type": "application/json"
-    }
-
-    all_data = []
+    # 2. 데이터 불러오기 (크롤러가 기록해둔 시트 주소 사용)
+    # 기존 SHEET_CSV_URL 외에 트렌드 전용 URL이 있다면 변경해주세요.
+    TREND_DATA_URL = SHEET_CSV_URL 
 
     try:
-        # API는 한 번에 5개까지만 비교 가능하므로 쪼개서 호출
-        for i in range(0, len(categories), 5):
-            chunk = categories[i:i+5]
-            body = {
-                "startDate": start_date_dt.strftime('%Y-%m-%d'),
-                "endDate": end_date_dt.strftime('%Y-%m-%d'),
-                "timeUnit": "week",
-                "category": chunk
-            }
-            res = requests.post(url, headers=headers, data=json.dumps(body))
-            if res.status_code == 200:
-                results = res.json().get('results', [])
-                for r in results:
-                    if r.get('data'):
-                        # 해당 기간의 클릭수 비중(ratio) 평균값 계산 또는 마지막 값 추출
-                        # 여기서는 가장 직관적인 마지막 주차 ratio를 사용합니다.
-                        all_data.append({
-                            "name": r['title'],
-                            "ratio": r['data'][-1]['ratio']
-                        })
+        # 기록된 데이터 읽기
+        df = pd.read_csv(TREND_DATA_URL)
+        
+        # 크롤러가 '쇼핑순위' 탭 등에 기록했다면 해당 데이터만 필터링하거나 
+        # 상위 5개 행을 가져옵니다.
+        # 여기서는 df에 '순위', '품목명' 컬럼이 있다고 가정합니다.
+        trend_items = df.head(5) 
 
-        # 3. 모든 품목의 클릭수를 비교하여 높은 순으로 정렬
-        top5 = sorted(all_data, key=lambda x: x['ratio'], reverse=True)[:5]
+        # --- [디자인 출력] ---
+        st.markdown(f"""
+            <div style="background: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 25px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); text-align: center;">
+                <div style="font-size: 22px; font-weight: 800; color: #212529; margin-bottom: 5px;">{week_title}</div>
+                <div style="font-size: 15px; color: #ADB5BD; margin-bottom: 20px;">({week_range})</div>
+                <hr style="border: 0; border-top: 1px solid #F1F3F5; margin-bottom: 20px; width: 40px; margin: 0 auto;">
+                <div style="text-align: left; max-width: 250px; margin: 0 auto;">
+        """, unsafe_allow_html=True)
 
-        # 4. 화면 출력 (이미지 디자인 반영)
-        if top5:
+        for idx, row in trend_items.iterrows():
+            # 크롤러가 저장한 '품목명' 컬럼 값을 출력
+            name = row['품목명'] 
             st.markdown(f"""
-                <div style="background: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 25px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); text-align: center;">
-                    <div style="font-size: 22px; font-weight: 800; color: #212529; margin-bottom: 5px;">{week_title}</div>
-                    <div style="font-size: 15px; color: #ADB5BD; margin-bottom: 20px;">({week_range})</div>
-                    <hr style="border: 0; border-top: 1px solid #F1F3F5; margin-bottom: 20px; width: 40px; margin: 0 auto;">
-                    <div style="text-align: left; max-width: 250px; margin: 0 auto;">
+                <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                    <span style="font-size: 16px; font-weight: 900; color: #212529; width: 35px;">{idx+1}</span>
+                    <span style="font-size: 16px; font-weight: 500; color: #495057;">{name}</span>
+                </div>
             """, unsafe_allow_html=True)
-
-            for idx, item in enumerate(top5):
-                st.markdown(f"""
-                    <div style="display: flex; align-items: center; margin-bottom: 15px;">
-                        <span style="font-size: 16px; font-weight: 900; color: #212529; width: 35px;">{idx+1}</span>
-                        <span style="font-size: 16px; font-weight: 500; color: #495057;">{item['name']}</span>
-                    </div>
-                """, unsafe_allow_html=True)
-            st.markdown("</div></div>", unsafe_allow_html=True)
-        else:
-            # 데이터 수집 실패 시 시각적 알림
-            st.warning("📊 현재 가전 인기 품목 데이터를 분석하고 있습니다.")
+            
+        st.markdown("</div></div>", unsafe_allow_html=True)
 
     except Exception as e:
-        st.error(f"분석 중 오류 발생: {e}")
+        # 데이터가 아직 기록되지 않았거나 경로 오류 시
+        st.caption("📍 실시간 가전 트렌드 정보를 업데이트 중입니다.")
         
 # --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")

@@ -43,7 +43,7 @@ def get_existing_titles():
         print(f"📊 기존 데이터 {len(GLOBAL_TITLES)}건 로드 완료")
     except Exception as e:
         print(f"⚠️ 기존 데이터 로드 실패(첫 실행일 수 있음): {e}")
-        GLOBAL_TITLES = []
+        GLOBAL_TITLES = set()
 
 def extract_region(text):
     region_map = {
@@ -124,9 +124,9 @@ def push_to_sheet(channel, region, category, title, summary, post_date, issue_ta
         print(f"❌ 전송오류: {e}")
     return False
 
-# 2. 네이버 카페 API 수집 함수 추가
+# 2. 네이버 카페 API 수집 함수
 def search_naver_cafe_api(final_cat, sub):
-    global GLOBAL_TITLES # 전역 변수 사용 선언
+    global GLOBAL_TITLES  # 전역 변수임을 명시
     
     print(f"🔎 [카페 API] {final_cat} - {sub} 수집 시도...")
     url = "https://openapi.naver.com/v1/search/cafearticle.json"
@@ -149,29 +149,32 @@ def search_naver_cafe_api(final_cat, sub):
 
         send_count = 0
         for item in items:
-            title = item['title'].replace('<b>', '').replace('</b>', '')
+            # HTML 태그 제거 및 텍스트 정제
+            raw_title = item['title'].replace('<b>', '').replace('</b>', '')
             summary = item['description'].replace('<b>', '').replace('</b>', '')
             
-            # 중복 체크 키 생성
-            combined_id = title + summary
+            # [수정] 중복 체크 기준을 시트 로드 방식(제목 공백제거 대문자)과 통일
+            check_key = raw_title.replace(" ", "").upper().strip()
             
-            if combined_id in GLOBAL_TITLES:
-                # print(f"   └ 중복 건너뜀") # 너무 많이 뜨면 지저분하므로 주석 처리
+            if check_key in GLOBAL_TITLES:
+                # print(f"   └ 중복 스킵: {raw_title[:10]}...") 
                 continue
             
-            combined_text = title + " " + summary
+            # 지역 및 브랜드 추출
+            combined_text = raw_title + " " + summary
             region_name = extract_region(combined_text)
             brand_name = extract_brand(combined_text)
             post_date = item['pubDate'] 
             
-            # 전송 시도
-            push_to_sheet("네이버 카페(API)", region_name, final_cat, title, summary, post_date, sub, brand_name)
+            # 전송 시도 (push_to_sheet 함수 호출)
+            success = push_to_sheet("네이버 카페(API)", region_name, final_cat, raw_title, summary, post_date, sub, brand_name)
             
-            # 성공 시 세트에 추가
-            GLOBAL_TITLES.add(combined_id)
-            send_count += 1
+            if success:
+                # [수정] 전송 성공 시에만 세트에 추가 (이미 push_to_sheet 내부에도 있지만 이중 안전장치)
+                GLOBAL_TITLES.add(check_key)
+                send_count += 1
             
-        print(f"   └ ✅ 신규 데이터 {send_count}건 전송 시도 완료")
+        print(f"   └ ✅ 신규 데이터 {send_count}건 전송 완료")
             
     except Exception as e:
         print(f"❌ 카페 API 오류: {e}")

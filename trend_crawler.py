@@ -6,17 +6,16 @@ def run_trend_crawler():
     # --- 설정 영역 ---
     CLIENT_ID = "IlynXlpQmqqD8GfQRJj6"
     CLIENT_SECRET = "28cZQMwaJ9"
-    # 매니저님이 방금 배포한 앱스 스크립트 URL입니다.
     GOOGLE_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzRXThSGjg2VGD4qAsIXaZwT8X_NuzHECA1ii2EsDAEAt_BL-SFVZPEFWPUdG1TMcjC/exec" 
     
     naver_url = "https://openapi.naver.com/v1/datalab/shopping/categories"
     
-    # 날짜: 안전하게 집계 완료된 지난주 기준 (최근 7일치)
+    # 날짜: 최근 7일치 데이터 (안전하게 3일 전 기준)
     target_date = datetime.now() - timedelta(days=3)
     start_date = (target_date - timedelta(days=7)).strftime('%Y-%m-%d')
     end_date = target_date.strftime('%Y-%m-%d')
 
-    # 매니저님이 관리하시는 19개 카테고리
+    # 매니저님이 주신 19개 카테고리
     categories = [
         {"name": "TV", "param": ["10000374"]}, {"name": "로봇청소기", "param": ["10007182"]},
         {"name": "무선청소기", "param": ["10007183"]}, {"name": "냉장고", "param": ["10000376"]},
@@ -36,34 +35,41 @@ def run_trend_crawler():
     }
     
     payload = []
-    print(f"🚀 네이버에서 데이터 수집을 시작합니다... ({start_date} ~ {end_date})")
+    print(f"🚀 데이터 수집 시작: {start_date} ~ {end_date}")
 
+    # 네이버 API는 한 번에 5개까지만 비교 가능하므로 쪼개서 호출
     for i in range(0, len(categories), 5):
         chunk = categories[i:i+5]
-        body = {"startDate": start_date, "endDate": end_date, "timeUnit": "week", "category": chunk}
+        body = {
+            "startDate": start_date, 
+            "endDate": end_date, 
+            "timeUnit": "week", 
+            "category": chunk
+        }
+        
         res = requests.post(naver_url, headers=headers, data=json.dumps(body))
         
         if res.status_code == 200:
-            for r in res.json().get('results', []):
+            results = res.json().get('results', [])
+            for r in results:
                 if r['data']:
-                    # 각 품목의 최신 ratio(클릭지수)를 가져옴
+                    # 각 카테고리의 클릭 비중(ratio) 수집
                     payload.append({"name": r['title'], "ratio": r['data'][-1]['ratio']})
+        else:
+            print(f"⚠️ 네이버 API 호출 실패: {res.status_code}")
 
-    # 구글 시트로 데이터 전송 (앱스 스크립트 실행)
+    # 구글 시트로 데이터 전송 (들여쓰기 주의!)
     if payload:
-        print(f"📡 데이터를 전송합니다: {GOOGLE_WEBAPP_URL}")
-        # 아래 줄들은 모두 같은 칸수로 들여쓰기가 되어야 합니다.
+        print(f"📡 시트로 데이터 전송 중...")
         response = requests.post(GOOGLE_WEBAPP_URL, data=json.dumps(payload))
         
-        print(f"📥 응답 상태 코드: {response.status_code}")
-        print(f"📥 응답 내용: {response.text}")
-        
+        print(f"📥 전송 결과 상태 코드: {response.status_code}")
         if response.status_code == 200:
-            print(f"✅ 'LG_가전_Week_Trend' 시트에 기록 완료! (총 {len(payload)}개)")
+            print(f"✅ 시트 기록 완료! (총 {len(payload)}개 품목)")
         else:
-            print("❌ 시트 전송 실패")
+            print(f"❌ 전송 실패: {response.text}")
     else:
-        print("⚠️ 수집된 데이터가 없습니다.")
-        
+        print("⚠️ 전송할 데이터가 없습니다.")
+
 if __name__ == "__main__":
     run_trend_crawler()

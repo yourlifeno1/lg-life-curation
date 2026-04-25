@@ -27,41 +27,6 @@ ONE_YEAR_AGO = datetime.now() - timedelta(days=365)
 # 전역 중복 체크 리스트 (프로그램 실행 중 실시간 업데이트)
 GLOBAL_TITLES = []
 
-# [6단계 생애주기 전략 사전 - 오픈애즈 연령별 특징 반영]
-# [생애주기 전략 - API용 연령대 코드 매칭]
-# 네이버 연령대 코드: 3(20-24), 4(25-29), 5(30-34), 6(35-39), 7(40-44), 8(45-49), 9(50-54), 10(55-59), 11(60 이상)
-LIFESTYLE_STRATEGY = {
-    "1_독립미혼": {
-        "persona": "1인 가구 / 사회초년생", 
-        "seed": ["자취", "원룸", "첫 독립", "사회초년생", "자취방 인테리어", "1인가구"], 
-        "age": ["3", "4"]
-    },
-    "2_신혼부부": {
-        "persona": "결혼 1~3년차", 
-        "seed": ["신혼집", "혼수", "결혼준비", "청첩장", "웨딩홀", "신혼가전"], 
-        "age": ["4", "5", "6"]
-    },
-    "3_영유아가구": {
-        "persona": "초보 부모 (영유아 자녀)", 
-        "seed": ["이유식", "유모차", "어린이집", "육아템", "기저귀", "산후조리원"], 
-        "age": ["5", "6", "7"]
-    },
-    "4_취학자녀": {
-        "persona": "초중고생 학부모", 
-        "seed": ["초등학생", "학원", "공부방", "아이방 꾸미기", "중학생", "학습지", "고등학생", "대학", "학과"], 
-        "age": ["7", "8", "9"]
-    },
-    "5_성인자녀동거": {
-        "persona": "중년 가구 (성인 자녀)", 
-        "seed": ["리모델링", "이사", "건강검진", "주방 인테리어", "노후준비", "가족여행"], 
-        "age": ["9", "10"]
-    },
-    "6_실버노후": {
-        "persona": "액티브 시니어", 
-        "seed": ["재취업", "임플란트", "시니어", "귀농", "손주 선물", "건강식품"], 
-        "age": ["10", "11"]
-    }
-}
 # ==========================================
 # 2. 정밀 분석 및 중복 체크 로직
 # ==========================================
@@ -159,21 +124,6 @@ def push_to_sheet(channel, region, category, title, summary, post_date, issue_ta
         print(f"❌ 전송오류: {e}")
     return False
 
-# B. 라이프스타일 트렌드 전송 (Lifestyle_Trend 시트)
-def push_lifestyle_to_sheet(stage, persona, keyword, score):
-    params = {
-        "sheetName": "Lifestyle_Trend",
-        "col1": "네이버 데이터랩 API",
-        "col2": stage,
-        "col3": persona, # 매니저님 정의 문구 그대로 기록
-        "col4": keyword,
-        "col5": str(score)
-    }
-    try:
-        res = requests.post(GAS_URL, data=params)
-        print(f"📡 시트 전송 결과: {res.text}")
-    except:
-        print("❌ 시트 전송 실패")
 
 # ==========================================
 # 3. 크롤링 엔진
@@ -185,48 +135,6 @@ def setup_driver():
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-
-# 라이프스타일 수집
-def fetch_naver_trends():
-    print(f"\n🚀 [1단계] 네이버 API 트렌드 분석 시작 (90일 분기 기준)")
-    url = "https://openapi.naver.com/v1/datalab/search"
-    
-    headers = {
-        "X-Naver-Client-Id": NAVER_CLIENT_ID,
-        "X-Naver-Client-Secret": NAVER_CLIENT_SECRET,
-        "Content-Type": "application/json"
-    }
-
-    for stage, info in LIFESTYLE_STRATEGY.items():
-        # 시작일을 90일 전으로 설정 (분기 데이터)
-        start_date = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
-        end_date = datetime.now().strftime('%Y-%m-%d')
-        
-        body = {
-            "startDate": start_date,
-            "endDate": end_date,
-            "timeUnit": "month",
-            "keywordGroups": [{"groupName": stage, "keywords": info['seed']}],
-            "ages": info['age']
-        }
-
-        try:
-            response = requests.post(url, headers=headers, data=json.dumps(body))
-            res_data = response.json()
-            
-            if 'results' in res_data and res_data['results'][0]['data']:
-                # 가장 최신 달의 ratio 값 가져오기
-                latest_ratio = res_data['results'][0]['data'][-1]['ratio']
-                print(f"📊 {stage} 데이터 수집 성공: {latest_ratio}")
-                
-                # 구글 시트 전송
-                push_lifestyle_to_sheet(stage, info['persona'], info['seed'][0], round(latest_ratio, 2))
-            else:
-                print(f"⚠️ {stage}: 여전히 데이터가 부족합니다. 키워드를 더 단순화해야 합니다.")
-            
-            time.sleep(0.5)
-        except Exception as e:
-            print(f"❌ {stage} 오류: {e}")
 
 # 가전 VOC 수집 (지식iN)        
 def crawl_naver_kin(item, sub):
@@ -257,9 +165,6 @@ def crawl_naver_kin(item, sub):
 if __name__ == "__main__":
     get_existing_titles()
 
-    # 1. 공식 API를 통한 트렌드 데이터 수집 (크롤링 대신 사용)
-    fetch_naver_trends()
-
     # 2. 가전 VOC 수집 설정 및 실행
     driver = setup_driver()
     
@@ -281,7 +186,6 @@ if __name__ == "__main__":
     for item, subs in appliance_settings.items():
         for sub in subs:
             print(f"📡 수집 중: {item} - {sub}")
-            # crawl_naver_cafe(item, sub, driver) # 카페 함수가 있다면 유지
             crawl_naver_kin(item, sub)
             time.sleep(random.uniform(1.5, 3))
 

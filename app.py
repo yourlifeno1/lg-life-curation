@@ -310,60 +310,52 @@ def show_trend_section():
         df = pd.read_csv(CSV_URL)
         df.columns = df.columns.str.strip()
 
-        # 정렬: 클릭지수(내림차순) -> 품목명(가나다순)
-        w_df_all = df[df['구분'] == 'WEEKLY'].sort_values(by=['클릭지수', '품목명'], ascending=[False, True]).reset_index(drop=True)
-        d_df_all = df[df['구분'] == 'DAILY'].sort_values(by=['클릭지수', '품목명'], ascending=[False, True]).reset_index(drop=True)
+        # 데이터 정렬 및 10개 추출
+        w_df = df[df['구분'] == 'WEEKLY'].sort_values(by=['클릭지수', '품목명'], ascending=[False, True]).reset_index(drop=True).head(10)
+        d_df = df[df['구분'] == 'DAILY'].sort_values(by=['클릭지수', '품목명'], ascending=[False, True]).reset_index(drop=True).head(10)
         
-        w_top10 = w_df_all.head(10)
-        d_top10 = d_df_all.head(10)
-        
-        w_p = w_top10['집계기간'].iloc[0] if not w_top10.empty else "-"
-        d_p = d_top10['집계기간'].iloc[0] if not d_top10.empty else "-"
+        w_p = w_df['집계기간'].iloc[0] if not w_df.empty else "-"
+        d_p = d_df['집계기간'].iloc[0] if not d_df.empty else "-"
 
-        # 1. HTML 시작 (하나의 변수 html_final에 모두 담습니다)
-        html_final = """
-        <div style="background-color: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); margin: 10px 0;">
-            <div style="display: flex; justify-content: space-between;">
-                
-                <div style="flex: 1; border-right: 1px solid #F1F3F5; padding-right: 15px;">
-                    <div style="font-size: 16px; font-weight: 800; color: #212529; text-align: center; margin-bottom: 2px;">📅 주간 트렌드</div>
-                    <div style="font-size: 10px; color: #ADB5BD; text-align: center; margin-bottom: 12px;">""" + w_p + """</div>
-        """
-
-        # 2. 주간 아이템 반복문 (html_final 변수에 계속 더해줍니다)
-        for i, row in w_top10.iterrows():
+        # 1. 주간 리스트 HTML 미리 만들기
+        w_items_html = ""
+        for i, row in w_df.iterrows():
             rank = "1" if row['클릭지수'] == 100 else str(i+1)
-            html_final += f'<div style="font-size: 13px; margin-bottom: 8px; display: flex; align-items: center;"><b style="color:#FF4B4B; width: 22px; flex-shrink: 0;">{rank}</b> <span style="color:#495057;">{row["품목명"]}</span></div>'
+            w_items_html += f'<div style="margin-bottom:8px;font-size:13px;display:flex;"><b style="color:#FF4B4B;width:22px;">{rank}</b><span style="color:#495057;">{row["품목명"]}</span></div>'
 
-        # 3. 중간 구분 및 오른쪽 섹션 시작
-        html_final += """
+        # 2. 일간 리스트 HTML 미리 만들기
+        d_items_html = ""
+        for i, row in d_df.iterrows():
+            rank = "1" if row['클릭지수'] == 100 else str(i+1)
+            d_items_html += f'<div style="margin-bottom:8px;font-size:13px;display:flex;"><b style="color:#3182CE;width:22px;">{rank}</b><span style="color:#495057;">{row["품목명"]}</span></div>'
+
+        # 3. 전체 레이아웃 합치기 (이 전체가 하나의 문자열입니다)
+        # f-string의 중괄호 충돌을 피하기 위해 {{ }} 를 사용합니다.
+        full_html = f"""
+        <div style="background-color:white; border:1px solid #E9ECEF; border-radius:15px; padding:20px; box-shadow:0 4px 6px rgba(0,0,0,0.02); margin:10px 0;">
+            <div style="display:flex; justify-content:space-between;">
+                <div style="flex:1; border-right:1px solid #F1F3F5; padding-right:15px;">
+                    <div style="font-size:16px; font-weight:800; color:#212529; text-align:center; margin-bottom:2px;">📅 주간 트렌드</div>
+                    <div style="font-size:10px; color:#ADB5BD; text-align:center; margin-bottom:12px;">{w_p}</div>
+                    <div style="padding-left:10px;">{w_items_html}</div>
                 </div>
-                
-                <div style="flex: 1; padding-left: 15px;">
-                    <div style="font-size: 16px; font-weight: 800; color: #212529; text-align: center; margin-bottom: 2px;">🔥 일간 급상승</div>
-                    <div style="font-size: 10px; color: #ADB5BD; text-align: center; margin-bottom: 12px;">""" + d_p + """</div>
-        """
-
-        # 4. 일간 아이템 반복문
-        for i, row in d_top10.iterrows():
-            rank = "1" if row['클릭지수'] == 100 else str(i+1)
-            html_final += f'<div style="font-size: 13px; margin-bottom: 8px; display: flex; align-items: center;"><b style="color:#3182CE; width: 22px; flex-shrink: 0;">{rank}</b> <span style="color:#495057;">{row["품목명"]}</span></div>'
-
-        # 5. 하단 디스크레이머 및 태그 닫기
-        html_final += """
+                <div style="flex:1; padding-left:15px;">
+                    <div style="font-size:16px; font-weight:800; color:#212529; text-align:center; margin-bottom:2px;">🔥 일간 급상승</div>
+                    <div style="font-size:10px; color:#ADB5BD; text-align:center; margin-bottom:12px;">{d_p}</div>
+                    <div style="padding-left:10px;">{d_items_html}</div>
                 </div>
             </div>
-            <div style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #F1F3F5; font-size: 10px; color: #ADB5BD; text-align: center;">
+            <div style="margin-top:15px; padding-top:10px; border-top:1px dashed #F1F3F5; font-size:10px; color:#ADB5BD; text-align:center;">
                 * 클릭지수 100점 동점 품목은 공동 1위로 표시되며 가나다순으로 정렬됩니다. (상위 10개 표시)
             </div>
         </div>
         """
 
-        # 6. 마지막에 단 한 번만 출력!
-        st.markdown(html_final, unsafe_allow_html=True)
+        # 딱 한 번만 마크다운 실행
+        st.markdown(full_html, unsafe_allow_html=True)
 
     except Exception as e:
-        st.caption(f"데이터 업데이트 중... ({e})")
+        st.error(f"데이터 로드 중 오류 발생: {e}")
 
         
 # --- UI 메인 ---

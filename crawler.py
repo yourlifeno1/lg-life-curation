@@ -1,5 +1,4 @@
 import requests
-import json
 from bs4 import BeautifulSoup
 import time
 import random
@@ -16,10 +15,6 @@ from webdriver_manager.chrome import ChromeDriverManager
 # ==========================================
 GAS_URL = "https://script.google.com/macros/s/AKfycbwvTCs9Y8h5JhJeXU_UH-4AZRijr52L3xwuPd2ue2QJqIUZrSD2HCkSDRKH3esc4QXL/exec"
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSGEDlHeWG2PHspcMEtlO74lWt9UWdeIzwL9A9fpV6nTY5eSvYTUfeNOFlWvh8qHXFnNwHBsaKKG6cp/pub?gid=189297044&single=true&output=csv"
-
-# 네이버 API 키 (공유해주신 이미지 참조)
-NAVER_CLIENT_ID = "IlynXlpQmqqD8GfQRJj6"
-NAVER_CLIENT_SECRET = "28cZQMwaJ9"
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'}
 ONE_YEAR_AGO = datetime.now() - timedelta(days=365)
@@ -124,60 +119,6 @@ def push_to_sheet(channel, region, category, title, summary, post_date, issue_ta
         print(f"❌ 전송오류: {e}")
     return False
 
-# 2. 네이버 카페 API 수집 함수
-def search_naver_cafe_api(final_cat, sub):
-    global GLOBAL_TITLES  # 전역 변수임을 명시
-    
-    print(f"🔎 [카페 API] {final_cat} - {sub} 수집 시도...")
-    url = "https://openapi.naver.com/v1/search/cafearticle.json"
-    
-    headers = {
-        "X-Naver-Client-Id": NAVER_CLIENT_ID,
-        "X-Naver-Client-Secret": NAVER_CLIENT_SECRET
-    }
-    
-    query = f"{final_cat} {sub}" 
-    params = {"query": query, "display": 30, "start": 1, "sort": "sim"}
-    try:
-        res = requests.get(url, headers=headers, params=params)
-        data = res.json()
-        items = data.get('items', [])
-        
-        if not items:
-            print(f"   └ ❌ 검색 결과 없음")
-            return
-
-        send_count = 0
-        for item in items:
-            # HTML 태그 제거 및 텍스트 정제
-            raw_title = item['title'].replace('<b>', '').replace('</b>', '')
-            summary = item['description'].replace('<b>', '').replace('</b>', '')
-            
-            # [수정] 중복 체크 기준을 시트 로드 방식(제목 공백제거 대문자)과 통일
-            check_key = raw_title.replace(" ", "").upper().strip()
-            
-            if check_key in GLOBAL_TITLES:
-                # print(f"   └ 중복 스킵: {raw_title[:10]}...") 
-                continue
-            
-            # 지역 및 브랜드 추출
-            combined_text = raw_title + " " + summary
-            region_name = extract_region(combined_text)
-            brand_name = extract_brand(combined_text)
-            post_date = item['pubDate'] 
-            
-            # 전송 시도 (push_to_sheet 함수 호출)
-            success = push_to_sheet("네이버 카페(API)", region_name, final_cat, raw_title, summary, post_date, sub, brand_name)
-            
-            if success:
-                # [수정] 전송 성공 시에만 세트에 추가 (이미 push_to_sheet 내부에도 있지만 이중 안전장치)
-                GLOBAL_TITLES.add(check_key)
-                send_count += 1
-            
-        print(f"   └ ✅ 신규 데이터 {send_count}건 전송 완료")
-            
-    except Exception as e:
-        print(f"❌ 카페 API 오류: {e}")
 # ==========================================
 # 3. 크롤링 엔진
 # ==========================================
@@ -232,13 +173,6 @@ if __name__ == "__main__":
         "사운드바": ["고장수리", "파손", "소음", "연결오류"],
         "공기청정기": ["필터 관리", "냄새", "악취", "먼지 센서", "소음", "고장수리", "해지/문의"]
     }
-
-    # [STEP 1] 네이버 카페 API 수집 시작 (빠른 수집)
-    print("\n🚀 [STEP 1] 네이버 카페 API 수집 시작")
-    for cat, subs in appliance_settings.items():
-        for sub in subs:
-            search_naver_cafe_api(cat, sub)
-            time.sleep(0.3)
             
     # [STEP 2] 네이버 지식iN 크롤링 엔진 가동 (상세 수집)
     print("\n⚙️ [STEP 2] 네이버 지식iN 크롤링 시작")

@@ -6,24 +6,23 @@ def get_trend(unit, categories, headers, naver_url):
     today = datetime.now()
     
     if unit == 'week':
-        # 1. 주간 설정: 이번 주가 아닌 '이미 완료된 지난주 월요일~일요일'
-        # 오늘 날짜에서 요일만큼 빼서 이번주 월요일을 구하고, 거기서 다시 7일을 빼서 지난주 월요일 산출
+        # 주간: 지난주 월요일 ~ 일요일
+        # 오늘이 무슨 요일이든 '지난주 월요일'을 찾음
         last_monday = today - timedelta(days=today.weekday() + 7)
         last_sunday = last_monday + timedelta(days=6)
-        
         start_date = last_monday.strftime('%Y-%m-%d')
         end_date = last_sunday.strftime('%Y-%m-%d')
     else:
-        # 2. 데일리 설정: 어제 (D-1)
+        # 데일리: 어제 (D-1)
         yesterday = today - timedelta(days=1)
         start_date = yesterday.strftime('%Y-%m-%d')
         end_date = yesterday.strftime('%Y-%m-%d')
     
     period_str = f"{start_date} ~ {end_date}" if unit == 'week' else start_date
-    
     res_list = []
-    main_category = "50000003" # 디지털/가전 통합 카테고리
+    main_category = "50000003" # 디지털/가전
 
+    # 3개씩 묶어서 호출 (네이버 API 제한 준수)
     for i in range(0, len(categories), 3):
         chunk = categories[i:i+3]
         keyword_groups = [{"name": c['name'], "param": [c['name']]} for c in chunk]
@@ -42,11 +41,13 @@ def get_trend(unit, categories, headers, naver_url):
         if res.status_code == 200:
             results = res.json().get('results', [])
             for r in results:
-                # 데이터가 있으면 마지막 값(최신) 사용, 없으면 0
-                ratio = r['data'][-1]['ratio'] if 'data' in r and r['data'] else 0
+                # 데이터 배열이 비어있지 않은지 확인 후 마지막 값 추출
+                if 'data' in r and len(r['data']) > 0:
+                    ratio = r['data'][-1]['ratio']
+                else:
+                    ratio = 0
                 res_list.append({"name": r['title'], "ratio": ratio, "period": period_str})
         else:
-            # 에러 발생 시 로그 출력 후 0점 처리
             print(f"⚠️ API 요청 실패 ({unit}): {res.status_code}")
             for c in chunk:
                 res_list.append({"name": c['name'], "ratio": 0, "period": period_str})
@@ -56,6 +57,7 @@ def get_trend(unit, categories, headers, naver_url):
 def run_trend_crawler():
     CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"
     CLIENT_SECRET = "28cZQMwaJ9"
+    # 매니저님의 최신 구글 앱스 스크립트 URL
     WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwz-HaibGJ8mYs07jOMlBCNEweGsO4YQzWJWN1L-qV3SrDUBQ5shCyaDFWstymbrcCQ/exec"
     NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/category/keywords"
     
@@ -68,8 +70,7 @@ def run_trend_crawler():
     categories = [{"name": name} for name in items]
     headers = {"X-Naver-Client-Id": CLIENT_ID, "X-Naver-Client-Secret": CLIENT_SECRET, "Content-Type": "application/json"}
     
-    # 실행
-    print(f"📅 수집 시작: 주간(지난주 월-일) & 데일리(어제)")
+    print(f"📊 수집 시작 (한국시간 11시 이후 실행 권장)")
     weekly = get_trend('week', categories, headers, NAVER_URL)
     daily = get_trend('date', categories, headers, NAVER_URL)
     
@@ -78,8 +79,9 @@ def run_trend_crawler():
     for item in daily: item['type'] = 'DAILY'; payload.append(item)
     
     if payload:
-        requests.post(WEBAPP_URL, data=json.dumps(payload))
-        print(f"✅ 구글 시트 전송 완료 (총 {len(payload)}건)")
+        resp = requests.post(WEBAPP_URL, data=json.dumps(payload))
+        if resp.status_code == 200:
+            print(f"✅ 업데이트 완료 (전송 품목: {len(payload)}개)")
 
 if __name__ == "__main__":
     run_trend_crawler()

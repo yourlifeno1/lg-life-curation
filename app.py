@@ -303,6 +303,14 @@ def show_voc_section(u_dong):
         st.caption("데이터 연결 상태를 확인 중입니다...")
 
 # [신규 함수] 네이버 쇼핑 인사이트 주간 TOP5 출력
+매니저님, 10개까지 늘리는 것 아주 좋은 생각입니다! 가전 품목이 총 19개나 되는데 5개만 보여주면 데이터가 좀 아깝기도 하고, 특히 공동 1위가 많을 때는 5위권이 금방 차버려서 다른 인기 품목들이 가려질 수 있거든요. 10개 정도면 전체 가전의 절반 이상을 커버하니까 트렌드 파악이 훨씬 확실해질 겁니다.
+
+화면이 너무 길어지지 않게 폰트 크기와 간격을 살짝 조정해서 10개까지 콤팩트하게 담은 버전으로 업데이트해 드릴게요.
+
+🛠️ 10위까지 확장된 app.py 최종 로직
+이 코드는 상위 10개를 추출하고, 공동 순위 로직과 하단 안내 문구까지 모두 포함하고 있습니다.
+
+Python
 def show_trend_section():
     CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1Qox47HWyzFZT4mm3ZQsU8IYI2_PWtWb0Cg4_8YxaZsu7vBeUv7urCQO5z-Tcd5JhfZXkeG4bvqkw/pub?output=csv"
 
@@ -310,46 +318,48 @@ def show_trend_section():
         df = pd.read_csv(CSV_URL)
         df.columns = df.columns.str.strip()
 
-        # 1. 클릭지수 높은 순 -> 품목명 가나다 순으로 정렬
+        # 1. 정렬: 클릭지수(내림차순) -> 품목명(가나다순)
         w_df_all = df[df['구분'] == 'WEEKLY'].sort_values(by=['클릭지수', '품목명'], ascending=[False, True]).reset_index(drop=True)
         d_df_all = df[df['구분'] == 'DAILY'].sort_values(by=['클릭지수', '품목명'], ascending=[False, True]).reset_index(drop=True)
         
-        w_top5 = w_df_all.head(5)
-        d_top5 = d_df_all.head(5)
+        # 10개까지 추출
+        w_top10 = w_df_all.head(10)
+        d_top10 = d_df_all.head(10)
         
-        w_p = w_top5['집계기간'].iloc[0] if not w_top5.empty else "-"
-        d_p = d_top5['집계기간'].iloc[0] if not d_top5.empty else "-"
+        w_p = w_top10['집계기간'].iloc[0] if not w_top10.empty else "-"
+        d_p = d_top10['집계기간'].iloc[0] if not d_top10.empty else "-"
 
-        # HTML 조립 시작
+        # HTML 조립 시작 (높이를 10개에 맞춰 살짝 조정: 480px)
         html_code = """
         <div style="background-color: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); margin: 10px 0;">
             <div style="display: flex; justify-content: space-between;">
+                
                 <div style="flex: 1; border-right: 1px solid #F1F3F5; padding-right: 15px;">
                     <div style="font-size: 16px; font-weight: 800; color: #212529; text-align: center; margin-bottom: 2px;">📅 주간 트렌드</div>
                     <div style="font-size: 10px; color: #ADB5BD; text-align: center; margin-bottom: 12px;">""" + w_p + """</div>
         """
-        # 주간 순위 출력 (공동 순위 로직)
-        for i, row in w_top5.iterrows():
+        for i, row in w_top10.iterrows():
             rank = "1" if row['클릭지수'] == 100 else str(i+1)
-            html_code += f'<div style="font-size: 14px; margin-bottom: 10px; display: flex; align-items: center;"><b style="color:#FF4B4B; width: 20px;">{rank}</b> <span style="color:#495057;">{row["품목명"]}</span></div>'
+            # 간격을 10px에서 7px로 줄여서 콤팩트하게 배치
+            html_code += f'<div style="font-size: 13px; margin-bottom: 7px; display: flex; align-items: center;"><b style="color:#FF4B4B; width: 22px;">{rank}</b> <span style="color:#495057;">{row["품목명"]}</span></div>'
 
         html_code += """
                 </div>
+                
                 <div style="flex: 1; padding-left: 15px;">
                     <div style="font-size: 16px; font-weight: 800; color: #212529; text-align: center; margin-bottom: 2px;">🔥 일간 급상승</div>
                     <div style="font-size: 10px; color: #ADB5BD; text-align: center; margin-bottom: 12px;">""" + d_p + """</div>
         """
-        # 일간 순위 출력 (공동 순위 로직)
-        for i, row in d_top5.iterrows():
+        for i, row in d_top10.iterrows():
             rank = "1" if row['클릭지수'] == 100 else str(i+1)
-            html_code += f'<div style="font-size: 14px; margin-bottom: 10px; display: flex; align-items: center;"><b style="color:#3182CE; width: 20px;">{rank}</b> <span style="color:#495057;">{row["품목명"]}</span></div>'
+            html_code += f'<div style="font-size: 13px; margin-bottom: 7px; display: flex; align-items: center;"><b style="color:#3182CE; width: 22px;">{rank}</b> <span style="color:#495057;">{row["품목명"]}</span></div>'
 
-        # 하단 디스크레이머(Disclaimer) 추가
+        # 하단 디스크레이머
         html_code += """
                 </div>
             </div>
-            <div style="margin-top: 15px; padding-top: 10px; border-top: 1px dashed #F1F3F5; font-size: 11px; color: #ADB5BD; text-align: center;">
-                * 클릭지수 100점 동점 품목은 공동 1위로 표시되며 가나다순으로 정렬됩니다.
+            <div style="margin-top: 12px; padding-top: 8px; border-top: 1px dashed #F1F3F5; font-size: 10px; color: #ADB5BD; text-align: center;">
+                * 클릭지수 100점 동점 품목은 공동 1위로 표시되며 가나다순으로 정렬됩니다. (상위 10개 표시)
             </div>
         </div>
         """

@@ -2,7 +2,7 @@ name: Daily Naver Trend Update
 
 on:
   schedule:
-    - cron: '0 23 * * *'
+    - cron: '30 2 * * *'
   workflow_dispatch:
 
 jobs:

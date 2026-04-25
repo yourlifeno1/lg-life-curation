@@ -3,28 +3,31 @@ import json
 from datetime import datetime, timedelta
 
 def get_trend(unit, days_back, categories, headers, naver_url):
-    """
-    unit: 'week' 또는 'date'
-    days_back: 데이터 집계 안정성을 위해 며칠 전부터 조회할지 설정
-    """
     today = datetime.now()
-    # 종료일 설정
-    end_date = (today - timedelta(days=days_back)).strftime('%Y-%m-%d')
-    # 시작일 설정 (주간은 7일치, 일간은 1일치)
-    delta_days = 7 if unit == 'week' else 1
-    start_date = (today - timedelta(days=days_back + delta_days)).strftime('%Y-%m-%d')
-    period_str = f"{start_date} ~ {end_date}"
+    # D-2 확정 데이터 기준
+    end_date_obj = today - timedelta(days=days_back)
+    end_date = end_date_obj.strftime('%Y-%m-%d')
+    
+    delta = 6 if unit == 'week' else 0
+    start_date = (end_date_obj - timedelta(days=delta)).strftime('%Y-%m-%d')
+    period_str = f"{start_date} ~ {end_date}" if unit == 'week' else start_date
     
     res_list = []
-    # 네이버 제한에 따라 3개 키워드씩 끊어서 호출
+    # '디지털/가전' 통합 카테고리 내에서 키워드들을 비교합니다.
+    main_category = "50000003" 
+
     for i in range(0, len(categories), 3):
         chunk = categories[i:i+3]
+        
+        # 키워드 그룹 구성
+        keyword_groups = [{"name": c['name'], "param": [c['name']]} for c in chunk]
+        
         body = {
             "startDate": start_date,
             "endDate": end_date,
             "timeUnit": unit,
-            "category": "50000003", # 디지털/가전
-            "keyword": [{"name": c['name'], "param": [c['name']]} for c in chunk],
+            "category": main_category, # 통합 카테고리 ID 고정
+            "keyword": keyword_groups,
             "device": "", "ages": [], "gender": ""
         }
         
@@ -33,37 +36,34 @@ def get_trend(unit, days_back, categories, headers, naver_url):
         if res.status_code == 200:
             results = res.json().get('results', [])
             for r in results:
-                item_name = r['title']
-                # 데이터가 있으면 마지막 ratio, 없으면 0
+                # 해당 키워드 그룹의 마지막 클릭 비중(ratio) 수집
                 ratio = r['data'][-1]['ratio'] if 'data' in r and r['data'] else 0
                 res_list.append({
-                    "name": item_name, 
+                    "name": r['title'], 
                     "ratio": ratio, 
                     "period": period_str
                 })
         else:
-            print(f"⚠️ API 에러({unit}): {res.status_code}")
+            print(f"⚠️ API 에러: {res.status_code} | {res.text}")
             for c in chunk:
                 res_list.append({"name": c['name'], "ratio": 0, "period": period_str})
                 
     return res_list
 
 def run_trend_crawler():
-    # --- 설정 영역 ---
     CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"
     CLIENT_SECRET = "28cZQMwaJ9"
-    # 매니저님이 새로 보내주신 URL 적용
-    GOOGLE_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwz-HaibGJ8mYs07jOMlBCNEweGsO4YQzWJWN1L-qV3SrDUBQ5shCyaDFWstymbrcCQ/exec"
+    WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwz-HaibGJ8mYs07jOMlBCNEweGsO4YQzWJWN1L-qV3SrDUBQ5shCyaDFWstymbrcCQ/exec"
     NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/category/keywords"
     
-    # 19개 가전 품목
-    categories = [
-        {"name": "TV"}, {"name": "로봇청소기"}, {"name": "무선청소기"}, {"name": "냉장고"},
-        {"name": "세탁기"}, {"name": "에어컨"}, {"name": "제습기"}, {"name": "공기청정기"},
-        {"name": "가습기"}, {"name": "식기세척기"}, {"name": "전자레인지"}, {"name": "전기레인지"},
-        {"name": "음식물처리기"}, {"name": "사운드바"}, {"name": "프로젝터"}, {"name": "환풍기"},
-        {"name": "노트북"}, {"name": "모니터"}, {"name": "의류관리기"}
+    # 이제 ID 없이 키워드 이름만 관리해도 무방합니다.
+    items = [
+        "TV", "로봇청소기", "무선청소기", "냉장고", "세탁기", 
+        "에어컨", "제습기", "공기청정기", "가습기", "식기세척기", 
+        "전자레인지", "전기레인지", "음식물처리기", "사운드바", "프로젝터", 
+        "환풍기", "노트북", "모니터", "의류관리기"
     ]
+    categories = [{"name": name} for name in items]
     
     headers = {
         "X-Naver-Client-Id": CLIENT_ID, 
@@ -71,30 +71,17 @@ def run_trend_crawler():
         "Content-Type": "application/json"
     }
     
-    print("🚀 데이터 수집을 시작합니다...")
+    print("🚀 디지털/가전 통합 카테고리 내 키워드 트렌드 수집 중...")
+    weekly = get_trend('week', 2, categories, headers, NAVER_URL)
+    daily = get_trend('date', 2, categories, headers, NAVER_URL)
     
-    # 1. 주간 데이터 수집 (안전하게 7일 전 기준)
-    weekly_data = get_trend('week', 7, categories, headers, NAVER_URL)
-    # 2. 일간 데이터 수집 (안전하게 3일 전 기준)
-    daily_data = get_trend('date', 3, categories, headers, NAVER_URL)
+    payload = []
+    for item in weekly: item['type'] = 'WEEKLY'; payload.append(item)
+    for item in daily: item['type'] = 'DAILY'; payload.append(item)
     
-    # 데이터 통합 및 구분값(Type) 추가
-    final_payload = []
-    for item in weekly_data:
-        item['type'] = 'WEEKLY'
-        final_payload.append(item)
-    for item in daily_data:
-        item['type'] = 'DAILY'
-        final_payload.append(item)
-    
-    # 구글 시트로 전송
-    if final_payload:
-        print(f"📡 총 {len(final_payload)}개 데이터를 전송 중...")
-        response = requests.post(GOOGLE_WEBAPP_URL, data=json.dumps(final_payload))
-        if response.status_code == 200:
-            print("✅ 주간/일간 트렌드 업데이트 완료!")
-        else:
-            print(f"❌ 전송 실패: {response.status_code}")
+    if payload:
+        requests.post(WEBAPP_URL, data=json.dumps(payload))
+        print(f"✅ 업데이트 완료: 총 {len(payload)}건")
 
 if __name__ == "__main__":
     run_trend_crawler()

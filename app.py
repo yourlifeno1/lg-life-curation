@@ -1007,7 +1007,7 @@ if loc:
                 ※ 서울 실시간 도시데이터 V8.5 API 기반<br>
                 ※ 이사 지수: <b>국토교통부</b> 실거래가 오픈 API 자료 활용<br>
                 ※ 가전 VOC: <b>네이버 지식iN</b> 및 주요 커뮤니티 실시간 크롤링 분석<br>
-                ※ 가전 VOC: <b>네이버 지식iN</b> 및 주요 커뮤니티 실시간 크롤링 분석<br>
+                ※ 가전 검색어: <b>네이버 DataLab</b> 쇼핑인사이트 API 분석<br>
                 <span style="color: #ADB5BD;">데이터 갱신: 실시간 (Live Update)</span>
             </div>
         </div>

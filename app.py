@@ -117,20 +117,8 @@ def get_nearest_point(u_lat, u_lon):
     return nearest_pt
     
 # --- 수정 포인트 2: 거리 기반 필터링 로직 적용 ---
-#def fetch_moving_all(lawd_cd, year_month, _t=None):
-#    total = 0
-# [수정 제안] 현재 달 + 전달 데이터를 합산하여 누락 방지
-def fetch_moving_all_optimized(lawd_cd, current_ym, _t=None):
+def fetch_moving_all(lawd_cd, year_month, _t=None):
     total = 0
-    
-    # 1. 전달(M-1) 계산 로직 추가
-    from datetime import datetime, timedelta
-    curr_dt = datetime.strptime(current_ym, "%Y%m")
-    prev_dt = curr_dt.replace(day=1) - timedelta(days=1)
-    prev_ym = prev_dt.strftime("%Y%m")
-
-    # 2. 이번 달과 전달 두 번의 루프를 돌려 합산 (시차 보정)
-    target_months = [prev_ym, current_ym]
 
     paths = [
         "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", # 아파트 매매
@@ -143,39 +131,26 @@ def fetch_moving_all_optimized(lawd_cd, current_ym, _t=None):
         "RTMSDataSvcSHRent/getRTMSDataSvcSHRent"           # 단독다가구 전월세
     ]
 
-    for ym in target_months:
-        for path in paths:
-            try:
-                # API 호출 (ym 사용)
-                # ... r = requests.get(url, params={'DEAL_YMD': ym, ...}) ...
-                if r.status_code == 200:
-                    root = ET.fromstring(r.text)
-                    items = root.findall('.//item')
-                    total += len(items)
-            except:
-                continue
+    for path in paths:
+        try:
+            url = f"http://apis.data.go.kr/1613000/{path}"
+            p = {
+                'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 
+                'LAWD_CD': lawd_cd, 
+                'DEAL_YMD': year_month,
+                'numOfRows': '9999',  # [필수] 이 설정이 없으면 10건만 가져옵니다.
+                '_cache_buster': _t
+            }
+            # 서버 부하를 줄이기 위해 타임아웃을 7초로 늘립니다.
+            r = requests.get(url, params=p, timeout=7)
+            if r.status_code == 200:
+                root = ET.fromstring(r.text)
+                items = root.findall('.//item')
+                total += len(items)
+        except Exception as e:
+            # 에러가 나도 멈추지 않고 다음 API로 넘어가도록 처리
+            continue
     return total
-    
-    #for path in paths:
-    #    try:
-    #        url = f"http://apis.data.go.kr/1613000/{path}"
-    #        p = {
-    #            'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 
-    #            'LAWD_CD': lawd_cd, 
-    #            'DEAL_YMD': year_month,
-    #            'numOfRows': '9999',  # [필수] 이 설정이 없으면 10건만 가져옵니다.
-    #            '_cache_buster': _t
-    #        }
-    #        # 서버 부하를 줄이기 위해 타임아웃을 7초로 늘립니다.
-    #        r = requests.get(url, params=p, timeout=7)
-    #        if r.status_code == 200:
-    #            root = ET.fromstring(r.text)
-    #            items = root.findall('.//item')
-    #            total += len(items)
-    #    except Exception as e:
-    #        # 에러가 나도 멈추지 않고 다음 API로 넘어가도록 처리
-    #        continue
-    #return total
 
 # ==========================================================
 # [신규 추가] S-DoT 위치 로드 및 하이브리드 계산 함수

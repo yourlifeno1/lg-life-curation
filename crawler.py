@@ -137,8 +137,11 @@ def push_lifestyle_to_sheet(stage, persona, keyword, score):
         "col1": "네이버 연관검색어", "col2": stage, "col3": persona,
         "col4": keyword, "col5": score
     }
-    try: requests.post(GAS_URL, data=params, timeout=10)
-    except: pass
+    try: 
+        res = requests.post(GAS_URL, data=params, timeout=10)
+        print(f"📡 GAS 응답 상태: {res.status_code}, 내용: {res.text}") # 이 줄을 추가해 보세요
+    except Exception as e:
+        print(f"❌ 전송 중 에러 발생: {e}")
 
 
 # ==========================================

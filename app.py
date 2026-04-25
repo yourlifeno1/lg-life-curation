@@ -289,8 +289,8 @@ def show_voc_section(u_dong):
                 </div>
                 """, unsafe_allow_html=True)
 
-            # [수정] 카드 아래, 버튼 위에 주간 트렌드 박스 출력
-            show_shopping_trend_section()
+            # [수정] 카드 아래, 버튼 위에 주간/일간 트렌드 박스 출력
+            show_trend_section()
             
             st.write("")
             if st.button("🔍 지역 이슈 심층 리포트 보기", use_container_width=True):

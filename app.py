@@ -929,6 +929,12 @@ if loc:
                     else:
                         st.caption(f"📍 {idx+1}위 {standard_app} ({target_issue}): 정보 준비 중")
 
+            # [관문] 화면 3으로 이동하는 버튼
+            st.write("")
+            if st.button("🎯 페르소나별 맞춤 세일즈 가이드 보기", use_container_width=True):
+                st.session_state['page_mode'] = 'sales_guide'
+                st.rerun()
+
         except Exception as e:
             st.error(f"상세 분석 로직 실행 중 오류가 발생했습니다: {e}")
 

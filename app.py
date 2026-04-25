@@ -303,14 +303,6 @@ def show_voc_section(u_dong):
         st.caption("데이터 연결 상태를 확인 중입니다...")
 
 # [신규 함수] 네이버 쇼핑 인사이트 주간 TOP5 출력
-매니저님, 10개까지 늘리는 것 아주 좋은 생각입니다! 가전 품목이 총 19개나 되는데 5개만 보여주면 데이터가 좀 아깝기도 하고, 특히 공동 1위가 많을 때는 5위권이 금방 차버려서 다른 인기 품목들이 가려질 수 있거든요. 10개 정도면 전체 가전의 절반 이상을 커버하니까 트렌드 파악이 훨씬 확실해질 겁니다.
-
-화면이 너무 길어지지 않게 폰트 크기와 간격을 살짝 조정해서 10개까지 콤팩트하게 담은 버전으로 업데이트해 드릴게요.
-
-🛠️ 10위까지 확장된 app.py 최종 로직
-이 코드는 상위 10개를 추출하고, 공동 순위 로직과 하단 안내 문구까지 모두 포함하고 있습니다.
-
-Python
 def show_trend_section():
     CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1Qox47HWyzFZT4mm3ZQsU8IYI2_PWtWb0Cg4_8YxaZsu7vBeUv7urCQO5z-Tcd5JhfZXkeG4bvqkw/pub?output=csv"
 

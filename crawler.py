@@ -133,55 +133,70 @@ def crawl_naver_cafe(item, sub, driver):
     end_date = datetime.now().strftime("%Y%m%d")
     start_date = ONE_YEAR_AGO.strftime("%Y%m%d")
     query = f"{item} {sub}"
-    # 네이버 통합검색 - 카페(article) 탭 리스트 주소
+    
+    # 1. URL 구조 업데이트 (st=rel: 연관도순, date_option=8: 기간직접입력)
     url = f"https://search.naver.com/search.naver?where=article&query={query}&st=rel&date_option=8&date_from={start_date}&date_to={end_date}"
     
     try:
         driver.get(url)
-        time.sleep(random.uniform(2, 4)) # 차단 방지를 위한 랜덤 대기
+        # 네이버의 자동화 탐지를 피하기 위한 랜덤 대기
+        time.sleep(random.uniform(3, 5)) 
         
-        # 검색 결과 게시글 뭉치(bx)들을 찾습니다.
-        articles = driver.find_elements(By.CSS_SELECTOR, "li.bx")
+        # 2. 최신 네이버 검색 결과 영역 선택자로 변경
+        # 네이버 개편 후 게시글 뭉치는 'div.api_ani_send' 또는 'li.bx' 내부에 복합적으로 존재함
+        articles = driver.find_elements(By.CSS_SELECTOR, "ul.lst_total > li.bx")
         
-        for li in articles[:10]: # 한 키워드당 상위 10개씩 수집
+        if not articles:
+            # 다른 패턴의 선택자 시도 (네이버는 수시로 클래스명을 바꿈)
+            articles = driver.find_elements(By.CSS_SELECTOR, ".view_wrap")
+
+        print(f"🔍 {query} 검색 결과 {len(articles)}개 발견")
+
+        for li in articles[:10]: 
             try:
-                # 1. 제목 추출
-                title_tag = li.find_element(By.CSS_SELECTOR, "a.api_txt_lines.total_tit")
-                title = title_tag.text
+                # 3. 제목 추출 (최신 선택자: a.tit_main 또는 .api_txt_lines.total_tit)
+                title_tag = li.find_element(By.CSS_SELECTOR, "a.tit_main, a.api_txt_lines.total_tit")
+                title = title_tag.text.strip()
                 
-                # 중복 체크 (GLOBAL_TITLES 활용)
-                if title.replace(" ", "").upper().strip() in GLOBAL_TITLES: 
+                # 중복 체크
+                clean_title = title.replace(" ", "").upper().strip()
+                if clean_title in GLOBAL_TITLES: 
                     continue
                 
-                # 2. 요약문(Snippet) 추출 - 본문 클릭 대신 이 텍스트를 사용합니다.
+                # 4. 요약문(Snippet) 추출 (최신 선택자: .dsc_txt 또는 .api_txt_lines.dsc_txt)
                 try:
-                    content_preview = li.find_element(By.CSS_SELECTOR, ".api_txt_lines.dsc_txt").text
+                    content_preview = li.find_element(By.CSS_SELECTOR, ".dsc_txt, .api_txt_lines.dsc_txt").text.strip()
                 except:
                     content_preview = "본문 요약 내용 없음"
                 
-                # 3. 날짜 정보 추출
+                # 5. 날짜 정보 추출 (최신 선택자: .sub_txt 또는 .api_txt_lines.sub_txt)
                 try:
-                    date_txt = li.find_element(By.CSS_SELECTOR, ".sub_txt.sub_dot").text
+                    date_txt = li.find_element(By.CSS_SELECTOR, ".sub_txt, .api_txt_lines.sub_txt").text.strip()
                 except:
                     date_txt = datetime.now().strftime("%Y.%m.%d.")
 
-                # 4. 기존 가공 함수 활용 (refine_category 등)
-                # 본문(content) 자리에 요약문(content_preview)을 넣습니다.
+                # 6. 데이터 가공 및 전송
                 final_cat = refine_category(title, content_preview, item)
                 brand_name = extract_brand(title + content_preview)
                 region_name = extract_region(title + content_preview)
                 
-                # 5. 구글 시트로 전송 (출처를 '네이버 카페(리스트)'로 구분)
+                # 구글 시트 전송
                 push_to_sheet("네이버 카페(리스트)", region_name, final_cat, title, content_preview, date_txt, sub, brand_name)
                 
-                # 중복 방지 리스트 업데이트
-                GLOBAL_TITLES.append(title.replace(" ", "").upper().strip())
+                # 중복 방지 업데이트
+                GLOBAL_TITLES.append(clean_title)
+                print(f"✅ 수집 완료: {title[:20]}...")
+                
+                # 너무 빠른 수집은 차단의 원인
+                time.sleep(random.uniform(1, 2))
                 
             except Exception as e:
-                continue # 하나 실패해도 다음 글로 진행
+                # 개별 아이템 오류 시 출력하여 확인
+                # print(f"항목 수집 중 스킵: {e}")
+                continue 
                 
     except Exception as e:
-        print(f"카페 목록 수집 중 오류 발생: {e}")
+        print(f"❌ 카페 목록 수집 중 중대 오류 발생: {e}")
         
 def crawl_naver_kin(item, sub):
     query = f"{item} {sub}"

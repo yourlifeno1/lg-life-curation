@@ -14,8 +14,11 @@ from webdriver_manager.chrome import ChromeDriverManager
 # 1. 설정값
 # ==========================================
 GAS_URL = "https://script.google.com/macros/s/AKfycbwvTCs9Y8h5JhJeXU_UH-4AZRijr52L3xwuPd2ue2QJqIUZrSD2HCkSDRKH3esc4QXL/exec"
-# 중복 체크용 시트 URL (기존 시트 유지)
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSGEDlHeWG2PHspcMEtlO74lWt9UWdeIzwL9A9fpV6nTY5eSvYTUfeNOFlWvh8qHXFnNwHBsaKKG6cp/pub?gid=189297044&single=true&output=csv"
+
+# 네이버 API 키 (공유해주신 이미지 참조)
+NAVER_CLIENT_ID = "IlynXlpQmqqD8GfQRJj6"
+NAVER_CLIENT_SECRET = "28cZQMwaJ9"
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'}
 ONE_YEAR_AGO = datetime.now() - timedelta(days=365)
@@ -24,13 +27,15 @@ ONE_YEAR_AGO = datetime.now() - timedelta(days=365)
 GLOBAL_TITLES = []
 
 # [6단계 생애주기 전략 사전 - 오픈애즈 연령별 특징 반영]
+# [생애주기 전략 - API용 연령대 코드 매칭]
+# 네이버 연령대 코드: 3(20-24), 4(25-29), 5(30-34), 6(35-39), 7(40-44), 8(45-49), 9(50-54), 10(55-59), 11(60 이상)
 LIFESTYLE_STRATEGY = {
-    "1_독립미혼": {"persona": "경험/입문 (1인가구)", "seed": "사회초년생 자취 취미 가성비"},
-    "2_신혼부부": {"persona": "관리/유지 (신혼)", "seed": "신혼집 인테리어 브랜드 디자인"},
-    "3_영유아가구": {"persona": "관리/효율 (영유아)", "seed": "육아 위생 가사 효율성 살균"},
-    "4_취학자녀": {"persona": "조망/심화 (취학)", "seed": "학부모 대용량 시성비 심층정보"},
-    "5_성인자녀동거": {"persona": "조망/심화 (중년)", "seed": "리모델링 제2의인생 가전교체"},
-    "6_실버노후": {"persona": "실생활/새역할 (시니어)", "seed": "시니어 건강 재테크 유튜브 실생활"}
+    "1_독립미혼": {"persona": "경험/입문 (1인가구)", "seed": ["자취 필수템", "1인가구 가전", "원룸 인테리어"], "age": "3,4"},
+    "2_신혼부부": {"persona": "관리/유지 (신혼)", "seed": ["신혼가전 추천", "혼수가구", "신혼집 꾸미기"], "age": "5,6"},
+    "3_영유아가구": {"persona": "관리/효율 (영유아)", "seed": ["젖병소독기", "아기세탁기", "유아용품 위생"], "age": "5,6,7"},
+    "4_취학자녀": {"persona": "조망/심화 (취학)", "seed": ["학생용 의자", "대용량 건조기", "공부방 인테리어"], "age": "7,8,9"},
+    "5_성인자녀동거": {"persona": "조망/심화 (중년)", "seed": ["가전 교체주기", "주방 리모델링", "안마의자"], "age": "9,10"},
+    "6_실버노후": {"persona": "실생활/새역할 (시니어)", "seed": ["시니어 가전", "건강 가전", "간편식 가전"], "age": "10,11"}
 }
 
 # ==========================================
@@ -134,15 +139,14 @@ def push_to_sheet(channel, region, category, title, summary, post_date, issue_ta
 def push_lifestyle_to_sheet(stage, persona, keyword, score):
     params = {
         "sheetName": "Lifestyle_Trend",
-        "col1": "네이버 연관검색어", "col2": stage, "col3": persona,
+        "col1": "네이버 데이터랩 API", "col2": stage, "col3": persona,
         "col4": keyword, "col5": score
     }
-    try: 
+    try:
         res = requests.post(GAS_URL, data=params, timeout=10)
-        print(f"📡 GAS 응답 상태: {res.status_code}, 내용: {res.text}") # 이 줄을 추가해 보세요
-    except Exception as e:
-        print(f"❌ 전송 중 에러 발생: {e}")
-
+        print(f"📡 API 데이터 전송: {stage} - {keyword} ({score})")
+    except:
+        pass
 
 # ==========================================
 # 3. 크롤링 엔진
@@ -156,17 +160,39 @@ def setup_driver():
     return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
 # 라이프스타일 수집
-def crawl_lifestyle(driver):
-    print("\n🚀 [1단계] 생애주기별 라이프스타일 트렌드 분석...")
+def fetch_naver_trends():
+    print("\n🚀 [1단계] 네이버 데이터랩 API 기반 트렌드 분석 시작...")
+    url = "https://openapi.naver.com/v1/datalab/search"
+    
+    headers = {
+        "X-Naver-Client-Id": NAVER_CLIENT_ID,
+        "X-Naver-Client-Secret": NAVER_CLIENT_SECRET,
+        "Content-Type": "application/json"
+    }
+
     for stage, info in LIFESTYLE_STRATEGY.items():
-        url = f"https://search.naver.com/search.naver?query={info['seed']}"
-        driver.get(url)
-        time.sleep(2)
-        trend_elements = driver.find_elements(By.CSS_SELECTOR, ".lst_related_srch .tit, .lst_related_srch .txt_box")
-        trends = [el.text.strip() for el in trend_elements if el.text.strip()]
-        for i, kw in enumerate(trends[:10]):
-            push_lifestyle_to_sheet(stage, info['persona'], f"#{kw}", str(10-i))
-        print(f"✅ {stage} 트렌드 수집 완료")
+        body = {
+            "startDate": (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d'),
+            "endDate": datetime.now().strftime('%Y-%m-%d'),
+            "timeUnit": "month",
+            "keywordGroups": [{"groupName": stage, "keywords": info['seed']}],
+            "ages": info['age'].split(',')
+        }
+
+        try:
+            response = requests.post(url, headers=headers, data=json.dumps(body))
+            res_data = response.json()
+            
+            # API 결과에서 트렌드 점수(ratio) 추출
+            if 'results' in res_data:
+                ratio = res_data['results'][0]['data'][-1]['ratio']
+                # 대표 키워드로 시트에 전송
+                push_lifestyle_to_sheet(stage, info['persona'], info['seed'][0], round(ratio, 2))
+                print(f"✅ {stage} 분석 완료 (점수: {ratio})")
+            
+            time.sleep(0.5) # API 호출 간격 조절
+        except Exception as e:
+            print(f"❌ {stage} API 호출 오류: {e}")
 
 # 가전 VOC 수집 (지식iN)        
 def crawl_naver_kin(item, sub):
@@ -195,15 +221,14 @@ def crawl_naver_kin(item, sub):
 # 4. 메인 실행
 # ==========================================
 if __name__ == "__main__":
-    # 1. 기존 데이터 제목 로드 (중복 원천 차단 시작)
     get_existing_titles()
-    
+
+    # 1. 공식 API를 통한 트렌드 데이터 수집 (크롤링 대신 사용)
+    fetch_naver_trends()
+
+    # 2. 가전 VOC 수집 설정 및 실행
     driver = setup_driver()
-
-    # 2. 라이프스타일 트렌드 우선 수집
-    crawl_lifestyle(driver)
-
-    # 3. 가전 VOC 수집 설정 및 실행
+    
     appliance_settings = {
         "세탁기": ["분해세척", "냄새", "곰팡이", "고장수리", "파손", "소음", "이전설치", "입주설치"],
         "에어컨": ["분해세척", "냄새", "곰팡이", "냉방안됨", "실외기", "고장수리", "이전설치", "입주설치" ],

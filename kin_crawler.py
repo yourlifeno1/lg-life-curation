@@ -13,7 +13,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 # ==========================================
 # 1. 설정값
 # ==========================================
-GAS_URL = "https://script.google.com/macros/s/AKfycbwvTCs9Y8h5JhJeXU_UH-4AZRijr52L3xwuPd2ue2QJqIUZrSD2HCkSDRKH3esc4QXL/exec"
+GAS_URL = "https://script.google.com/macros/s/AKfycbzfKXq3qbSAfdvkPpFNo7LJjKdJ6UrH2Ea97kz_BMuznL2Z7RWqgxim6TRpLv_6eb45/exec"
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSGEDlHeWG2PHspcMEtlO74lWt9UWdeIzwL9A9fpV6nTY5eSvYTUfeNOFlWvh8qHXFnNwHBsaKKG6cp/pub?gid=189297044&single=true&output=csv"
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'}

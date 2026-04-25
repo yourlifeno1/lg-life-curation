@@ -118,8 +118,7 @@ def get_nearest_point(u_lat, u_lon):
     
 # --- 수정 포인트 2: 거리 기반 필터링 로직 적용 ---
 def fetch_moving_all(lawd_cd, year_month, _t=None):
-    #total = 0
-    all_deals = set()
+    total = 0
 
     paths = [
         "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", # 아파트 매매
@@ -147,35 +146,11 @@ def fetch_moving_all(lawd_cd, year_month, _t=None):
             if r.status_code == 200:
                 root = ET.fromstring(r.text)
                 items = root.findall('.//item')
-                for item in items:
-                    # 거래를 식별할 수 있는 고유 키 생성 (중복 방지)
-                    deal_key = (
-                        item.findtext('법정동', ''),
-                        item.findtext('번지', ''),
-                        item.findtext('단지', item.findtext('연립다세대', item.findtext('건물명', ''))),
-                        item.findtext('거래금액', item.findtext('보증금액', '')),
-                        item.findtext('월세금액', '0'),
-                        item.findtext('일', '')
-                    )
-                    all_deals.append(deal_key)
-        except:
-            continue
-            
-    # 2. 중복 제거 후 최종 개수 반환
-    # (간혹 같은 데이터가 여러 번 들어오는 경우와 누락되는 경우를 모두 체크)
-    unique_deals = list(set(all_deals))
-    
-    # 만약 공식 데이터가 750건인데 우리가 620건이라면, 
-    # API가 한 번에 다 못 가져오는 것이므로 결과값에 보정치(시차 발생분)를 더하거나 
-    # 호출 방식을 재점검해야 합니다.
-    
-    return len(unique_deals)
-    
-                #total += len(items)
-        #except Exception as e:
+                total += len(items)
+        except Exception as e:
             ## 에러가 나도 멈추지 않고 다음 API로 넘어가도록 처리
-            #continue
-    #return total
+            continue
+    return total
 
 # ==========================================================
 # [신규 추가] S-DoT 위치 로드 및 하이브리드 계산 함수

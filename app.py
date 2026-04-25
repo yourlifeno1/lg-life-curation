@@ -303,21 +303,13 @@ def show_voc_section(u_dong):
         st.caption("데이터 연결 상태를 확인 중입니다...")
 
 # [신규 함수] 네이버 쇼핑 인사이트 주간 TOP5 출력
-매니저님, 제가 매니저님의 의도를 완벽히 파악했습니다!
-
-네이버 쇼핑인사이트 API의 categories URL을 사용하면서, 매니저님이 주신 **19개의 카테고리 코드들 중 "이번 주 클릭수가 가장 높았던 상위 5개"**를 자동으로 뽑아내서 이미지와 똑같은 UI로 보여드리겠습니다.
-
-네이버 API는 한 번에 5개까지만 비교가 가능하므로, 19개를 각각 호출하여 결과를 합친 뒤 그중 TOP 5를 추려내는 방식으로 코드를 짰습니다. 이제 진짜 매니저님이 원하시던 "가전 카테고리 전체 중 주간 순위"가 나올 거예요.
-
-🛠️ 최종 완성된 show_shopping_trend_section (전체 카테고리 비교형)
-app.py의 함수 부분을 아래 코드로 덮어쓰기 하세요. 19개 품목을 전부 분석합니다.
-
-Python
 def show_shopping_trend_section():
     """매니저님이 주신 19개 카테고리 중 주간 클릭수 TOP 5를 추출"""
     import datetime
+    import requests
+    import json
     
-    # 1. 날짜 설정 (최근 주간)
+    # 1. 날짜 설정 (최근 완료된 주간 데이터)
     today = datetime.datetime.now()
     end_date_dt = today - datetime.timedelta(days=2) 
     start_date_dt = end_date_dt - datetime.timedelta(days=7)
@@ -354,9 +346,9 @@ def show_shopping_trend_section():
         "Content-Type": "application/json"
     }
 
-    # 3. 5개씩 끊어서 호출 (API 제한 해결)
     all_results = []
     try:
+        # API 제한(한 번에 5개) 때문에 나눠서 호출
         for i in range(0, len(full_category_list), 5):
             chunk = full_category_list[i:i+5]
             body = {
@@ -371,12 +363,12 @@ def show_shopping_trend_section():
                 data = res.json()['results']
                 for r in data:
                     if r['data']:
+                        # 가장 최신 주간의 ratio 값을 가져옴
                         all_results.append({"name": r['title'], "ratio": r['data'][-1]['ratio']})
 
-        # 4. 전체 결과 중 TOP 5 정렬
+        # 3. 전체 19개 중 클릭 비중 높은 순 TOP 5 정렬
         sorted_rank = sorted(all_results, key=lambda x: x['ratio'], reverse=True)[:5]
 
-        # 5. 디자인 출력
         if sorted_rank:
             st.markdown(f"""
                 <div style="background: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 25px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); text-align: center;">
@@ -396,7 +388,7 @@ def show_shopping_trend_section():
             st.markdown("</div></div>", unsafe_allow_html=True)
             
     except Exception as e:
-        st.caption("주간 쇼핑 트렌드를 불러오는 중입니다...")
+        pass
         
 # --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")

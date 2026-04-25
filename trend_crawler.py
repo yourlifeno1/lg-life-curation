@@ -49,7 +49,7 @@ def run_trend_crawler():
         body = {
             "startDate": start_date,
             "endDate": end_date,
-            "timeUnit": "month",
+            "timeUnit": "week",
             "category": "50000003", # 디지털/가전 통합 카테고리 ID
             "keyword": keyword_list,
             "device": "",

@@ -216,10 +216,8 @@ def crawl_naver_kin(item, sub):
 # 4. 메인 실행
 # ==========================================
 if __name__ == "__main__":
+    # 0. 기존 시트 데이터 불러오기 (중복 방지 기초)
     get_existing_titles()
-
-    # 2. 가전 VOC 수집 설정 및 실행
-    driver = setup_driver()
     
     appliance_settings = {
         "세탁기": ["분해세척", "냄새", "곰팡이", "고장수리", "파손", "소음", "이전설치", "입주설치"],
@@ -235,20 +233,22 @@ if __name__ == "__main__":
         "공기청정기": ["필터 관리", "냄새", "악취", "먼지 센서", "소음", "고장수리", "해지/문의"]
     }
 
-    # [STEP 1] 네이버 카페 API 수집 시작
+    # [STEP 1] 네이버 카페 API 수집 시작 (빠른 수집)
     print("\n🚀 [STEP 1] 네이버 카페 API 수집 시작")
     for cat, subs in appliance_settings.items():
         for sub in subs:
             search_naver_cafe_api(cat, sub)
             time.sleep(0.3)
             
-    # [STEP 2] 기존 가전 VOC 수집 시작 (지식iN)        
-    print("\n⚙️ [STEP 2] 기존 가전 VOC 수집 시작")
-    for item, subs in appliance_settings.items():
-        for sub in subs:
-            print(f"📡 수집 중: {item} - {sub}")
-            crawl_naver_kin(item, sub)
-            time.sleep(random.uniform(1.5, 3))
-
-    driver.quit()
-    print("✨ 전체 크롤링 및 중복 방지 처리 완료")
+    # [STEP 2] 네이버 지식iN 크롤링 엔진 가동 (상세 수집)
+    print("\n⚙️ [STEP 2] 네이버 지식iN 크롤링 시작")
+    driver = setup_driver()
+    try:
+        for item, subs in appliance_settings.items():
+            for sub in subs:
+                print(f"📡 지식iN 수집 중: {item} - {sub}")
+                crawl_naver_kin(item, sub)
+                time.sleep(random.uniform(1.5, 3))
+    finally:
+        driver.quit()
+        print("✨ 전체 수집 및 중복 방지 처리 완료")

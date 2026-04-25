@@ -13,7 +13,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 # ==========================================
 # 1. 설정값
 # ==========================================
-GAS_URL = "https://script.google.com/macros/s/AKfycbzu-9NF957LyR36tM6vNsGZ-NeXPwGllZyRqlGV878HpZ1lVFK8TplVv-7_RsyJFdKA/exec"
+GAS_URL = "https://script.google.com/macros/s/AKfycbwvTCs9Y8h5JhJeXU_UH-4AZRijr52L3xwuPd2ue2QJqIUZrSD2HCkSDRKH3esc4QXL/exec"
+# 중복 체크용 시트 URL (기존 시트 유지)
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSGEDlHeWG2PHspcMEtlO74lWt9UWdeIzwL9A9fpV6nTY5eSvYTUfeNOFlWvh8qHXFnNwHBsaKKG6cp/pub?gid=189297044&single=true&output=csv"
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'}
@@ -21,6 +22,16 @@ ONE_YEAR_AGO = datetime.now() - timedelta(days=365)
 
 # 전역 중복 체크 리스트 (프로그램 실행 중 실시간 업데이트)
 GLOBAL_TITLES = []
+
+# [6단계 생애주기 전략 사전 - 오픈애즈 연령별 특징 반영]
+LIFESTYLE_STRATEGY = {
+    "1_독립미혼": {"persona": "경험/입문 (1인가구)", "seed": "사회초년생 자취 취미 가성비"},
+    "2_신혼부부": {"persona": "관리/유지 (신혼)", "seed": "신혼집 인테리어 브랜드 디자인"},
+    "3_영유아가구": {"persona": "관리/효율 (영유아)", "seed": "육아 위생 가사 효율성 살균"},
+    "4_취학자녀": {"persona": "조망/심화 (취학)", "seed": "학부모 대용량 시성비 심층정보"},
+    "5_성인자녀동거": {"persona": "조망/심화 (중년)", "seed": "리모델링 제2의인생 가전교체"},
+    "6_실버노후": {"persona": "실생활/새역할 (시니어)", "seed": "시니어 건강 재테크 유튜브 실생활"}
+}
 
 # ==========================================
 # 2. 정밀 분석 및 중복 체크 로직
@@ -76,7 +87,7 @@ def refine_category(title, summary, initial_item):
     category_map = {
         "에어컨": ["에어컨", "시스템에어컨", "벽걸이", "스탠드", "2IN1", "무풍"],
         "세탁기": ["세탁기", "통돌이", "드럼세탁", "워시타워"],
-        "건조기": ["건조기", "히트펌프건조"],
+        "건조기": ["건조기", "히트펌프"],
         "냉장고": ["냉장고", "김치냉장고", "비스포크", "오브제"],
         "TV": ["TV", "티비", "올레드", "벽걸이TV"],
         "청소기": ["청소기", "코드제로", "다이슨", "로봇청소기"],
@@ -91,32 +102,44 @@ def refine_category(title, summary, initial_item):
             return category
     return initial_item
 
+# ==========================================
+# 3. 데이터 전송 함수 (시트 분기)
+# ==========================================
+
+# A. 가전 VOC 전송 (naverkin_voc 시트)
 def push_to_sheet(channel, region, category, title, summary, post_date, issue_tag, brand):
     global GLOBAL_TITLES
-    
-    # 중복 체크용 정규화 (공백제거, 대문자화)
     check_title = title.replace(" ", "").upper().strip()
-    
     if check_title in GLOBAL_TITLES:
         print(f"⏭️ 중복 스킵: {title[:15]}...")
         return False
 
     payload = {
+        "sheetName": "naverkin_voc",
         "channel": channel, "region": region, "category": category,
         "voc": title, "summary": summary, "postDate": post_date,
         "issueTag": issue_tag, "brand": brand
     }
-    
     try:
         res = requests.post(GAS_URL, data=payload, timeout=15)
         if res.status_code == 200:
-            # 전송 성공 시 실시간으로 리스트에 추가하여 현재 실행 중에도 중복 방지
-            GLOBAL_TITLES.append(check_title)
+            GLOBAL_TITLES.append(check_title) # 실시간 중복 방지 추가
             print(f"✅ 전송성공: [{region}/{brand}] {title[:12]}...")
             return True
     except Exception as e:
         print(f"❌ 전송오류: {e}")
-        return False
+    return False
+
+# B. 라이프스타일 트렌드 전송 (Lifestyle_Trend 시트)
+def push_lifestyle_to_sheet(stage, persona, keyword, score):
+    params = {
+        "sheetName": "Lifestyle_Trend",
+        "col1": "네이버 연관검색어", "col2": stage, "col3": persona,
+        "col4": keyword, "col5": score
+    }
+    try: requests.post(GAS_URL, data=params, timeout=10)
+    except: pass
+
 
 # ==========================================
 # 3. 크롤링 엔진
@@ -129,75 +152,20 @@ def setup_driver():
     options.add_argument("--disable-dev-shm-usage")
     return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
-def crawl_naver_cafe(item, sub, driver):
-    end_date = datetime.now().strftime("%Y%m%d")
-    start_date = ONE_YEAR_AGO.strftime("%Y%m%d")
-    query = f"{item} {sub}"
-    
-    # 1. URL 구조 업데이트 (st=rel: 연관도순, date_option=8: 기간직접입력)
-    url = f"https://search.naver.com/search.naver?where=article&query={query}&st=rel&date_option=8&date_from={start_date}&date_to={end_date}"
-    
-    try:
+# 라이프스타일 수집
+def crawl_lifestyle(driver):
+    print("\n🚀 [1단계] 생애주기별 라이프스타일 트렌드 분석...")
+    for stage, info in LIFESTYLE_STRATEGY.items():
+        url = f"https://search.naver.com/search.naver?query={info['seed']}"
         driver.get(url)
-        # 네이버의 자동화 탐지를 피하기 위한 랜덤 대기
-        time.sleep(random.uniform(3, 5)) 
-        
-        # 2. 최신 네이버 검색 결과 영역 선택자로 변경
-        # 네이버 개편 후 게시글 뭉치는 'div.api_ani_send' 또는 'li.bx' 내부에 복합적으로 존재함
-        articles = driver.find_elements(By.CSS_SELECTOR, "ul.lst_total > li.bx")
-        
-        if not articles:
-            # 다른 패턴의 선택자 시도 (네이버는 수시로 클래스명을 바꿈)
-            articles = driver.find_elements(By.CSS_SELECTOR, ".view_wrap")
+        time.sleep(2)
+        trend_elements = driver.find_elements(By.CSS_SELECTOR, ".lst_related_srch .tit, .lst_related_srch .txt_box")
+        trends = [el.text.strip() for el in trend_elements if el.text.strip()]
+        for i, kw in enumerate(trends[:10]):
+            push_lifestyle_to_sheet(stage, info['persona'], f"#{kw}", str(10-i))
+        print(f"✅ {stage} 트렌드 수집 완료")
 
-        print(f"🔍 {query} 검색 결과 {len(articles)}개 발견")
-
-        for li in articles[:10]: 
-            try:
-                # 3. 제목 추출 (최신 선택자: a.tit_main 또는 .api_txt_lines.total_tit)
-                title_tag = li.find_element(By.CSS_SELECTOR, "a.tit_main, a.api_txt_lines.total_tit")
-                title = title_tag.text.strip()
-                
-                # 중복 체크
-                clean_title = title.replace(" ", "").upper().strip()
-                if clean_title in GLOBAL_TITLES: 
-                    continue
-                
-                # 4. 요약문(Snippet) 추출 (최신 선택자: .dsc_txt 또는 .api_txt_lines.dsc_txt)
-                try:
-                    content_preview = li.find_element(By.CSS_SELECTOR, ".dsc_txt, .api_txt_lines.dsc_txt").text.strip()
-                except:
-                    content_preview = "본문 요약 내용 없음"
-                
-                # 5. 날짜 정보 추출 (최신 선택자: .sub_txt 또는 .api_txt_lines.sub_txt)
-                try:
-                    date_txt = li.find_element(By.CSS_SELECTOR, ".sub_txt, .api_txt_lines.sub_txt").text.strip()
-                except:
-                    date_txt = datetime.now().strftime("%Y.%m.%d.")
-
-                # 6. 데이터 가공 및 전송
-                final_cat = refine_category(title, content_preview, item)
-                brand_name = extract_brand(title + content_preview)
-                region_name = extract_region(title + content_preview)
-                
-                # 구글 시트 전송
-                push_to_sheet("네이버 카페(리스트)", region_name, final_cat, title, content_preview, date_txt, sub, brand_name)
-                
-                # 중복 방지 업데이트
-                GLOBAL_TITLES.append(clean_title)
-                print(f"✅ 수집 완료: {title[:20]}...")
-                
-                # 너무 빠른 수집은 차단의 원인
-                time.sleep(random.uniform(1, 2))
-                
-            except Exception as e:
-                # 개별 아이템 오류 시 출력하여 확인
-                # print(f"항목 수집 중 스킵: {e}")
-                continue 
-                
-    except Exception as e:
-        print(f"❌ 카페 목록 수집 중 중대 오류 발생: {e}")
-        
+# 가전 VOC 수집 (지식iN)        
 def crawl_naver_kin(item, sub):
     query = f"{item} {sub}"
     url = f"https://kin.naver.com/search/list.naver?query={query}&sort=date"
@@ -228,6 +196,11 @@ if __name__ == "__main__":
     get_existing_titles()
     
     driver = setup_driver()
+
+    # 2. 라이프스타일 트렌드 우선 수집
+    crawl_lifestyle(driver)
+
+    # 3. 가전 VOC 수집 설정 및 실행
     appliance_settings = {
         "세탁기": ["분해세척", "냄새", "곰팡이", "고장수리", "파손", "소음", "이전설치", "입주설치"],
         "에어컨": ["분해세척", "냄새", "곰팡이", "냉방안됨", "실외기", "고장수리", "이전설치", "입주설치" ],
@@ -242,12 +215,13 @@ if __name__ == "__main__":
         "공기청정기": ["필터 관리", "냄새", "악취", "먼지 센서", "소음", "고장수리", "해지/문의"]
     }
     
+    print("\n⚙️ [STEP 2] 기존 가전 VOC 수집 시작")
     for item, subs in appliance_settings.items():
         for sub in subs:
             print(f"📡 수집 중: {item} - {sub}")
-            crawl_naver_cafe(item, sub, driver)
+            # crawl_naver_cafe(item, sub, driver) # 카페 함수가 있다면 유지
             crawl_naver_kin(item, sub)
-            time.sleep(random.uniform(2, 4))
+            time.sleep(random.uniform(1.5, 3))
 
     driver.quit()
     print("✨ 전체 크롤링 및 중복 방지 처리 완료")

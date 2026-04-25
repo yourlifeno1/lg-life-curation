@@ -304,20 +304,21 @@ def show_voc_section(u_dong):
 
 # [신규 함수] 네이버 쇼핑 인사이트 주간 TOP5 출력
 def show_shopping_trend_section():
-    """네이버 쇼핑인사이트 19개 카테고리 분석 (출력 보장 버전)"""
+    """네이버 쇼핑인사이트 19개 카테고리 분석 (날짜 보정 및 출력 보장 버전)"""
     import datetime
     import requests
     import json
 
-    # 1. 날짜 설정 (네이버 데이터는 보통 2~3일 전 주간 데이터가 가장 안정적입니다)
+    # 1. 날짜 설정 (네이버 데이터 집계 안전권인 '지난주 월요일~일요일'로 설정)
     today = datetime.datetime.now()
-    end_date_dt = today - datetime.timedelta(days=3) 
-    start_date_dt = end_date_dt - datetime.timedelta(days=7)
+    # 무조건 데이터가 존재하는 1주일 전 일요일을 종료일로 설정
+    last_sunday = today - datetime.timedelta(days=today.weekday() + 1)
+    last_monday = last_sunday - datetime.timedelta(days=6)
     
-    week_title = start_date_dt.strftime('%Y.%m.%d.') + " 주간"
-    week_range = f"{start_date_dt.strftime('%Y.%m.%d.')} ~ {end_date_dt.strftime('%Y.%m.%d.')}"
+    week_title = last_monday.strftime('%Y.%m.%d.') + " 주간"
+    week_range = f"{last_monday.strftime('%Y.%m.%d.')} ~ {last_sunday.strftime('%Y.%m.%d.')}"
 
-    # 2. 카테고리 리스트
+    # 2. 카테고리 리스트 (매니저님이 주신 코드)
     full_list = [
         {"name": "TV", "param": ["10000374"]}, {"name": "로봇청소기", "param": ["10007182"]},
         {"name": "무선청소기", "param": ["10007183"]}, {"name": "냉장고", "param": ["10000376"]},
@@ -339,13 +340,13 @@ def show_shopping_trend_section():
 
     all_results = []
     
-    # 3. 데이터 수집 루프
     try:
+        # API 제한 때문에 5개씩 끊어서 호출
         for i in range(0, len(full_list), 5):
             chunk = full_list[i:i+5]
             body = {
-                "startDate": start_date_dt.strftime('%Y-%m-%d'),
-                "endDate": end_date_dt.strftime('%Y-%m-%d'),
+                "startDate": last_monday.strftime('%Y-%m-%d'),
+                "endDate": last_sunday.strftime('%Y-%m-%d'),
                 "timeUnit": "week",
                 "category": chunk
             }
@@ -355,34 +356,35 @@ def show_shopping_trend_section():
                 data = res.json().get('results', [])
                 for r in data:
                     if r.get('data'):
+                        # 가장 최근 데이터 포인트의 ratio 값 사용
                         all_results.append({"name": r['title'], "ratio": r['data'][-1]['ratio']})
         
-        # 4. 결과 출력
-        if not all_results:
-            st.info("📊 현재 네이버 쇼핑 트렌드 데이터를 불러오는 중입니다. 잠시만 기다려주세요.")
-            return
+        # 데이터 정렬 및 출력
+        if all_results:
+            sorted_rank = sorted(all_results, key=lambda x: x['ratio'], reverse=True)[:5]
 
-        sorted_rank = sorted(all_results, key=lambda x: x['ratio'], reverse=True)[:5]
-
-        st.markdown(f"""
-            <div style="background: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 25px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); text-align: center;">
-                <div style="font-size: 22px; font-weight: 800; color: #212529; margin-bottom: 5px;">{week_title}</div>
-                <div style="font-size: 15px; color: #ADB5BD; margin-bottom: 20px;">({week_range})</div>
-                <hr style="border: 0; border-top: 1px solid #F1F3F5; margin-bottom: 20px; width: 40px; margin: 0 auto;">
-                <div style="text-align: left; max-width: 250px; margin: 0 auto;">
-        """, unsafe_allow_html=True)
-
-        for idx, item in enumerate(sorted_rank):
             st.markdown(f"""
-                <div style="display: flex; align-items: center; margin-bottom: 15px;">
-                    <span style="font-size: 16px; font-weight: 900; color: #212529; width: 35px;">{idx+1}</span>
-                    <span style="font-size: 16px; font-weight: 500; color: #495057;">{item['name']}</span>
-                </div>
+                <div style="background: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 25px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); text-align: center;">
+                    <div style="font-size: 22px; font-weight: 800; color: #212529; margin-bottom: 5px;">{week_title}</div>
+                    <div style="font-size: 15px; color: #ADB5BD; margin-bottom: 20px;">({week_range})</div>
+                    <hr style="border: 0; border-top: 1px solid #F1F3F5; margin-bottom: 20px; width: 40px; margin: 0 auto;">
+                    <div style="text-align: left; max-width: 250px; margin: 0 auto;">
             """, unsafe_allow_html=True)
-        st.markdown("</div></div>", unsafe_allow_html=True)
+
+            for idx, item in enumerate(sorted_rank):
+                st.markdown(f"""
+                    <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                        <span style="font-size: 16px; font-weight: 900; color: #212529; width: 35px;">{idx+1}</span>
+                        <span style="font-size: 16px; font-weight: 500; color: #495057;">{item['name']}</span>
+                    </div>
+                """, unsafe_allow_html=True)
+            st.markdown("</div></div>", unsafe_allow_html=True)
+        else:
+            # 데이터가 정말 없는 경우 가짜 데이터가 아닌 안내 문구 출력
+            st.info("📊 현재 네이버에서 주간 데이터를 집계 중입니다. 잠시 후 다시 시도해주세요.")
 
     except Exception as e:
-        st.error(f"데이터 연결 중 오류 발생: {e}")
+        st.error(f"오류 발생: {e}")
         
 # --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")

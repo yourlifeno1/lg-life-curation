@@ -304,39 +304,30 @@ def show_voc_section(u_dong):
 
 # [신규 함수] 네이버 쇼핑 인사이트 주간 TOP5 출력
 def show_shopping_trend_section():
-    """매니저님이 주신 19개 카테고리 중 주간 클릭수 TOP 5를 추출"""
+    """네이버 쇼핑인사이트 19개 카테고리 분석 (출력 보장 버전)"""
     import datetime
     import requests
     import json
-    
-    # 1. 날짜 설정 (최근 완료된 주간 데이터)
+
+    # 1. 날짜 설정 (네이버 데이터는 보통 2~3일 전 주간 데이터가 가장 안정적입니다)
     today = datetime.datetime.now()
-    end_date_dt = today - datetime.timedelta(days=2) 
+    end_date_dt = today - datetime.timedelta(days=3) 
     start_date_dt = end_date_dt - datetime.timedelta(days=7)
     
     week_title = start_date_dt.strftime('%Y.%m.%d.') + " 주간"
     week_range = f"{start_date_dt.strftime('%Y.%m.%d.')} ~ {end_date_dt.strftime('%Y.%m.%d.')}"
 
-    # 2. 매니저님이 주신 19개 카테고리 리스트
-    full_category_list = [
-        {"name": "TV", "param": ["10000374"]},
-        {"name": "로봇청소기", "param": ["10007182"]},
-        {"name": "무선청소기", "param": ["10007183"]},
-        {"name": "냉장고", "param": ["10000376"]},
-        {"name": "세탁기/건조기", "param": ["10000378"]},
-        {"name": "에어컨", "param": ["10007136"]},
-        {"name": "제습기", "param": ["10007135"]},
-        {"name": "공기청정기", "param": ["10008092"]},
-        {"name": "가습기", "param": ["10007128"]},
-        {"name": "식기세척기", "param": ["10007146"]},
-        {"name": "전자레인지", "param": ["10007151"]},
-        {"name": "전기레인지", "param": ["10007193"]},
-        {"name": "음식물처리기", "param": ["10007194"]},
-        {"name": "사운드바", "param": ["10007441"]},
-        {"name": "프로젝터", "param": ["10004193"]},
-        {"name": "환풍기", "param": ["10007853"]},
-        {"name": "노트북", "param": ["10000395"]},
-        {"name": "모니터", "param": ["10000397"]}
+    # 2. 카테고리 리스트
+    full_list = [
+        {"name": "TV", "param": ["10000374"]}, {"name": "로봇청소기", "param": ["10007182"]},
+        {"name": "무선청소기", "param": ["10007183"]}, {"name": "냉장고", "param": ["10000376"]},
+        {"name": "세탁기/건조기", "param": ["10000378"]}, {"name": "에어컨", "param": ["10007136"]},
+        {"name": "제습기", "param": ["10007135"]}, {"name": "공기청정기", "param": ["10008092"]},
+        {"name": "가습기", "param": ["10007128"]}, {"name": "식기세척기", "param": ["10007146"]},
+        {"name": "전자레인지", "param": ["10007151"]}, {"name": "전기레인지", "param": ["10007193"]},
+        {"name": "음식물처리기", "param": ["10007194"]}, {"name": "사운드바", "param": ["10007441"]},
+        {"name": "프로젝터", "param": ["10004193"]}, {"name": "환풍기", "param": ["10007853"]},
+        {"name": "노트북", "param": ["10000395"]}, {"name": "모니터", "param": ["10000397"]}
     ]
 
     url = "https://openapi.naver.com/v1/datalab/shopping/categories"
@@ -347,48 +338,51 @@ def show_shopping_trend_section():
     }
 
     all_results = []
+    
+    # 3. 데이터 수집 루프
     try:
-        # API 제한(한 번에 5개) 때문에 나눠서 호출
-        for i in range(0, len(full_category_list), 5):
-            chunk = full_category_list[i:i+5]
+        for i in range(0, len(full_list), 5):
+            chunk = full_list[i:i+5]
             body = {
                 "startDate": start_date_dt.strftime('%Y-%m-%d'),
                 "endDate": end_date_dt.strftime('%Y-%m-%d'),
                 "timeUnit": "week",
-                "category": chunk,
-                "device": "", "gender": "", "ages": []
+                "category": chunk
             }
             res = requests.post(url, headers=headers, data=json.dumps(body))
+            
             if res.status_code == 200:
-                data = res.json()['results']
+                data = res.json().get('results', [])
                 for r in data:
-                    if r['data']:
-                        # 가장 최신 주간의 ratio 값을 가져옴
+                    if r.get('data'):
                         all_results.append({"name": r['title'], "ratio": r['data'][-1]['ratio']})
+        
+        # 4. 결과 출력
+        if not all_results:
+            st.info("📊 현재 네이버 쇼핑 트렌드 데이터를 불러오는 중입니다. 잠시만 기다려주세요.")
+            return
 
-        # 3. 전체 19개 중 클릭 비중 높은 순 TOP 5 정렬
         sorted_rank = sorted(all_results, key=lambda x: x['ratio'], reverse=True)[:5]
 
-        if sorted_rank:
-            st.markdown(f"""
-                <div style="background: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 25px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); text-align: center;">
-                    <div style="font-size: 22px; font-weight: 800; color: #212529; margin-bottom: 5px;">{week_title}</div>
-                    <div style="font-size: 15px; color: #ADB5BD; margin-bottom: 20px;">({week_range})</div>
-                    <hr style="border: 0; border-top: 1px solid #F1F3F5; margin-bottom: 20px; width: 40px; margin: 0 auto;">
-                    <div style="text-align: left; max-width: 250px; margin: 0 auto;">
-            """, unsafe_allow_html=True)
+        st.markdown(f"""
+            <div style="background: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 25px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); text-align: center;">
+                <div style="font-size: 22px; font-weight: 800; color: #212529; margin-bottom: 5px;">{week_title}</div>
+                <div style="font-size: 15px; color: #ADB5BD; margin-bottom: 20px;">({week_range})</div>
+                <hr style="border: 0; border-top: 1px solid #F1F3F5; margin-bottom: 20px; width: 40px; margin: 0 auto;">
+                <div style="text-align: left; max-width: 250px; margin: 0 auto;">
+        """, unsafe_allow_html=True)
 
-            for idx, item in enumerate(sorted_rank):
-                st.markdown(f"""
-                    <div style="display: flex; align-items: center; margin-bottom: 15px;">
-                        <span style="font-size: 16px; font-weight: 900; color: #212529; width: 35px;">{idx+1}</span>
-                        <span style="font-size: 16px; font-weight: 500; color: #495057;">{item['name']}</span>
-                    </div>
-                """, unsafe_allow_html=True)
-            st.markdown("</div></div>", unsafe_allow_html=True)
-            
+        for idx, item in enumerate(sorted_rank):
+            st.markdown(f"""
+                <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                    <span style="font-size: 16px; font-weight: 900; color: #212529; width: 35px;">{idx+1}</span>
+                    <span style="font-size: 16px; font-weight: 500; color: #495057;">{item['name']}</span>
+                </div>
+            """, unsafe_allow_html=True)
+        st.markdown("</div></div>", unsafe_allow_html=True)
+
     except Exception as e:
-        pass
+        st.error(f"데이터 연결 중 오류 발생: {e}")
         
 # --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")

@@ -1,30 +1,22 @@
 import requests
 import json
-import pandas as pd
 from datetime import datetime, timedelta
 
-# --- [설정 구역] ---
-NAVER_CLIENT_ID = "IlynXlpQmqqD8GfQRJj6"
-NAVER_CLIENT_SECRET = "28cZQMwaJ9"
-
-# 매니저님의 구글 시트 업데이트를 위한 설정 (gspread 등 라이브러리 필요)
-# 여기서는 로직의 핵심인 '데이터 추출'에 집중합니다.
-
-def get_naver_shopping_trend():
-    url = "https://openapi.naver.com/v1/datalab/shopping/categories"
+def run_trend_crawler():
+    # --- 설정 영역 ---
+    CLIENT_ID = "IlynXlpQmqqD8GfQRJj6"
+    CLIENT_SECRET = "28cZQMwaJ9"
+    # 매니저님이 방금 배포한 앱스 스크립트 URL입니다.
+    GOOGLE_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzRXThSGjg2VGD4qAsIXaZwT8X_NuzHECA1ii2EsDAEAt_BL-SFVZPEFWPUdG1TMcjC/exec" 
     
-    # 1. 날짜 설정 (안전하게 집계가 완료된 지난주 전체 데이터를 기준)
-    today = datetime.now()
-    end_date = (today - timedelta(days=2)).strftime('%Y-%m-%d')
-    start_date = (today - timedelta(days=9)).strftime('%Y-%m-%d')
+    naver_url = "https://openapi.naver.com/v1/datalab/shopping/categories"
     
-    headers = {
-        "X-Naver-Client-Id": NAVER_CLIENT_ID,
-        "X-Naver-Client-Secret": NAVER_CLIENT_SECRET,
-        "Content-Type": "application/json"
-    }
+    # 날짜: 안전하게 집계 완료된 지난주 기준 (최근 7일치)
+    target_date = datetime.now() - timedelta(days=3)
+    start_date = (target_date - timedelta(days=7)).strftime('%Y-%m-%d')
+    end_date = target_date.strftime('%Y-%m-%d')
 
-    # 2. 매니저님이 주신 19개 카테고리 코드
+    # 매니저님이 관리하시는 19개 카테고리
     categories = [
         {"name": "TV", "param": ["10000374"]}, {"name": "로봇청소기", "param": ["10007182"]},
         {"name": "무선청소기", "param": ["10007183"]}, {"name": "냉장고", "param": ["10000376"]},
@@ -37,43 +29,34 @@ def get_naver_shopping_trend():
         {"name": "노트북", "param": ["10000395"]}, {"name": "모니터", "param": ["10000397"]}
     ]
 
-    all_results = []
+    headers = {
+        "X-Naver-Client-Id": CLIENT_ID, 
+        "X-Naver-Client-Secret": CLIENT_SECRET, 
+        "Content-Type": "application/json"
+    }
+    
+    payload = []
+    print(f"🚀 네이버에서 데이터 수집을 시작합니다... ({start_date} ~ {end_date})")
 
-    # 3. 5개씩 끊어서 호출 (API 제한)
     for i in range(0, len(categories), 5):
         chunk = categories[i:i+5]
-        body = {
-            "startDate": start_date,
-            "endDate": end_date,
-            "timeUnit": "week",
-            "category": chunk
-        }
+        body = {"startDate": start_date, "endDate": end_date, "timeUnit": "week", "category": chunk}
+        res = requests.post(naver_url, headers=headers, data=json.dumps(body))
         
-        response = requests.post(url, headers=headers, data=json.dumps(body))
-        if response.status_code == 200:
-            items = response.json().get('results', [])
-            for item in items:
-                if item['data']:
-                    # 가장 최근 주간의 클릭 비중(ratio) 수집
-                    all_results.append({
-                        "품목명": item['title'],
-                        "클릭지수": item['data'][-1]['ratio']
-                    })
-    
-    # 4. 데이터 정렬 (클릭지수 높은 순)
-    df = pd.DataFrame(all_results)
-    df_sorted = df.sort_values(by="클릭지수", ascending=False).reset_index(drop=True)
-    df_sorted['순위'] = df_sorted.index + 1
-    
-    # 상위 5개 추출
-    top5 = df_sorted[['순위', '품목명']].head(5)
-    
-    print("=== 금주 가전 쇼핑 트렌드 TOP 5 ===")
-    print(top5)
-    
-    return top5
+        if res.status_code == 200:
+            for r in res.json().get('results', []):
+                if r['data']:
+                    # 각 품목의 최신 ratio(클릭지수)를 가져옴
+                    payload.append({"name": r['title'], "ratio": r['data'][-1]['ratio']})
 
-# 실행
+    # 구글 시트로 데이터 전송 (앱스 스크립트 실행)
+    if payload:
+        response = requests.post(GOOGLE_WEBAPP_URL, data=json.dumps(payload))
+        if response.status_code == 200:
+            print(f"✅ 'LG_가전_Week_Trend' 시트에 기록 완료! (총 {len(payload)}개 품목)")
+        else:
+            print(f"❌ 시트 전송 실패 (상태 코드: {response.status_code})")
+            print("앱스 스크립트 배포 시 '액세스 권한: 모든 사용자'로 설정했는지 확인해주세요.")
+
 if __name__ == "__main__":
-    trend_df = get_naver_shopping_trend()
-    # 이 결과를 구글 시트의 특정 탭에 업데이트하는 코드를 추가하면 됩니다.
+    run_trend_crawler()

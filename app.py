@@ -304,11 +304,12 @@ def show_voc_section(u_dong):
 
 # [신규 함수] 네이버 쇼핑 인사이트 주간 TOP5 출력
 def show_shopping_trend_section():
-    """크롤러가 기록한 주간 트렌드 데이터를 불러와서 출력"""
+    """새로 만든 LG_가전_Week_Trend 시트에서 데이터를 읽어와 상위 5위 출력"""
     import datetime
     import pandas as pd
+    import streamlit as st
 
-    # 1. 날짜 설정 (사용자에게는 현재 주간 정보를 안내)
+    # 1. 날짜 표시 설정 (현재 날짜 기준 이번 주 월요일~금요일)
     today = datetime.datetime.now()
     monday = today - datetime.timedelta(days=today.weekday())
     friday = monday + datetime.timedelta(days=4)
@@ -316,20 +317,19 @@ def show_shopping_trend_section():
     week_title = monday.strftime('%Y.%m.%d.') + " 주간"
     week_range = f"{monday.strftime('%Y.%m.%d.')} ~ {friday.strftime('%Y.%m.%d.')}"
 
-    # 2. 데이터 불러오기 (크롤러가 기록해둔 시트 주소 사용)
-    # 기존 SHEET_CSV_URL 외에 트렌드 전용 URL이 있다면 변경해주세요.
-    TREND_DATA_URL = SHEET_CSV_URL 
+    # 2. 매니저님이 주신 새로운 구글 시트 CSV URL
+    TREND_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1Qox47HWyzFZT4mm3ZQsU8IYI2_PWtWb0Cg4_8YxaZsu7vBeUv7urCQO5z-Tcd5JhfZXkeG4bvqkw/pub?gid=0&single=true&output=csv"
 
     try:
-        # 기록된 데이터 읽기
-        df = pd.read_csv(TREND_DATA_URL)
+        # 시트 데이터 읽기
+        df = pd.read_csv(TREND_CSV_URL)
         
-        # 크롤러가 '쇼핑순위' 탭 등에 기록했다면 해당 데이터만 필터링하거나 
-        # 상위 5개 행을 가져옵니다.
-        # 여기서는 df에 '순위', '품목명' 컬럼이 있다고 가정합니다.
-        trend_items = df.head(5) 
+        # 3. 로직 핵심: 19개 품목 중 '클릭지수'가 높은 순으로 실시간 정렬
+        # 시트의 컬럼명이 '클릭지수'여야 합니다.
+        df_sorted = df.sort_values(by='클릭지수', ascending=False).reset_index(drop=True)
+        top5 = df_sorted.head(5)
 
-        # --- [디자인 출력] ---
+        # --- [디자인 출력 시작] ---
         st.markdown(f"""
             <div style="background: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 25px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); text-align: center;">
                 <div style="font-size: 22px; font-weight: 800; color: #212529; margin-bottom: 5px;">{week_title}</div>
@@ -338,21 +338,20 @@ def show_shopping_trend_section():
                 <div style="text-align: left; max-width: 250px; margin: 0 auto;">
         """, unsafe_allow_html=True)
 
-        for idx, row in trend_items.iterrows():
-            # 크롤러가 저장한 '품목명' 컬럼 값을 출력
-            name = row['품목명'] 
+        # 4. 정렬된 상위 5개 품목 출력
+        for idx, row in top5.iterrows():
             st.markdown(f"""
                 <div style="display: flex; align-items: center; margin-bottom: 15px;">
                     <span style="font-size: 16px; font-weight: 900; color: #212529; width: 35px;">{idx+1}</span>
-                    <span style="font-size: 16px; font-weight: 500; color: #495057;">{name}</span>
+                    <span style="font-size: 16px; font-weight: 500; color: #495057;">{row['품목명']}</span>
                 </div>
             """, unsafe_allow_html=True)
             
         st.markdown("</div></div>", unsafe_allow_html=True)
 
     except Exception as e:
-        # 데이터가 아직 기록되지 않았거나 경로 오류 시
-        st.caption("📍 실시간 가전 트렌드 정보를 업데이트 중입니다.")
+        # 데이터가 비어있거나 URL 오류 시 출력
+        st.info("📊 현재 가전 쇼핑 트렌드 순위를 업데이트 중입니다.")
         
 # --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")

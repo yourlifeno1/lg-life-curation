@@ -97,7 +97,7 @@ def refine_category(title, summary, initial_item):
     return initial_item
 
 # ==========================================
-# 3. 데이터 전송 함수 (시트 분기)
+# 3. 데이터 전송 함수
 # ==========================================
 
 # A. 가전 VOC 전송 (naverkin_voc 시트)
@@ -126,10 +126,9 @@ def push_to_sheet(channel, region, category, title, summary, post_date, issue_ta
 
 # 2. 네이버 카페 API 수집 함수 추가
 def search_naver_cafe_api(final_cat, sub):
-    # 밖에 선언된 GLOBAL_TITLES를 이 함수에서 사용하겠다는 선언
-    global GLOBAL_TITLES 
+    global GLOBAL_TITLES # 전역 변수 사용 선언
     
-    print(f"🔎 [카페 API] {final_cat} - {sub} 수집 중...")
+    print(f"🔎 [카페 API] {final_cat} - {sub} 수집 시도...")
     url = "https://openapi.naver.com/v1/search/cafearticle.json"
     
     headers = {
@@ -138,36 +137,41 @@ def search_naver_cafe_api(final_cat, sub):
     }
     
     query = f"{final_cat} {sub}"
-    params = {
-        "query": query,
-        "display": 20, 
-        "start": 1,
-        "sort": "date"
-    }
+    params = {"query": query, "display": 20, "start": 1, "sort": "date"}
 
     try:
         res = requests.get(url, headers=headers, params=params)
         items = res.json().get('items', [])
         
+        if not items:
+            print(f"   └ ❌ 검색 결과 없음")
+            return
+
+        send_count = 0
         for item in items:
             title = item['title'].replace('<b>', '').replace('</b>', '')
             summary = item['description'].replace('<b>', '').replace('</b>', '')
             
-            # [수정] existing_titles 대신 GLOBAL_TITLES 사용
+            # 중복 체크 키 생성
             combined_id = title + summary
+            
             if combined_id in GLOBAL_TITLES:
+                # print(f"   └ 중복 건너뜀") # 너무 많이 뜨면 지저분하므로 주석 처리
                 continue
             
             combined_text = title + " " + summary
             region_name = extract_region(combined_text)
             brand_name = extract_brand(combined_text)
-            
             post_date = item['pubDate'] 
             
+            # 전송 시도
             push_to_sheet("네이버 카페(API)", region_name, final_cat, title, summary, post_date, sub, brand_name)
             
-            # [수정] GLOBAL_TITLES에 추가하여 이후 지식iN 수집 시 중복 방지
+            # 성공 시 세트에 추가
             GLOBAL_TITLES.add(combined_id)
+            send_count += 1
+            
+        print(f"   └ ✅ 신규 데이터 {send_count}건 전송 시도 완료")
             
     except Exception as e:
         print(f"❌ 카페 API 오류: {e}")

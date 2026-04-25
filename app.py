@@ -303,21 +303,12 @@ def show_voc_section(u_dong):
         st.caption("데이터 연결 상태를 확인 중입니다...")
 
 # [신규 함수] 네이버 쇼핑 인사이트 주간 TOP5 출력
-매니저님, 맞습니다! 바로 그 파라미터들이 네이버 쇼핑인사이트 API의 핵심입니다. 매니저님이 주신 categories API 명세에 맞춰서, **timeUnit**을 포함한 JSON 데이터를 완벽하게 구성하여 실시간으로 동작하는 최종 코드를 다시 정리해 드립니다.
-
-특히, 이 API는 결과값(title)에 키워드 이름이 포함되어 나오므로, 제가 아까 임시로 넣었던 "냉장고, 세탁기" 같은 수동 매칭 없이 실제 네이버 인기 검색어가 그대로 출력되도록 로직을 수정했습니다.
-
-🛠️ 최종 적용할 show_shopping_trend_section 함수
-app (52).py 파일의 302라인 근처에 아래 코드를 복사해서 넣으세요. (이 코드는 매니저님이 말씀하신 파라미터 구조를 완벽히 따릅니다.)
-
-Python
 def show_shopping_trend_section():
     """네이버 쇼핑인사이트 분야별 트렌드 API 적용 (주간 TOP 5)"""
     import datetime
     
-    # 1. 날짜 설정 (최근 완료된 주간 데이터를 가져오기 위해 날짜 계산)
+    # 1. 날짜 설정
     today = datetime.datetime.now()
-    # 안전하게 3일 전 기준으로 해당 주의 월요일 계산 (네이버 데이터 업데이트 지연 대비)
     base_date = today - datetime.timedelta(days=3)
     monday = base_date - datetime.timedelta(days=base_date.weekday())
     friday = monday + datetime.timedelta(days=4)
@@ -325,17 +316,14 @@ def show_shopping_trend_section():
     week_title = monday.strftime('%Y.%m.%d.') + " 주간"
     week_range = f"{monday.strftime('%Y.%m.%d.')} ~ {friday.strftime('%Y.%m.%d.')}"
 
-    # 2. 매니저님이 확인하신 요청 URL 및 JSON 파라미터 구성
-    url = "https://openapi.naver.com/v1/datalab/shopping/categories"
+    # 2. 요청 URL (인기 검색어 순위를 가져오는 API로 세팅)
+    url = "https://openapi.naver.com/v1/datalab/shopping/category/keywords"
     
-    # JSON 형식의 Body 데이터 (매니저님이 주신 파라미터 반영)
     body = {
         "startDate": monday.strftime('%Y-%m-%d'),
         "endDate": friday.strftime('%Y-%m-%d'),
-        "timeUnit": "week", # 주간 단위 (Y)
-        "category": [
-            {"name": "가전제품", "param": ["50000003"]}
-        ],
+        "timeUnit": "week",
+        "category": "50000003", # 가전제품 카테고리
         "device": "", "gender": "", "ages": []
     }
     
@@ -349,12 +337,9 @@ def show_shopping_trend_section():
         res = requests.post(url, headers=headers, data=json.dumps(body))
         if res.status_code == 200:
             res_data = res.json()
-            # API 응답에서 실제 데이터 추출 (categories API는 세부 검색어 데이터를 포함함)
-            # 주의: 실제 검색어 순위는 'keywords' API가 더 정확할 수 있으나, 
-            # categories API 사용 시 해당 카테고리 내의 트렌드 지표가 나옵니다.
+            # 실제 인기 검색어 결과 추출
             results = res_data['results'][0]['data']
-            
-            # 비율(ratio)이 높은 순서대로 정렬
+            # 검색 비중(ratio) 순으로 정렬
             sorted_items = sorted(results, key=lambda x: x['ratio'], reverse=True)[:5]
             
             # --- [디자인 출력] ---
@@ -366,22 +351,16 @@ def show_shopping_trend_section():
                     <div style="text-align: left; max-width: 250px; margin: 0 auto;">
             """, unsafe_allow_html=True)
 
-            # API 결과에서 가져온 실제 명칭 출력 (없을 경우 예시 키워드 활용)
             for i, item in enumerate(sorted_items):
-                # categories API 응답 구조에 따라 'name' 또는 'period'가 올 수 있습니다.
-                # 보통 분야별 트렌드는 해당 기간의 '가전제품' 클릭 비중을 의미합니다.
-                # 만약 인기 '검색어'를 원하신다면 /shopping/category/keywords API가 더 적합합니다.
-                display_name = item.get('name', f"인기 가전 항목 {i+1}") 
-                
                 st.markdown(f"""
                     <div style="display: flex; align-items: center; margin-bottom: 15px;">
                         <span style="font-size: 16px; font-weight: 900; color: #212529; width: 35px;">{i+1}</span>
-                        <span style="font-size: 16px; font-weight: 500; color: #495057;">{display_name}</span>
+                        <span style="font-size: 16px; font-weight: 500; color: #495057;">{item['name']}</span>
                     </div>
                 """, unsafe_allow_html=True)
             st.markdown("</div></div>", unsafe_allow_html=True)
-    except:
-        st.info("📊 이번 주 가전 쇼핑 트렌드 데이터를 분석 중입니다.")
+    except Exception as e:
+        st.info(f"📊 주간 트렌드 분석 데이터를 불러오는 중입니다.")
         
 # --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")

@@ -304,22 +304,23 @@ def show_voc_section(u_dong):
 
 # [신규 함수] 네이버 쇼핑 인사이트 주간 TOP5 출력
 def show_shopping_trend_section():
-    """네이버 쇼핑인사이트 19개 카테고리 분석 (날짜 보정 및 출력 보장 버전)"""
+    """네이버 API에서 19개 품목의 클릭수를 가져와서 상위 5개 출력"""
     import datetime
     import requests
     import json
 
-    # 1. 날짜 설정 (네이버 데이터 집계 안전권인 '지난주 월요일~일요일'로 설정)
+    # 1. 날짜 설정 (데이터가 무조건 존재하는 2주 전 ~ 1주 전 데이터로 안전하게 설정)
     today = datetime.datetime.now()
-    # 무조건 데이터가 존재하는 1주일 전 일요일을 종료일로 설정
-    last_sunday = today - datetime.timedelta(days=today.weekday() + 1)
-    last_monday = last_sunday - datetime.timedelta(days=6)
+    # 지난주 일요일
+    end_date_dt = today - datetime.timedelta(days=today.weekday() + 1)
+    # 그 전주 월요일
+    start_date_dt = end_date_dt - datetime.timedelta(days=6)
     
-    week_title = last_monday.strftime('%Y.%m.%d.') + " 주간"
-    week_range = f"{last_monday.strftime('%Y.%m.%d.')} ~ {last_sunday.strftime('%Y.%m.%d.')}"
+    week_title = start_date_dt.strftime('%Y.%m.%d.') + " 주간"
+    week_range = f"{start_date_dt.strftime('%Y.%m.%d.')} ~ {end_date_dt.strftime('%Y.%m.%d.')}"
 
-    # 2. 카테고리 리스트 (매니저님이 주신 코드)
-    full_list = [
+    # 2. 매니저님이 주신 19개 품목 및 카테고리 코드
+    categories = [
         {"name": "TV", "param": ["10000374"]}, {"name": "로봇청소기", "param": ["10007182"]},
         {"name": "무선청소기", "param": ["10007183"]}, {"name": "냉장고", "param": ["10000376"]},
         {"name": "세탁기/건조기", "param": ["10000378"]}, {"name": "에어컨", "param": ["10007136"]},
@@ -338,31 +339,35 @@ def show_shopping_trend_section():
         "Content-Type": "application/json"
     }
 
-    all_results = []
-    
+    all_data = []
+
     try:
-        # API 제한 때문에 5개씩 끊어서 호출
-        for i in range(0, len(full_list), 5):
-            chunk = full_list[i:i+5]
+        # API는 한 번에 5개까지만 비교 가능하므로 쪼개서 호출
+        for i in range(0, len(categories), 5):
+            chunk = categories[i:i+5]
             body = {
-                "startDate": last_monday.strftime('%Y-%m-%d'),
-                "endDate": last_sunday.strftime('%Y-%m-%d'),
+                "startDate": start_date_dt.strftime('%Y-%m-%d'),
+                "endDate": end_date_dt.strftime('%Y-%m-%d'),
                 "timeUnit": "week",
                 "category": chunk
             }
             res = requests.post(url, headers=headers, data=json.dumps(body))
-            
             if res.status_code == 200:
-                data = res.json().get('results', [])
-                for r in data:
+                results = res.json().get('results', [])
+                for r in results:
                     if r.get('data'):
-                        # 가장 최근 데이터 포인트의 ratio 값 사용
-                        all_results.append({"name": r['title'], "ratio": r['data'][-1]['ratio']})
-        
-        # 데이터 정렬 및 출력
-        if all_results:
-            sorted_rank = sorted(all_results, key=lambda x: x['ratio'], reverse=True)[:5]
+                        # 해당 기간의 클릭수 비중(ratio) 평균값 계산 또는 마지막 값 추출
+                        # 여기서는 가장 직관적인 마지막 주차 ratio를 사용합니다.
+                        all_data.append({
+                            "name": r['title'],
+                            "ratio": r['data'][-1]['ratio']
+                        })
 
+        # 3. 모든 품목의 클릭수를 비교하여 높은 순으로 정렬
+        top5 = sorted(all_data, key=lambda x: x['ratio'], reverse=True)[:5]
+
+        # 4. 화면 출력 (이미지 디자인 반영)
+        if top5:
             st.markdown(f"""
                 <div style="background: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 25px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); text-align: center;">
                     <div style="font-size: 22px; font-weight: 800; color: #212529; margin-bottom: 5px;">{week_title}</div>
@@ -371,7 +376,7 @@ def show_shopping_trend_section():
                     <div style="text-align: left; max-width: 250px; margin: 0 auto;">
             """, unsafe_allow_html=True)
 
-            for idx, item in enumerate(sorted_rank):
+            for idx, item in enumerate(top5):
                 st.markdown(f"""
                     <div style="display: flex; align-items: center; margin-bottom: 15px;">
                         <span style="font-size: 16px; font-weight: 900; color: #212529; width: 35px;">{idx+1}</span>
@@ -380,11 +385,11 @@ def show_shopping_trend_section():
                 """, unsafe_allow_html=True)
             st.markdown("</div></div>", unsafe_allow_html=True)
         else:
-            # 데이터가 정말 없는 경우 가짜 데이터가 아닌 안내 문구 출력
-            st.info("📊 현재 네이버에서 주간 데이터를 집계 중입니다. 잠시 후 다시 시도해주세요.")
+            # 데이터 수집 실패 시 시각적 알림
+            st.warning("📊 현재 가전 인기 품목 데이터를 분석하고 있습니다.")
 
     except Exception as e:
-        st.error(f"오류 발생: {e}")
+        st.error(f"분석 중 오류 발생: {e}")
         
 # --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")

@@ -304,66 +304,56 @@ def show_voc_section(u_dong):
 
 # [신규 함수] 네이버 쇼핑 인사이트 주간 TOP5 출력
 def show_trend_section():
+    # 1. 시트 주소
     TREND_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1Qox47HWyzFZT4mm3ZQsU8IYI2_PWtWb0Cg4_8YxaZsu7vBeUv7urCQO5z-Tcd5JhfZXkeG4bvqkw/pub?gid=0&single=true&output=csv"
 
     try:
+        # 데이터 가져오기
         df = pd.read_csv(TREND_CSV_URL)
         df.columns = df.columns.str.strip()
 
-        # 데이터 미리 준비
+        # 주간/일간 데이터 필터링
         weekly_df = df[df['구분'] == 'WEEKLY'].sort_values('클릭지수', ascending=False).reset_index(drop=True).head(5)
         daily_df = df[df['구분'] == 'DAILY'].sort_values('클릭지수', ascending=False).reset_index(drop=True).head(5)
         
+        # 기간 정보 추출
         w_period = weekly_df['집계기간'].iloc[0] if not weekly_df.empty else "-"
         d_period = daily_df['집계기간'].iloc[0] if not daily_df.empty else "-"
 
-        # 전체를 감싸는 하나의 큰 카드 시작
+        # --- HTML 코드 조립 시작 ---
         html_code = f"""
-        <div style="background: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); margin-top: 10px;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 20px;">
+        <div style="background-color: white; border: 1px solid #E9ECEF; border-radius: 15px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); margin: 10px 0;">
+            <div style="display: flex; justify-content: space-between;">
                 
-                <div style="flex: 1; border-right: 1px solid #F1F3F5; padding-right: 10px;">
-                    <div style="font-size: 16px; font-weight: 800; color: #212529; margin-bottom: 3px; text-align: center;">📅 주간 트렌드</div>
-                    <div style="font-size: 10px; color: #ADB5BD; margin-bottom: 15px; text-align: center;">{w_period}</div>
+                <div style="flex: 1; border-right: 1px solid #F1F3F5; padding-right: 15px;">
+                    <div style="font-size: 16px; font-weight: 800; color: #212529; text-align: center; margin-bottom: 2px;">📅 주간 트렌드</div>
+                    <div style="font-size: 10px; color: #ADB5BD; text-align: center; margin-bottom: 12px;">{w_period}</div>
         """
-        
-        # 주간 순위 리스트 추가
-        for idx, row in weekly_df.iterrows():
-            html_code += f"""
-                <div style="margin-bottom: 10px; font-size: 14px; display: flex; align-items: center;">
-                    <b style="color:#FF4B4B; min-width: 20px;">{idx+1}</b> 
-                    <span style="color:#495057; margin-left: 5px;">{row['품목명']}</span>
-                </div>
-            """
+
+        # 주간 아이템 추가
+        for i, row in weekly_df.iterrows():
+            html_code += f'<div style="font-size: 14px; margin-bottom: 8px;"><b style="color:#FF4B4B;">{i+1}</b> &nbsp; {row["품목명"]}</div>'
 
         html_code += f"""
                 </div>
                 
-                <div style="flex: 1; padding-left: 10px;">
-                    <div style="font-size: 16px; font-weight: 800; color: #212529; margin-bottom: 3px; text-align: center;">🔥 일간 급상승</div>
-                    <div style="font-size: 10px; color: #ADB5BD; margin-bottom: 15px; text-align: center;">{d_period}</div>
+                <div style="flex: 1; padding-left: 15px;">
+                    <div style="font-size: 16px; font-weight: 800; color: #212529; text-align: center; margin-bottom: 2px;">🔥 일간 급상승</div>
+                    <div style="font-size: 10px; color: #ADB5BD; text-align: center; margin-bottom: 12px;">{d_period}</div>
         """
 
-        # 일간 순위 리스트 추가
-        for idx, row in daily_df.iterrows():
-            html_code += f"""
-                <div style="margin-bottom: 10px; font-size: 14px; display: flex; align-items: center;">
-                    <b style="color:#3182CE; min-width: 20px;">{idx+1}</b> 
-                    <span style="color:#495057; margin-left: 5px;">{row['품목명']}</span>
-                </div>
-            """
+        # 일간 아이템 추가
+        for i, row in daily_df.iterrows():
+            html_code += f'<div style="font-size: 14px; margin-bottom: 8px;"><b style="color:#3182CE;">{i+1}</b> &nbsp; {row["품목명"]}</div>'
 
-        # 태그 닫기 (오른쪽 섹션 닫기 -> 전체 flex 닫기 -> 큰 카드 닫기)
-        html_code += """
-                </div>
-            </div>
-        </div>
-        """
+        # 마무리 닫기 태그
+        html_code += "</div></div></div>"
 
+        # 최종 출력 (여기에 unsafe_allow_html=True가 꼭 있어야 합니다)
         st.markdown(html_code, unsafe_allow_html=True)
 
     except Exception as e:
-        st.caption(f"데이터를 불러오는 중입니다... ({e})")
+        st.caption("데이터 업데이트 중...")
 
         
 # --- UI 메인 ---

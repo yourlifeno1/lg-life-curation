@@ -469,7 +469,7 @@ if loc:
 
     try:
         # [핵심] 장소명에서 괄호를 제거하여 API 호출 (app 4 방식)
-        pure_name = target['name'].split('(')[0].strip()
+        pure_name = target['name'].strip()
         c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{pure_name}"
         c_res = requests.get(c_url, timeout=5)
         

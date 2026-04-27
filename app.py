@@ -468,8 +468,12 @@ if loc:
     shop_lvl, sales_rank, sales_total = "정보 없음", "정보 미제공", "0"
 
     try:
-        # [핵심] 장소명에서 괄호를 제거하여 API 호출 (app 4 방식)
-        pure_name = target['name'].split('(')[0].strip()
+        # [수정] 괄호를 제거하지 않고 전체 이름을 사용
+        pure_name = target['name'].strip() 
+
+        # URL에 한글이나 특수문자(괄호)가 포함될 경우를 대비해 인코딩 처리
+        encoded_name = quote(pure_name)
+        
         c_url = f"http://openapi.seoul.go.kr:8088/{CITY_DATA_KEY}/xml/citydata/1/5/{pure_name}"
         c_res = requests.get(c_url, timeout=5)
         

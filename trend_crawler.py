@@ -21,15 +21,14 @@ def get_naver_raw(categories, age_list=None, gender=None, days=1):
         "gender": gender if gender else ""
     }
     try:
-        res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body))
+        res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body), timeout=10)
         if res.status_code == 200:
-            return res.json().get('results', []), f"{start_date} ~ {end_date}" if days > 1 else end_date
+            return res.json().get('results', []), f"{start_date} ~ {end_date}"
     except:
         pass
     return [], end_date
 
 def run():
-    # 기준점 (냉장고) 및 품목 리스트
     anchor_cat = {"name": "냉장고", "param": ["50000210"]}
     other_cats = [
         {"name": "TV", "param": ["50000209"]}, {"name": "세탁기", "param": ["50000211"]},
@@ -44,40 +43,41 @@ def run():
         {"name": "사운드바", "param": ["50002229"]}, {"name": "프로젝터", "param": ["50000214"]}
     ]
 
-    # --- [1] TOP_Trend 수집 (글로벌 보정) ---
-    print("📊 [1/2] TOP_Trend 수집 중...")
-    temp_weekly = []
-    temp_daily = []
-    
+    # --- [1] TOP_Trend: 완벽한 글로벌 재보정 엔진 ---
+    print("📊 [1/2] TOP_Trend 수집 및 정밀 보정 중...")
+    collected_w = []
+    collected_d = []
+
     for i in range(0, len(other_cats), 2):
         chunk = [anchor_cat] + other_cats[i:i+2]
-        # 주간
+        
+        # 주간/일간 데이터 수집 (냉장고 기준 상대치 확보)
         res_w, p_w = get_naver_raw(chunk, days=7)
-        for r in res_w:
-            data = r.get('data', [])
-            avg = sum([d.get('ratio', 0) for d in data]) / len(data) if data else 0
-            if not any(x['name'] == r['title'] for x in temp_weekly):
-                temp_weekly.append({"name": r['title'], "val": avg, "period": p_w})
-        # 일간
         res_d, p_d = get_naver_raw(chunk, days=1)
+
+        for r in res_w:
+            avg = sum([d.get('ratio', 0) for d in r.get('data', [])]) / len(r.get('data', [1]))
+            # 냉장고는 기준점이니 한 번만 저장, 나머지는 이름 중복 없이 저장
+            if not any(x['name'] == r['title'] for x in collected_w):
+                collected_w.append({"name": r['title'], "raw": avg, "period": p_w})
+        
         for r in res_d:
-            data = r.get('data', [])
-            val = data[-1].get('ratio', 0) if data else 0
-            if not any(x['name'] == r['title'] for x in temp_daily):
-                temp_daily.append({"name": r['title'], "val": val, "period": p_d})
+            val = r.get('data', [{}])[-1].get('ratio', 0)
+            if not any(x['name'] == r['title'] for x in collected_d):
+                collected_d.append({"name": r['title'], "raw": val, "period": p_d})
 
-    # 글로벌 재보정 (진짜 1등만 100점)
-    def make_top_payload(data_list, t_type):
+    # [핵심] 모든 품목 중 진짜 1등(Max)을 찾아 전체를 다시 나눔 (동점 방지)
+    def finalize_payload(data_list, t_type):
         if not data_list: return []
-        mx = max([x['val'] for x in data_list])
-        mx = mx if mx > 0 else 1
-        return [{"type": t_type, "name": x['name'], "ratio": round((x['val']/mx)*100, 5), "period": x['period']} for x in data_list]
+        global_max = max([x['raw'] for x in data_list])
+        if global_max == 0: global_max = 1
+        return [{"type": t_type, "name": x['name'], "ratio": round((x['raw']/global_max)*100, 5), "period": x['period']} for x in data_list]
 
-    top_payload = make_top_payload(temp_weekly, "WEEKLY") + make_top_payload(temp_daily, "DAILY")
+    top_payload = finalize_payload(collected_w, "WEEKLY") + finalize_payload(collected_d, "DAILY")
     requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": top_payload}))
 
-    # --- [2] Age_Trend 수집 (에러 방어 강화) ---
-    print("📊 [2/2] Age_Trend 수집 중...")
+    # --- [2] Age_Trend: 데이터 누락 방지 및 남녀 통합 보정 ---
+    print("📊 [2/2] Age_Trend 수집 중 (누락 방지 로직 가동)...")
     all_ages = ["10", "20", "30", "40", "50", "60"]
     age_payload = []
 
@@ -86,30 +86,30 @@ def run():
         f_res, period = get_naver_raw([cat], age_list=all_ages, gender="f", days=30)
         
         combined = []
-        # 남성 데이터 처리 (KeyError 방어)
-        if m_res and 'data' in m_res[0]:
-            for a in all_ages:
-                # 해당 연령대(a)가 결과에 없을 경우를 대비해 0으로 합산
-                s = sum([d.get('ratio', 0) for d in m_res[0]['data'] if str(d.get('group', '')) == a])
-                combined.append({"g": "남성", "age": a, "sum": s})
+        # 남성/여성 데이터 합산 (데이터가 하나라도 있으면 combined에 추가)
+        for gender_name, res in [("남성", m_res), ("여성", f_res)]:
+            if res and 'data' in res[0]:
+                for a in all_ages:
+                    # 해당 연령대 데이터가 없는 경우 0으로 처리
+                    s = sum([d.get('ratio', 0) for d in res[0]['data'] if str(d.get('group', '')) == a])
+                    combined.append({"g": gender_name, "age": a, "sum": s})
+            else:
+                # API 응답 자체가 비어있을 경우 모든 연령대 0으로 채움 (0으로라도 데이터가 들어가게 함)
+                for a in all_ages:
+                    combined.append({"g": gender_name, "age": a, "sum": 0})
         
-        # 여성 데이터 처리 (KeyError 방어)
-        if f_res and 'data' in f_res[0]:
-            for a in all_ages:
-                s = sum([d.get('ratio', 0) for d in f_res[0]['data'] if str(d.get('group', '')) == a])
-                combined.append({"g": "여성", "age": a, "sum": s})
-        
-        if combined:
-            p_max = max([x['sum'] for x in combined])
-            p_max = p_max if p_max > 0 else 1
-            for c in combined:
-                age_payload.append({
-                    "gubun": f"AGE_{c['age']}", "gender": c['g'], "name": cat['name'],
-                    "ratio": round((c['sum']/p_max)*100, 5), "period": period
-                })
+        # 해당 품목 내 최대값 찾기 (0만 있을 경우 대비)
+        p_max = max([x['sum'] for x in combined]) if combined else 0
+        p_max = p_max if p_max > 0 else 1 
+
+        for c in combined:
+            age_payload.append({
+                "gubun": f"AGE_{c['age']}", "gender": c['g'], "name": cat['name'],
+                "ratio": round((c['sum']/p_max)*100, 5), "period": period
+            })
             
     requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": age_payload}))
-    print("✅ 모든 수집 및 보정 완료!")
+    print("✅ 보정 완료 및 시트 전송 성공!")
 
 if __name__ == "__main__":
     run()

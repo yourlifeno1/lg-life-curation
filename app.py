@@ -915,7 +915,7 @@ if loc:
                     # 해당 가전의 이슈 키워드 TOP 3 추출
                     app_issue_ranking = target_app_df['이슈 키워드'].value_counts().head(3)
                     
-                    # 상세 카드 디자인 시작
+                    # [핵심] 반복문 시작 전 카드 헤더 생성
                     html_card = f"""
                     <div style="background:#FFFFFF; border:1px solid #007BFF; border-radius:12px; padding:15px; min-height:180px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
                         <div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #F1F3F5; padding-bottom:8px;">
@@ -923,16 +923,23 @@ if loc:
                             <div style="font-size:11px; color:#868E96;">(총 {total_cnt}건)</div>
                         </div>
                     """
-                    # 제품별 이슈 1~3위 리스트 추가
+                    
+                    # [핵심] 반복문을 돌며 이슈 내용을 html_card 변수에 누적 추가
                     for i, (issue, count) in enumerate(app_issue_ranking.items()):
-                        issue_color = "#DA004B" if i == 0 else "#495057" # 1위만 빨간색 강조
+                        issue_color = "#DA004B" if i == 0 else "#495057"
+                        font_weight = "bold" if i == 0 else "normal"
+                        
+                        # 각 행의 HTML을 변수에 더하기
                         html_card += f'''
                         <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px;">
-                            <span style="color:{issue_color}; font-weight:{'bold' if i==0 else 'normal'};">{i+1}위 {issue}</span>
+                            <span style="color:{issue_color}; font-weight:{font_weight};">{i+1}위 {issue}</span>
                             <span style="color:#ADB5BD;">{count}건</span>
                         </div>'''
                     
+                    # 카드 닫기 태그 추가
                     html_card += "</div>"
+                    
+                    # [핵심] 완성된 하나의 HTML 덩어리를 출력
                     st.markdown(html_card, unsafe_allow_html=True)
 
             # --- [최종 가이드 반영] ---

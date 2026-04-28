@@ -1,11 +1,12 @@
 import requests
 import json
+import time
 from datetime import datetime, timedelta
 
 # [설정] 인증키 및 앱 스크립트 URL
 CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"
 CLIENT_SECRET = "28cZQMwaJ9"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbUpuf1euJIHFWcvwVQEusbViI1EtIMqFBGB0NuSgPnqvbQ65nRc_wD2AEhrbgWOmeT/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzUpuf1euJIHFWcvwVQEusbViI1EtIMqFBGB0NuSgPnqvbQ65nRc_wD2AEhrbgWOmeT/exec"
 NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
 def get_naver_raw(categories, age_list=None, gender=None, days=1):
@@ -13,19 +14,28 @@ def get_naver_raw(categories, age_list=None, gender=None, days=1):
     start_date = (kr_now - timedelta(days=days)).strftime('%Y-%m-%d')
     end_date = (kr_now - timedelta(days=1)).strftime('%Y-%m-%d')
     
-    headers = {"X-Naver-Client-Id": CLIENT_ID, "X-Naver-Client-Secret": CLIENT_SECRET, "Content-Type": "application/json"}
+    headers = {
+        "X-Naver-Client-Id": CLIENT_ID, 
+        "X-Naver-Client-Secret": CLIENT_SECRET, 
+        "Content-Type": "application/json"
+    }
     body = {
         "startDate": start_date, "endDate": end_date,
         "timeUnit": "date", "category": categories,
         "ages": age_list if age_list else [],
         "gender": gender if gender else ""
     }
-    try:
-        res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body), timeout=15)
-        if res.status_code == 200:
-            return res.json().get('results', []), f"{start_date} ~ {end_date}" if days > 1 else end_date
-    except Exception as e:
-        print(f"API 호출 중 에러 발생: {e}")
+    
+    # 서버 과부하 방지를 위한 재시도 로직 (최대 3번)
+    for attempt in range(3):
+        try:
+            res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body), timeout=20)
+            if res.status_code == 200:
+                return res.json().get('results', []), f"{start_date} ~ {end_date}" if days > 1 else end_date
+            time.sleep(1) # 잠시 대기 후 재시도
+        except Exception as e:
+            print(f"시도 {attempt+1}: 연결 오류 - {e}")
+            time.sleep(2)
     return [], end_date
 
 def run():
@@ -43,10 +53,8 @@ def run():
         {"name": "사운드바", "param": ["50002229"]}, {"name": "프로젝터", "param": ["50000214"]}
     ]
 
-    # --- [1] TOP_Trend 수집 (에러 방어 및 글로벌 보정) ---
-    print("📊 [1/2] TOP_Trend 수집 중...")
+    print("🚀 [1/2] TOP_Trend 수집 시작...")
     temp_weekly, temp_daily = [], []
-    
     for i in range(0, len(other_cats), 2):
         chunk = [anchor_cat] + other_cats[i:i+2]
         res_w, p_w = get_naver_raw(chunk, days=7)
@@ -60,51 +68,54 @@ def run():
         
         for r in res_d:
             data = r.get('data', [])
-            # [수정] 빈 데이터 리스트([])인 경우 Index 에러 방지
             val = data[-1].get('ratio', 0) if data else 0
             if not any(x['name'] == r['title'] for x in temp_daily):
                 temp_daily.append({"name": r['title'], "val": val, "period": p_d})
 
+    # 글로벌 보정 로직
     def finalize_top(data_list, t_type):
-        mx = max([x['val'] for x in data_list]) if data_list else 1
-        return [{"type": t_type, "name": x['name'], "ratio": round((x['val']/(mx if mx>0 else 1))*100, 5), "period": x['period']} for x in data_list]
+        if not data_list: return []
+        mx = max([x['val'] for x in data_list])
+        divisor = mx if mx > 0 else 1
+        return [{"type": t_type, "name": x['name'], "ratio": round((x['val']/divisor)*100, 5), "period": x['period']} for x in data_list]
 
     top_payload = finalize_top(temp_weekly, "WEEKLY") + finalize_top(temp_daily, "DAILY")
     requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": top_payload}))
 
-    # --- [2] Age_Trend 수집 (모든 연령/성별 통합 보정) ---
-    print("📊 [2/2] Age_Trend 수집 중 (연령별 제품 인기순위 중심)...")
+    print("🚀 [2/2] Age_Trend 수집 시작 (성능 최적화 버전)...")
     all_ages = ["10", "20", "30", "40", "50", "60"]
-    raw_age_data = []
-
-    # 모든 품목을 30일 누적으로 수집 (냉장고 기준 비교)
-    for i in range(0, len(other_cats), 2):
-        chunk = [anchor_cat] + other_cats[i:i+2]
-        for g_code, g_label in [("m", "남성"), ("f", "여성")]:
-            res, period = get_naver_raw(chunk, age_list=all_ages, gender=g_code, days=30)
-            for r in res:
-                title = r['title']
-                for a in all_ages:
-                    # 해당 품목-연령대의 30일 합계 계산 (에러 방어)
-                    s = sum([d.get('ratio', 0) for d in r.get('data', []) if str(d.get('group', '')) == a])
-                    raw_age_data.append({"name": title, "gender": g_label, "age": a, "sum": s, "period": period})
-
-    # [핵심] 연령대별로 '제품 간의 서열'을 보정하기 위해 연령대별 Max값 탐색 및 재규격화
     final_age_payload = []
-    for a in all_ages:
-        # 특정 연령대(예: 40대) 내의 모든 제품-성별 데이터 필터링
-        age_filter = [x for x in raw_age_data if x['age'] == a]
-        if age_filter:
-            age_max = max([x['sum'] for x in age_filter]) if age_filter else 1
-            for item in age_filter:
-                final_age_payload.append({
-                    "gubun": f"AGE_{item['age']}", "gender": item['gender'], "name": item['name'],
-                    "ratio": round((item['sum']/(age_max if age_max>0 else 1))*100, 5), "period": item['period']
-                })
 
+    # 품목별로 루프를 돌되, 네트워크 요청 사이에 아주 짧은 휴식을 줍니다.
+    for cat in [anchor_cat] + other_cats:
+        raw_for_cat = []
+        for g_code, g_label in [("m", "남성"), ("f", "여성")]:
+            res, period = get_naver_raw([cat], age_list=all_ages, gender=g_code, days=30)
+            if res and 'data' in res[0]:
+                for a in all_ages:
+                    s = sum([d.get('ratio', 0) for d in res[0]['data'] if str(d.get('group', '')) == a])
+                    raw_for_cat.append({"g": g_label, "age": a, "sum": s, "period": period})
+            else:
+                for a in all_ages:
+                    raw_for_cat.append({"g": g_label, "age": a, "sum": 0, "period": period})
+        
+        # 품목 내부 보정
+        p_max = max([x['sum'] for x in raw_for_cat]) if raw_for_cat else 0
+        divisor = p_max if p_max > 0 else 1
+        for c in raw_for_cat:
+            final_age_payload.append({
+                "gubun": f"AGE_{c['age']}", "gender": c['g'], "name": cat['name'],
+                "ratio": round((c['sum']/divisor)*100, 5), "period": c['period']
+            })
+        
+        # 0.2초 대기 (GitHub 서버와 네이버 API 사이의 안정성 확보)
+        time.sleep(0.2)
+
+    # 한꺼번에 전송 (통신 횟수 최소화)
     if final_age_payload:
         requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": final_age_payload}))
-    print("✅ 보정 완료 및 전송 성공!")
+
+    print("✅ 모든 작업 완료!")
 
 if __name__ == "__main__":
     run()

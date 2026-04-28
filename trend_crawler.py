@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 # [설정] 인증키 및 앱 스크립트 URL
 CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"
 CLIENT_SECRET = "28cZQMwaJ9"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzUpuf1euJIHFWcvwVQEusbViI1EtIMqFBGB0NuSgPnqvbQ65nRc_wD2AEhrbgWOmeT/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbUpuf1euJIHFWcvwVQEusbViI1EtIMqFBGB0NuSgPnqvbQ65nRc_wD2AEhrbgWOmeT/exec"
 NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
 def get_naver_raw(categories, age_list=None, gender=None, days=1):
@@ -21,11 +21,11 @@ def get_naver_raw(categories, age_list=None, gender=None, days=1):
         "gender": gender if gender else ""
     }
     try:
-        res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body), timeout=10)
+        res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body), timeout=15)
         if res.status_code == 200:
-            return res.json().get('results', []), f"{start_date} ~ {end_date}"
-    except:
-        pass
+            return res.json().get('results', []), f"{start_date} ~ {end_date}" if days > 1 else end_date
+    except Exception as e:
+        print(f"API 호출 중 에러 발생: {e}")
     return [], end_date
 
 def run():
@@ -43,73 +43,68 @@ def run():
         {"name": "사운드바", "param": ["50002229"]}, {"name": "프로젝터", "param": ["50000214"]}
     ]
 
-    # --- [1] TOP_Trend: 완벽한 글로벌 재보정 엔진 ---
-    print("📊 [1/2] TOP_Trend 수집 및 정밀 보정 중...")
-    collected_w = []
-    collected_d = []
-
+    # --- [1] TOP_Trend 수집 (에러 방어 및 글로벌 보정) ---
+    print("📊 [1/2] TOP_Trend 수집 중...")
+    temp_weekly, temp_daily = [], []
+    
     for i in range(0, len(other_cats), 2):
         chunk = [anchor_cat] + other_cats[i:i+2]
-        
-        # 주간/일간 데이터 수집 (냉장고 기준 상대치 확보)
         res_w, p_w = get_naver_raw(chunk, days=7)
         res_d, p_d = get_naver_raw(chunk, days=1)
 
         for r in res_w:
-            avg = sum([d.get('ratio', 0) for d in r.get('data', [])]) / len(r.get('data', [1]))
-            # 냉장고는 기준점이니 한 번만 저장, 나머지는 이름 중복 없이 저장
-            if not any(x['name'] == r['title'] for x in collected_w):
-                collected_w.append({"name": r['title'], "raw": avg, "period": p_w})
+            data = r.get('data', [])
+            avg = sum([d.get('ratio', 0) for d in data]) / len(data) if data else 0
+            if not any(x['name'] == r['title'] for x in temp_weekly):
+                temp_weekly.append({"name": r['title'], "val": avg, "period": p_w})
         
         for r in res_d:
-            val = r.get('data', [{}])[-1].get('ratio', 0)
-            if not any(x['name'] == r['title'] for x in collected_d):
-                collected_d.append({"name": r['title'], "raw": val, "period": p_d})
+            data = r.get('data', [])
+            # [수정] 빈 데이터 리스트([])인 경우 Index 에러 방지
+            val = data[-1].get('ratio', 0) if data else 0
+            if not any(x['name'] == r['title'] for x in temp_daily):
+                temp_daily.append({"name": r['title'], "val": val, "period": p_d})
 
-    # [핵심] 모든 품목 중 진짜 1등(Max)을 찾아 전체를 다시 나눔 (동점 방지)
-    def finalize_payload(data_list, t_type):
-        if not data_list: return []
-        global_max = max([x['raw'] for x in data_list])
-        if global_max == 0: global_max = 1
-        return [{"type": t_type, "name": x['name'], "ratio": round((x['raw']/global_max)*100, 5), "period": x['period']} for x in data_list]
+    def finalize_top(data_list, t_type):
+        mx = max([x['val'] for x in data_list]) if data_list else 1
+        return [{"type": t_type, "name": x['name'], "ratio": round((x['val']/(mx if mx>0 else 1))*100, 5), "period": x['period']} for x in data_list]
 
-    top_payload = finalize_payload(collected_w, "WEEKLY") + finalize_payload(collected_d, "DAILY")
+    top_payload = finalize_top(temp_weekly, "WEEKLY") + finalize_top(temp_daily, "DAILY")
     requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": top_payload}))
 
-    # --- [2] Age_Trend: 데이터 누락 방지 및 남녀 통합 보정 ---
-    print("📊 [2/2] Age_Trend 수집 중 (누락 방지 로직 가동)...")
+    # --- [2] Age_Trend 수집 (모든 연령/성별 통합 보정) ---
+    print("📊 [2/2] Age_Trend 수집 중 (연령별 제품 인기순위 중심)...")
     all_ages = ["10", "20", "30", "40", "50", "60"]
-    age_payload = []
+    raw_age_data = []
 
-    for cat in [anchor_cat] + other_cats:
-        m_res, _ = get_naver_raw([cat], age_list=all_ages, gender="m", days=30)
-        f_res, period = get_naver_raw([cat], age_list=all_ages, gender="f", days=30)
-        
-        combined = []
-        # 남성/여성 데이터 합산 (데이터가 하나라도 있으면 combined에 추가)
-        for gender_name, res in [("남성", m_res), ("여성", f_res)]:
-            if res and 'data' in res[0]:
+    # 모든 품목을 30일 누적으로 수집 (냉장고 기준 비교)
+    for i in range(0, len(other_cats), 2):
+        chunk = [anchor_cat] + other_cats[i:i+2]
+        for g_code, g_label in [("m", "남성"), ("f", "여성")]:
+            res, period = get_naver_raw(chunk, age_list=all_ages, gender=g_code, days=30)
+            for r in res:
+                title = r['title']
                 for a in all_ages:
-                    # 해당 연령대 데이터가 없는 경우 0으로 처리
-                    s = sum([d.get('ratio', 0) for d in res[0]['data'] if str(d.get('group', '')) == a])
-                    combined.append({"g": gender_name, "age": a, "sum": s})
-            else:
-                # API 응답 자체가 비어있을 경우 모든 연령대 0으로 채움 (0으로라도 데이터가 들어가게 함)
-                for a in all_ages:
-                    combined.append({"g": gender_name, "age": a, "sum": 0})
-        
-        # 해당 품목 내 최대값 찾기 (0만 있을 경우 대비)
-        p_max = max([x['sum'] for x in combined]) if combined else 0
-        p_max = p_max if p_max > 0 else 1 
+                    # 해당 품목-연령대의 30일 합계 계산 (에러 방어)
+                    s = sum([d.get('ratio', 0) for d in r.get('data', []) if str(d.get('group', '')) == a])
+                    raw_age_data.append({"name": title, "gender": g_label, "age": a, "sum": s, "period": period})
 
-        for c in combined:
-            age_payload.append({
-                "gubun": f"AGE_{c['age']}", "gender": c['g'], "name": cat['name'],
-                "ratio": round((c['sum']/p_max)*100, 5), "period": period
-            })
-            
-    requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": age_payload}))
-    print("✅ 보정 완료 및 시트 전송 성공!")
+    # [핵심] 연령대별로 '제품 간의 서열'을 보정하기 위해 연령대별 Max값 탐색 및 재규격화
+    final_age_payload = []
+    for a in all_ages:
+        # 특정 연령대(예: 40대) 내의 모든 제품-성별 데이터 필터링
+        age_filter = [x for x in raw_age_data if x['age'] == a]
+        if age_filter:
+            age_max = max([x['sum'] for x in age_filter]) if age_filter else 1
+            for item in age_filter:
+                final_age_payload.append({
+                    "gubun": f"AGE_{item['age']}", "gender": item['gender'], "name": item['name'],
+                    "ratio": round((item['sum']/(age_max if age_max>0 else 1))*100, 5), "period": item['period']
+                })
+
+    if final_age_payload:
+        requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": final_age_payload}))
+    print("✅ 보정 완료 및 전송 성공!")
 
 if __name__ == "__main__":
     run()

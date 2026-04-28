@@ -2,117 +2,103 @@ import requests
 import json
 from datetime import datetime, timedelta
 
-# 네이버 API 및 구글 앱 스크립트 설정
-CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"  
+# [설정] 인증키 및 URL
+CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"
 CLIENT_SECRET = "28cZQMwaJ9"
-# 매니저님의 최신 구글 앱스 스크립트 배포 URL
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzvlHcEpwVYggYiqKlrmnBy37KwQJk2TZDEKNNbTiuv99cqMfswBXSjrxipEZq9ajcc/exec"
-NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/category/keywords"
+# [변경] 분야별(카테고리) 통계 전용 엔드포인트
+NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
-def get_trend(unit, categories, headers, naver_url, age=None):
-    today = datetime.now()
+def get_category_trend(categories, age=None, gender=None, unit='date'):
+    kr_now = datetime.now() + timedelta(hours=9)
+    yesterday = (kr_now - timedelta(days=1)).strftime('%Y-%m-%d')
     
     if unit == 'week':
-        # 주간: 지난주 월요일 ~ 일요일
-        last_monday = today - timedelta(days=today.weekday() + 7)
+        last_monday = kr_now - timedelta(days=kr_now.weekday() + 7)
         last_sunday = last_monday + timedelta(days=6)
         start_date = last_monday.strftime('%Y-%m-%d')
         end_date = last_sunday.strftime('%Y-%m-%d')
     else:
-        # 데일리 & 연령대: 어제 (D-1)
-        yesterday = today - timedelta(days=1)
-        start_date = yesterday.strftime('%Y-%m-%d')
-        end_date = yesterday.strftime('%Y-%m-%d')
-    
-    period_str = f"{start_date} ~ {end_date}" if unit == 'week' else start_date
-    res_list = []
-    main_category = "50000003" # 디지털/가전
+        start_date = yesterday
+        end_date = yesterday
 
-    # 3개씩 묶어서 호출 (네이버 API 제한 준수)
+    res_list = []
+    # 3개씩 묶어서 호출
     for i in range(0, len(categories), 3):
         chunk = categories[i:i+3]
-        keyword_groups = [{"name": c['name'], "param": [c['name']]} for c in chunk]
-        
         body = {
             "startDate": start_date,
             "endDate": end_date,
-            "timeUnit": "date" if unit == 'date' else "week",
-            "category": main_category,
-            "keyword": keyword_groups,
-            "device": "", 
-            "ages": [age] if age else [], # 연령대 파라미터 추가
-            "gender": ""
+            "timeUnit": unit,
+            "category": chunk,
+            "ages": [age] if age else [],
+            "gender": gender if gender else ""
         }
-        
-        res = requests.post(naver_url, headers=headers, data=json.dumps(body))
+        headers = {
+            "X-Naver-Client-Id": CLIENT_ID, 
+            "X-Naver-Client-Secret": CLIENT_SECRET, 
+            "Content-Type": "application/json"
+        }
+        res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body))
         
         if res.status_code == 200:
-            results = res.json().get('results', [])
-            for r in results:
-                if 'data' in r and len(r['data']) > 0:
-                    ratio = r['data'][-1]['ratio']
-                else:
-                    ratio = 0
-                
-                # 연령대 데이터일 경우 'gubun' 키 사용, 아닐 경우 'type' 준비
-                res_item = {"name": r['title'], "ratio": ratio, "period": period_str}
-                if age:
-                    res_item["gubun"] = f"AGE_{age}"
-                res_list.append(res_item)
-        else:
-            print(f"⚠️ API 요청 실패 ({unit}, Age:{age}): {res.status_code}")
-                
+            for r in res.json().get('results', []):
+                ratio = r['data'][-1]['ratio'] if r.get('data') else 0
+                res_list.append({"name": r['title'], "ratio": ratio, "period": end_date})
     return res_list
 
-def run_trend_crawler():
-    items = [
-        "TV", "로봇청소기", "무선청소기", "냉장고", "세탁기", 
-        "에어컨", "제습기", "공기청정기", "가습기", "식기세척기", 
-        "전자레인지", "전기레인지", "음식물처리기", "사운드바", "프로젝터", 
-        "환풍기", "노트북", "모니터", "의류관리기"
+def run():
+    # [수정] 분야별 카테고리 ID 리스트 (환풍기 대신 전열교환기 ID 반영 시도)
+    # 네이버 쇼핑 '전열교환기'는 보통 환기장치(50001403) 카테고리에 속해 있습니다.
+    category_list = [
+        {"name": "TV", "param": ["50000209"]},
+        {"name": "냉장고", "param": ["50000210"]},
+        {"name": "세탁기", "param": ["50000211"]},
+        {"name": "노트북", "param": ["50000151"]},
+        {"name": "에어컨", "param": ["50000212"]},
+        {"name": "로봇청소기", "param": ["50000455"]},
+        {"name": "무선청소기", "param": ["50002350"]},
+        {"name": "식기세척기", "param": ["50000451"]},
+        {"name": "공기청정기", "param": ["50000454"]},
+        {"name": "의류관리기", "param": ["50001402"]},
+        {"name": "모니터", "param": ["50000153"]},
+        {"name": "블루투스 이어폰", "param": ["50001321"]},
+        {"name": "블루투스 스피커", "param": ["50002319"]},
+        {"name": "환기시스템", "param": ["50001403"]}, # 환기시스템/전열교환기 통합 카테고리
+        {"name": "전자레인지", "param": ["50000450"]},
+        {"name": "제습기", "param": ["50000456"]},
+        {"name": "가습기", "param": ["50000453"]},
+        {"name": "전기레인지", "param": ["50000452"]},
+        {"name": "음식물처리기", "param": ["50001400"]},
+        {"name": "사운드바", "param": ["50002229"]},
+        {"name": "프로젝터", "param": ["50000214"]}
     ]
-    categories = [{"name": name} for name in items]
-    headers = {
-        "X-Naver-Client-Id": CLIENT_ID, 
-        "X-Naver-Client-Secret": CLIENT_SECRET, 
-        "Content-Type": "application/json"
-    }
-    
-    print(f"📊 [1/2] 전체 트렌드(주간/일간) 수집 시작...")
-    weekly = get_trend('week', categories, headers, NAVER_URL)
-    daily = get_trend('date', categories, headers, NAVER_URL)
-    
-    top_payload_data = []
-    for item in weekly: 
-        item['type'] = 'WEEKLY'
-        top_payload_data.append(item)
-    for item in daily: 
-        item['type'] = 'DAILY'
-        top_payload_data.append(item)
-    
-    # TOP_TREND 시트 업데이트 전송
-    if top_payload_data:
-        resp = requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": top_payload_data}))
-        print(f"✅ TOP_Trend 업데이트 완료 ({resp.text})")
 
-    print(f"📊 [2/2] 연령대별 트렌드 수집 시작...")
-    age_trend_data = []
-    # 네이버가 주는 데이터와 상관없이 봇이 수집하는 '어제' 날짜를 정의
-    # (네이버가 26일 데이터를 주더라도, 우리가 '어제 기준 최신'임을 알기 위해)
-    target_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+    # 1. TOP_Trend 수집
+    print("📊 [1/2] 분야별 TOP_Trend 수집 중...")
+    top_data = []
+    # 주간/일간 데이터 (성별 전체)
+    for item in get_category_trend(category_list, unit='week'):
+        item['type'] = 'WEEKLY'; item['gender'] = '전체'; top_data.append(item)
+    for item in get_category_trend(category_list, unit='date'):
+        item['type'] = 'DAILY'; item['gender'] = '전체'; top_data.append(item)
+    requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": top_data}))
+
+    # 2. Age/Gender Trend 수집 (남성/여성 x 10~60대)
+    print("📊 [2/2] 연령/성별 분야 트렌드 수집 중...")
+    age_gender_data = []
+    for g_code in ["m", "f"]:
+        g_label = "남성" if g_code == "m" else "여성"
+        for a_code in ["10", "20", "30", "40", "50", "60"]:
+            print(f" - {g_label} {a_code}대 분석 중...")
+            results = get_category_trend(category_list, age=a_code, gender=g_code)
+            for res in results:
+                res['gubun'] = f"AGE_{a_code}"
+                res['gender'] = g_label
+                age_gender_data.append(res)
     
-    for age in ["10", "20", "30", "40", "50", "60"]:
-        results = get_trend('date', categories, headers, NAVER_URL, age=age)
-        for res in results:
-            # 여기서 res['period']를 강제로 할당해야 시트에 찍힙니다.
-            res['period'] = target_date 
-            res['gubun'] = f"AGE_{age}"
-            age_trend_data.append(res)
-    
-    # AGE_TREND 시트로 전송
-    if age_trend_data:
-        resp = requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": age_trend_data}))
-        print(f"✅ Age_Trend 업데이트 완료 ({resp.text})")
+    requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": age_gender_data}))
+    print("✅ 모든 데이터 수집 및 전송 완료!")
 
 if __name__ == "__main__":
-    run_trend_crawler()
+    run()

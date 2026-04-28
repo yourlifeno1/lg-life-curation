@@ -920,7 +920,7 @@ if loc:
                 
                     html_content += '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid #F1F3F5; padding-bottom:8px;">'
                     html_content += '    <span style="font-size:16px; font-weight:bold; color:#212529;">' + str(appliance) + '</span>'
-                    html_content += '    <span style="font-size:12px; color:#868E96;">총 ' + str(total_cnt) + '건</span>'
+                    html_content += '    <span style="font-size:14px; color:#868E96;">총 ' + str(total_cnt) + '건</span>'
                     html_content += '</div>'
                     
                     # 2. 내부 이슈 리스트 생성

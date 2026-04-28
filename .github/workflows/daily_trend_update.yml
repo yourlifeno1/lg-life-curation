@@ -25,7 +25,7 @@ jobs:
           pip install requests
 
       - name: Run TOP Crawler
-        run: python top_crawler.py
+        run: python trend_crawler.py
         # 순위 데이터를 먼저 수집하여 시트의 기초를 잡습니다.
 
       - name: Run AGE Crawler

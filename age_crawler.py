@@ -8,7 +8,7 @@ NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
 def get_dates():
     today = datetime.now() + timedelta(hours=9)
-    # 지난주 월요일 ~ 일요일 (7일 데이터)
+    # 지난주 월요일 ~ 일요일
     last_monday = today - timedelta(days=today.weekday() + 7)
     last_sunday = last_monday + timedelta(days=6)
     return last_monday.strftime('%Y-%m-%d'), last_sunday.strftime('%Y-%m-%d')
@@ -30,22 +30,21 @@ def run():
     ]
     
     all_items = [anchor] + others
-    
-    # 매니저님이 주신 규격 반영 (API 코드 : 시트 표기 레이블)
-    age_config = [
-        {"code": "10", "label": "10대"},
-        {"code": "20", "label": "20대"},
-        {"code": "30", "label": "30대"},
-        {"code": "40", "label": "40대"},
-        {"code": "50", "label": "50대"},
-        {"code": "60", "label": "60세이상"}
+    # 매니저님이 명시하신 규격: "10", "20"... 문자열로 전달
+    age_list = [
+        {"code": "10", "label": "10∼19세"},
+        {"code": "20", "label": "20∼29세"},
+        {"code": "30", "label": "30∼39세"},
+        {"code": "40", "label": "40∼49세"},
+        {"code": "50", "label": "50∼59세"},
+        {"code": "60", "label": "60세 이상"}
     ]
     
     temp_results = []
-    print(f"📅 [AGE 상세분석] 수집 기간: {start_date} ~ {end_date}")
+    print(f"📊 [AGE 분석] 규격 재정렬 후 수집 시작: {start_date} ~ {end_date}")
 
-    for age in age_config:
-        print(f"🔎 {age['label']} 분석 중...")
+    for age in age_list:
+        print(f"   > {age['label']} (Code: {age['code']}) 수집 중...")
         for i in range(0, len(all_items), 3):
             chunk = all_items[i:i+3]
             for g_code, g_label in [("m", "남성"), ("f", "여성")]:
@@ -54,13 +53,13 @@ def run():
                     "X-Naver-Client-Secret": CLIENT_SECRET, 
                     "Content-Type": "application/json"
                 }
-                # 네이버 쇼핑 API 규격에 맞는 ["10"], ["20"] 등의 코드 전송
+                # 네이버 쇼핑 인사이트 API 규격 엄격 준수
                 body = {
                     "startDate": start_date,
                     "endDate": end_date,
                     "timeUnit": "date",
                     "category": chunk,
-                    "ages": [age['code']],
+                    "ages": [age['code']], # 문자열 리스트 형식 유지
                     "gender": g_code
                 }
                 
@@ -69,9 +68,45 @@ def run():
                     if res.status_code == 200:
                         results = res.json().get('results', [])
                         for r in results:
-                            # 7일 평균값 계산
-                            ratios = [d['ratio'] for d in r.get('data', [])]
-                            avg = sum(ratios) / len(ratios) if ratios else 0
+                            # 7일 데이터 평균
+                            r_data = r.get('data', [])
+                            avg = sum([d['ratio'] for d in r_data]) / len(r_data) if r_data else 0
                             temp_results.append({
                                 "age_label": age['label'], 
-                                "gender
+                                "gender": g_label, 
+                                "name": r['title'], 
+                                "val": avg
+                            })
+                    else:
+                        # 400 에러 발생 시 로그 출력
+                        print(f"      ⚠️ 에러 발생 ({res.status_code}): {res.text}")
+                except Exception as e:
+                    print(f"      ❌ 요청 실패: {e}")
+            time.sleep(0.5) # API 속도 제한 방지
+
+    # 글로벌 보정 (전체 수집 데이터 중 최댓값 기준)
+    if not temp_results:
+        print("⚠️ 수집된 데이터가 없습니다.")
+        return
+
+    all_vals = [x['val'] for x in temp_results]
+    global_max = max(all_vals) if max(all_vals) > 0 else 1
+    
+    final_payload = []
+    for x in temp_results:
+        final_payload.append({
+            "gubun": x['age_label'], 
+            "gender": x['gender'], 
+            "name": x['name'], 
+            "ratio": round((x['val'] / global_max) * 100, 5),
+            "period": f"{start_date}~{end_date}"
+        })
+
+    # 통합 전송
+    if final_payload:
+        print(f"🚀 총 {len(final_payload)}행 시트로 통합 전송...")
+        res = requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": final_payload}))
+        print(f"✅ 완료 (GAS 응답: {res.status_code})")
+
+if __name__ == "__main__":
+    run()

@@ -9,12 +9,10 @@ NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 def get_dates(unit='date'):
     today = datetime.now() + timedelta(hours=9)
     if unit == 'week':
-        # 지난주 월요일 ~ 일요일
         last_monday = today - timedelta(days=today.weekday() + 7)
         last_sunday = last_monday + timedelta(days=6)
         return last_monday.strftime('%Y-%m-%d'), last_sunday.strftime('%Y-%m-%d')
     else:
-        # 데일리: 안정성을 위해 D-2 사용
         target_day = today - timedelta(days=2)
         return target_day.strftime('%Y-%m-%d'), target_day.strftime('%Y-%m-%d')
 
@@ -29,8 +27,7 @@ def get_naver_raw(categories, start_date, end_date):
 def run():
     w_start, w_end = get_dates('week')
     d_start, d_end = get_dates('date')
-    print(f"📅 [글로벌 보정 TOP] 주간: {w_start}~{w_end} / 데일리: {d_start}")
-
+    
     anchor = {"name": "냉장고", "param": ["50000210"]}
     others = [
         {"name": "TV", "param": ["50000209"]}, {"name": "세탁기", "param": ["50000211"]},
@@ -45,10 +42,9 @@ def run():
         {"name": "사운드바", "param": ["50002229"]}, {"name": "프로젝터", "param": ["50000214"]}
     ]
 
-    raw_results_w = []
-    raw_results_d = []
+    # 중복 제거를 위해 딕셔너리 사용 (key: 품목명)
+    dict_w, dict_d = {}, {}
 
-    # 모든 호출에 냉장고(anchor)를 포함하여 상대적 수치 확보
     for i in range(0, len(others), 2):
         chunk = [anchor] + others[i:i+2]
         res_w = get_naver_raw(chunk, w_start, w_end)
@@ -56,25 +52,18 @@ def run():
         
         for r in res_w:
             avg = sum([d['ratio'] for d in r['data']]) / len(r['data']) if r.get('data') else 0
-            if not any(x['name'] == r['title'] for x in raw_results_w):
-                raw_results_w.append({"name": r['title'], "val": avg, "period": f"{w_start}~{w_end}"})
-        
+            dict_w[r['title']] = avg
         for r in res_d:
             v = r['data'][0]['ratio'] if r.get('data') else 0
-            if not any(x['name'] == r['title'] for x in raw_results_d):
-                raw_results_d.append({"name": r['title'], "val": v, "period": d_start})
+            dict_d[r['title']] = v
 
-    # 글로벌 보정 함수: 리스트 내 모든 항목을 통합 mx값으로 나눔
-    def finalize_global(lst, t_name):
-        if not lst: return []
-        # 주간/일간 각각의 전체 데이터 중 최대값을 기준으로 정규화
-        mx = max([x['val'] for x in lst]) if max([x['val'] for x in lst]) > 0 else 1
-        return [{"type": t_name, "name": x['name'], "ratio": round((x['val']/mx)*100, 5), "period": x['period']} for x in lst]
+    def finalize(data_dict, t_name, period):
+        if not data_dict: return []
+        mx = max(data_dict.values()) if max(data_dict.values()) > 0 else 1
+        return [{"type": t_name, "name": k, "ratio": round((v/mx)*100, 5), "period": period} for k, v in data_dict.items()]
 
-    payload = finalize_global(raw_results_w, "WEEKLY") + finalize_global(raw_results_d, "DAILY")
-    
-    if payload:
-        requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": payload}))
-        print("✅ 글로벌 보정된 TOP_Trend 전송 완료")
+    payload = finalize(dict_w, "WEEKLY", f"{w_start}~{w_end}") + finalize(dict_d, "DAILY", d_start)
+    requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": payload}))
+    print("✅ TOP 중복 제거 및 보정 완료")
 
 if __name__ == "__main__": run()

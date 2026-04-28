@@ -6,31 +6,14 @@ CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"
 CLIENT_SECRET = "28cZQMwaJ9"
 NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
-def get_dates(unit='date'):
+def get_dates():
     today = datetime.now() + timedelta(hours=9)
-    if unit == 'week':
-        # 지난주 월요일 ~ 일요일 (가장 최근의 완성된 한 주)
-        last_monday = today - timedelta(days=today.weekday() + 7)
-        last_sunday = last_monday + timedelta(days=6)
-        return last_monday.strftime('%Y-%m-%d'), last_sunday.strftime('%Y-%m-%d')
-    else:
-        # 데일리: 안정성을 위해 그저께(D-2) 데이터 사용
-        target_day = today - timedelta(days=2)
-        return target_day.strftime('%Y-%m-%d'), target_day.strftime('%Y-%m-%d')
-
-def get_naver_raw(categories, start_date, end_date):
-    headers = {"X-Naver-Client-Id": CLIENT_ID, "X-Naver-Client-Secret": CLIENT_SECRET, "Content-Type": "application/json"}
-    body = {"startDate": start_date, "endDate": end_date, "timeUnit": "date", "category": categories}
-    try:
-        res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body), timeout=15)
-        return res.json().get('results', [])
-    except: return []
+    last_monday = today - timedelta(days=today.weekday() + 7)
+    last_sunday = last_monday + timedelta(days=6)
+    return last_monday.strftime('%Y-%m-%d'), last_sunday.strftime('%Y-%m-%d')
 
 def run():
-    w_start, w_end = get_dates('week')
-    d_start, d_end = get_dates('date')
-    print(f"📅 [TOP] 주간: {w_start}~{w_end} / 데일리: {d_start}")
-
+    start_date, end_date = get_dates()
     anchor = {"name": "냉장고", "param": ["50000210"]}
     others = [
         {"name": "TV", "param": ["50000209"]}, {"name": "세탁기", "param": ["50000211"]},
@@ -44,27 +27,41 @@ def run():
         {"name": "전기레인지", "param": ["50000452"]}, {"name": "음식물처리기", "param": ["50001400"]},
         {"name": "사운드바", "param": ["50002229"]}, {"name": "프로젝터", "param": ["50000214"]}
     ]
+    
+    all_items = [anchor] + others
+    all_ages = ["10", "20", "30", "40", "50", "60"]
+    # { "성별_연령_품목명": 평균값 } 구조로 중복 제거 및 누적
+    master_data = {}
 
-    raw_w, raw_d = [], []
-    for i in range(0, len(others), 2):
-        chunk = [anchor] + others[i:i+2]
-        res_w = get_naver_raw(chunk, w_start, w_end)
-        res_d = get_naver_raw(chunk, d_start, d_end)
-        
-        for r in res_w:
-            avg = sum([d['ratio'] for d in r['data']]) / len(r['data']) if r.get('data') else 0
-            raw_w.append({"name": r['title'], "val": avg, "period": f"{w_start}~{w_end}"})
-        for r in res_d:
-            v = r['data'][0]['ratio'] if r.get('data') else 0
-            raw_d.append({"name": r['title'], "val": v, "period": d_start})
+    for i in range(0, len(all_items), 3):
+        chunk = all_items[i:i+3]
+        for g_code, g_label in [("m", "남성"), ("f", "여성")]:
+            headers = {"X-Naver-Client-Id": CLIENT_ID, "X-Naver-Client-Secret": CLIENT_SECRET, "Content-Type": "application/json"}
+            body = {"startDate": start_date, "endDate": end_date, "timeUnit": "date", "category": chunk, "ages": all_ages, "gender": g_code}
+            res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body)).json().get('results', [])
+            
+            for r in res:
+                for a in all_ages:
+                    # 해당 연령대 데이터만 추출하여 평균 계산
+                    ratios = [d['ratio'] for d in r.get('data', []) if str(d.get('group')) == a]
+                    avg = sum(ratios) / len(ratios) if ratios else 0
+                    key = f"{g_label}_{a}_{r['title']}"
+                    master_data[key] = {"gender": g_label, "age": a, "name": r['title'], "val": avg}
 
-    def finalize(lst, t):
-        if not lst: return []
-        mx = max([x['val'] for x in lst]) if max([x['val'] for x in lst]) > 0 else 1
-        return [{"type": t, "name": x['name'], "ratio": round((x['val']/mx)*100, 5), "period": x['period']} for x in lst]
+    # 글로벌 보정 (전체 데이터 중 최대값 기준)
+    all_vals = [v['val'] for v in master_data.values()]
+    g_max = max(all_vals) if all_vals and max(all_vals) > 0 else 1
+    
+    final_payload = []
+    for v in master_data.values():
+        final_payload.append({
+            "gubun": f"AGE_{v['age']}", "gender": v['gender'], "name": v['name'],
+            "ratio": round((v['val']/g_max)*100, 5), "period": f"{start_date}~{end_date}"
+        })
 
-    payload = finalize(raw_w, "WEEKLY") + finalize(raw_d, "DAILY")
-    requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": payload}))
-    print("✅ TOP_Trend 전송 완료")
+    for i in range(0, len(final_payload), 40):
+        requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": final_payload[i:i+40]}))
+        time.sleep(1)
+    print("✅ AGE 전 연령대 정상 전송 완료")
 
 if __name__ == "__main__": run()

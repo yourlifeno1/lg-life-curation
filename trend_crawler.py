@@ -2,56 +2,38 @@ import requests
 import json
 from datetime import datetime, timedelta
 
+# [설정] 인증키 및 새 앱 스크립트 URL
 CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"
 CLIENT_SECRET = "28cZQMwaJ9"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbUpuf1euJIHFWcvwVQEusbViI1EtIMqFBGB0NuSgPnqvbQ65nRc_wD2AEhrbgWOmeT/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzUpuf1euJIHFWcvwVQEusbViI1EtIMqFBGB0NuSgPnqvbQ65nRc_wD2AEhrbgWOmeT/exec"
 NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
-def get_category_trend(categories, age=None, gender=None, unit='date'):
+def get_raw_data(categories, age_list=None, gender=None, days=1):
+    """네이버로부터 지정된 기간(days) 동안의 일별 데이터를 가져옴"""
     kr_now = datetime.now() + timedelta(hours=9)
+    start_date = (kr_now - timedelta(days=days)).strftime('%Y-%m-%d')
+    end_date = (kr_now - timedelta(days=1)).strftime('%Y-%m-%d')
     
-    # 주간 평균을 위해 시작일을 7일 전으로 설정
-    if unit == 'week':
-        start_date = (kr_now - timedelta(days=7)).strftime('%Y-%m-%d')
-        end_date = (kr_now - timedelta(days=1)).strftime('%Y-%m-%d')
-        display_period = f"{start_date} ~ {end_date}"
-    else:
-        start_date = (kr_now - timedelta(days=1)).strftime('%Y-%m-%d')
-        end_date = start_date
-        display_period = end_date
-
     res_list = []
+    # 3개씩 묶어서 호출
     for i in range(0, len(categories), 3):
         chunk = categories[i:i+3]
         body = {
             "startDate": start_date,
             "endDate": end_date,
-            "timeUnit": "date", # 평균 계산을 위해 무조건 'date'로 쪼개서 받음
+            "timeUnit": "date",
             "category": chunk,
-            "ages": [age] if age else [],
+            "ages": age_list if age_list else [],
             "gender": gender if gender else ""
         }
         headers = {"X-Naver-Client-Id": CLIENT_ID, "X-Naver-Client-Secret": CLIENT_SECRET, "Content-Type": "application/json"}
         res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body))
         
         if res.status_code == 200:
-            for r in res.json().get('results', []):
-                data_points = r.get('data', [])
-                if not data_points:
-                    ratio = 0
-                elif unit == 'week':
-                    # [핵심] 일주일치(7개 데이터)의 평균을 계산
-                    total_ratio = sum([day['ratio'] for day in data_points])
-                    ratio = round(total_ratio / len(data_points), 2)
-                else:
-                    # 일간은 마지막 날 데이터 그대로 사용
-                    ratio = data_points[-1]['ratio']
-                
-                res_list.append({"name": r['title'], "ratio": ratio, "period": display_period})
-    return res_list
+            res_list.extend(res.json().get('results', []))
+    return res_list, f"{start_date} ~ {end_date}" if days > 1 else end_date
 
 def run():
-    # 카테고리 리스트 (환풍기 -> 전열교환기로 명칭 변경 표기)
     category_list = [
         {"name": "TV", "param": ["50000209"]}, {"name": "냉장고", "param": ["50000210"]},
         {"name": "세탁기", "param": ["50000211"]}, {"name": "노트북", "param": ["50000151"]},
@@ -66,31 +48,54 @@ def run():
         {"name": "프로젝터", "param": ["50000214"]}
     ]
 
-    # 1. TOP_Trend 수집 (주간은 평균값으로 전송)
-    print("📊 [1/2] TOP_Trend 수집 (주간 데이터는 7일 평균으로 계산)...")
-    top_data = []
-    for item in get_category_trend(category_list, unit='week'):
-        top_data.append({"type": "WEEKLY", "name": item['name'], "ratio": item['ratio'], "period": item['period']})
-    for item in get_category_trend(category_list, unit='date'):
-        top_data.append({"type": "DAILY", "name": item['name'], "ratio": item['ratio'], "period": item['period']})
+    # --- 1. TOP_Trend 수집 (7일 평균값, 4열 구조) ---
+    print("📊 [1/2] TOP_Trend 수집 중 (7일 평균 계산)...")
+    raw_weekly, week_period = get_raw_data(category_list, days=7)
+    raw_daily, day_period = get_raw_data(category_list, days=1)
     
-    requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": top_data}))
+    top_payload = []
+    # 주간 데이터 처리
+    for r in raw_weekly:
+        avg_ratio = sum([d['ratio'] for d in r['data']]) / len(r['data']) if r.get('data') else 0
+        top_payload.append({"type": "WEEKLY", "name": r['title'], "ratio": round(avg_ratio, 2), "period": week_period})
+    # 일간 데이터 처리
+    for r in raw_daily:
+        ratio = r['data'][-1]['ratio'] if r.get('data') else 0
+        top_payload.append({"type": "DAILY", "name": r['title'], "ratio": ratio, "period": day_period})
+    
+    requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": top_payload}))
 
-    # 2. Age_Trend 수집 (기존 로직 유지)
-    print("📊 [2/2] Age_Trend 수집 (성별 포함 5열 구조)...")
-    age_gender_data = []
-    for g_code in ["m", "f"]:
-        g_label = "남성" if g_code == "m" else "여성"
-        for a_code in ["10", "20", "30", "40", "50", "60"]:
-            results = get_category_trend(category_list, age=a_code, gender=g_code)
-            for res in results:
-                age_gender_data.append({
-                    "gubun": f"AGE_{a_code}", "gender": g_label,
-                    "name": res['name'], "ratio": res['ratio'], "period": res['period']
-                })
-    
-    requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": age_gender_data}))
-    print("✅ 모든 분야별 트렌드 수집 및 평균값 계산 완료!")
+    # --- 2. Age_Trend 수집 (남녀 통합 100 보정, 5열 구조) ---
+    print("📊 [2/2] Age_Trend 수집 중 (남녀 통합 기준 보정)...")
+    all_ages = ["10", "20", "30", "40", "50", "60"]
+    age_payload = []
+
+    # 각 품목별로 남녀 체급을 비교하기 위해 개별 품목 단위로 보정 로직 실행
+    for cat in category_list:
+        # 해당 품목의 남성/여성 데이터를 각각 가져옴 (어제 기준)
+        m_raw, _ = get_raw_data([cat], age_list=all_ages, gender="m", days=1)
+        f_raw, period = get_raw_data([cat], age_list=all_ages, gender="f", days=1)
+        
+        # 남녀 모든 연령대 데이터를 합쳐서 최대값 탐색
+        all_data = []
+        if m_raw: all_data.extend([{"g": "남성", "age": d['group'], "val": d['ratio']} for d in m_raw[0]['data']])
+        if f_raw: all_data.extend([{"g": "여성", "age": d['group'], "val": d['ratio']} for d in f_raw[0]['data']])
+        
+        max_val = max([x['val'] for x in all_data]) if all_data else 0
+        
+        # 최대값을 100으로 기준 삼아 재계산 (Scaling)
+        for d in all_data:
+            scaled_ratio = round((d['val'] / max_val) * 100, 2) if max_val > 0 else 0
+            age_payload.append({
+                "gubun": f"AGE_{d['age']}",
+                "gender": d['g'],
+                "name": cat['name'],
+                "ratio": scaled_ratio,
+                "period": period
+            })
+            
+    requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": age_payload}))
+    print("✅ 모든 데이터 수집 및 보정 완료!")
 
 if __name__ == "__main__":
     run()

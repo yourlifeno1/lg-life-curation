@@ -915,37 +915,36 @@ if loc:
                     # 해당 가전의 이슈 키워드 TOP 3 추출
                     app_issue_ranking = target_app_df['이슈 키워드'].value_counts().head(3)
                     
-                    # [핵심] 반복문 시작 전 카드 헤더 생성
-                    html_card = f"""
-                    <div style="background:#FFFFFF; border:1px solid #007BFF; border-radius:12px; padding:15px; min-height:180px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                        <div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #F1F3F5; padding-bottom:8px;">
-                            <div style="font-size:14px; font-weight:bold; color:#212529;">{appliance}</div>
-                            <div style="font-size:11px; color:#868E96;">(총 {total_cnt}건)</div>
-                        </div>
-                    """
+                    # 1. 카드 헤더 시작 (문자열 더하기 방식으로 따옴표 충돌 방지)
+                    html_content = '<div style="background:#FFFFFF; border:1px solid #007BFF; border-radius:12px; padding:15px; min-height:180px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
+                    html_content += '<div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #F1F3F5; padding-bottom:8px;">'
+                    html_content += '<div style="font-size:14px; font-weight:bold; color:#212529;">' + str(appliance) + '</div>'
+                    html_content += '<div style="font-size:11px; color:#868E96;">(총 ' + str(total_cnt) + '건)</div>'
+                    html_content += '</div>'
                     
-                    # [핵심] 반복문을 돌며 이슈 내용을 html_card 변수에 누적 추가
+                    # 2. 내부 이슈 리스트 생성
                     for i, (issue, count) in enumerate(app_issue_ranking.items()):
-                        issue_color = "#DA004B" if i == 0 else "#495057"
-                        font_weight = "bold" if i == 0 else "normal"
+                        color = "#DA004B" if i == 0 else "#495057"
+                        weight = "bold" if i == 0 else "normal"
                         
-                        # 각 행의 HTML을 변수에 더하기
-                        html_card += f'''
-                        <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px;">
-                            <span style="color:{issue_color}; font-weight:{font_weight};">{i+1}위 {issue}</span>
-                            <span style="color:#ADB5BD;">{count}건</span>
-                        </div>'''
+                        html_content += '<div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px;">'
+                        html_content += '<span style="color:' + color + '; font-weight:' + weight + ';">' + str(i+1) + '위 ' + str(issue) + '</span>'
+                        html_content += '<span style="color:#ADB5BD;">' + str(count) + '건</span>'
+                        html_content += '</div>'
                     
-                    # 카드 닫기 태그 추가
-                    html_card += "</div>"
+                    # 3. 태그 닫기
+                    html_content += '</div>'
                     
-                    # [핵심] 완성된 하나의 HTML 덩어리를 출력
-                    st.markdown(html_card, unsafe_allow_html=True)
+                    # 4. 최종 출력
+                    st.markdown(html_content, unsafe_allow_html=True)
 
-            # --- [최종 가이드 반영] ---
-            # 1위 제품의 1위 이슈로 가이드 자동 매칭
+            # --- [가이드 멘트 자동화 보정] ---
             matched_app = top_apps[0] if top_apps else "주요 가전"
-            top_issue_for_guide = df[df['가전'] == matched_app]['이슈 키워드'].value_counts().index[0] if not top_apps else "핵심 이슈"
+            # 1위 가전의 1위 이슈 키워드 가져오기
+            try:
+                top_issue_for_guide = df[df['가전'] == matched_app]['이슈 키워드'].value_counts().index[0]
+            except:
+                top_issue_for_guide = "핵심 이슈"
 
             st.info(f"""
             **📢 {u_dong} 지역 현장 대응 가이드**

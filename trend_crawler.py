@@ -46,10 +46,17 @@ def run():
             if not any(x['name'] == r['title'] for x in raw_d): raw_d.append({"name": r['title'], "val": v, "period": p_d})
 
     def finalize(lst, t):
-        mx = max([x['val'] for x in lst]) if lst else 1
+        if not lst: return []
+        # ZeroDivisionError 방지: mx가 0이면 1로 설정
+        vals = [x['val'] for x in lst]
+        mx = max(vals) if vals and max(vals) > 0 else 1
         return [{"type": t, "name": x['name'], "ratio": round((x['val']/mx)*100, 5), "period": x['period']} for x in lst]
 
-    requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": finalize(raw_w, "WEEKLY") + finalize(raw_d, "DAILY")}))
-    print("✅ TOP_Trend 수집 및 전송 완료")
+    payload = finalize(raw_w, "WEEKLY") + finalize(raw_d, "DAILY")
+    if payload:
+        requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": payload}))
+        print("✅ TOP_Trend 전송 완료")
+    else:
+        print("⚠️ 전송할 데이터가 없습니다.")
 
 if __name__ == "__main__": run()

@@ -8,6 +8,7 @@ NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
 def get_dates():
     today = datetime.now() + timedelta(hours=9)
+    # 지난주 월요일 ~ 일요일 (7일 데이터)
     last_monday = today - timedelta(days=today.weekday() + 7)
     last_sunday = last_monday + timedelta(days=6)
     return last_monday.strftime('%Y-%m-%d'), last_sunday.strftime('%Y-%m-%d')
@@ -29,62 +30,48 @@ def run():
     ]
     
     all_items = [anchor] + others
-    # 네이버 연령대 코드 (1:10대, 2:20대 ...)
-    age_map = {"1": "10", "2": "20", "3": "30", "4": "40", "5": "50", "6": "60"}
+    
+    # 매니저님이 주신 규격 반영 (API 코드 : 시트 표기 레이블)
+    age_config = [
+        {"code": "10", "label": "10대"},
+        {"code": "20", "label": "20대"},
+        {"code": "30", "label": "30대"},
+        {"code": "40", "label": "40대"},
+        {"code": "50", "label": "50대"},
+        {"code": "60", "label": "60세이상"}
+    ]
+    
     temp_results = []
+    print(f"📅 [AGE 상세분석] 수집 기간: {start_date} ~ {end_date}")
 
-    print(f"📊 [AGE 상세분석] 데이터 수집 시작: {start_date} ~ {end_date}")
-
-    for a_code, a_name in age_map.items():
-        print(f"   > {a_name}대 수집 중...")
+    for age in age_config:
+        print(f"🔎 {age['label']} 분석 중...")
         for i in range(0, len(all_items), 3):
             chunk = all_items[i:i+3]
             for g_code, g_label in [("m", "남성"), ("f", "여성")]:
-                headers = {"X-Naver-Client-Id": CLIENT_ID, "X-Naver-Client-Secret": CLIENT_SECRET, "Content-Type": "application/json"}
-                body = {"startDate": start_date, "endDate": end_date, "timeUnit": "date", "category": chunk, "ages": [a_code], "gender": g_code}
+                headers = {
+                    "X-Naver-Client-Id": CLIENT_ID, 
+                    "X-Naver-Client-Secret": CLIENT_SECRET, 
+                    "Content-Type": "application/json"
+                }
+                # 네이버 쇼핑 API 규격에 맞는 ["10"], ["20"] 등의 코드 전송
+                body = {
+                    "startDate": start_date,
+                    "endDate": end_date,
+                    "timeUnit": "date",
+                    "category": chunk,
+                    "ages": [age['code']],
+                    "gender": g_code
+                }
                 
                 try:
-                    res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body), timeout=20)
-                    # 403 Forbidden 방어를 위해 상태 확인
-                    if res.status_code != 200:
-                        print(f"      ⚠️ API 호출 오류 ({res.status_code}). 잠시 대기합니다.")
-                        time.sleep(1)
-                        continue
-                        
-                    results = res.json().get('results', [])
-                    for r in results:
-                        ratios = [d['ratio'] for d in r.get('data', [])]
-                        avg = sum(ratios) / len(ratios) if ratios else 0
-                        temp_results.append({
-                            "age": a_name, "gender": g_label, "name": r['title'], "val": avg
-                        })
-                except Exception as e:
-                    print(f"      ❌ 에러 발생: {e}")
-                    continue
-            time.sleep(0.3) # 초당 호출 제한 방지
-
-    # 1. 글로벌 보정 (전체 데이터 중 최대값 기준)
-    all_vals = [x['val'] for x in temp_results]
-    global_max = max(all_vals) if all_vals and max(all_vals) > 0 else 1
-    
-    # 2. 전송용 데이터 구성
-    final_payload = []
-    for x in temp_results:
-        final_payload.append({
-            "gubun": f"AGE_{x['age']}", 
-            "gender": x['gender'], 
-            "name": x['name'], 
-            "ratio": round((x['val'] / global_max) * 100, 5), # 이 값이 클릭 지수로 들어감
-            "period": f"{start_date}~{end_date}"
-        })
-
-    # 3. 통합 전송
-    if final_payload:
-        print(f"📡 전체 데이터({len(final_payload)}행) 시트 전송 중...")
-        response = requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": final_payload}))
-        print(f"✅ 전송 완료! (상태코드: {response.status_code})")
-    else:
-        print("⚠️ 전송할 데이터가 없습니다.")
-
-if __name__ == "__main__":
-    run()
+                    res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body), timeout=25)
+                    if res.status_code == 200:
+                        results = res.json().get('results', [])
+                        for r in results:
+                            # 7일 평균값 계산
+                            ratios = [d['ratio'] for d in r.get('data', [])]
+                            avg = sum(ratios) / len(ratios) if ratios else 0
+                            temp_results.append({
+                                "age_label": age['label'], 
+                                "gender

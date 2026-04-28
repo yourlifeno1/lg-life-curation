@@ -3,10 +3,10 @@ import json
 import time
 from datetime import datetime, timedelta
 
-# [설정]
+# [설정] 매니저님이 새로 보내주신 URL로 교체되었습니다.
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxy9DqEkNUbm4N8cDqDaAB6kAygjYcRDtqjkh3O9t96cmgaqggEEpbzHcn27MTY5W55/exec"
 CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"
 CLIENT_SECRET = "28cZQMwaJ9"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbUpuf1euJIHFWcvwVQEusbViI1EtIMqFBGB0NuSgPnqvbQ65nRc_wD2AEhrbgWOmeT/exec"
 NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
 def get_naver_raw(categories, age_list=None, gender=None, days=7):
@@ -16,19 +16,24 @@ def get_naver_raw(categories, age_list=None, gender=None, days=7):
     headers = {"X-Naver-Client-Id": CLIENT_ID, "X-Naver-Client-Secret": CLIENT_SECRET, "Content-Type": "application/json"}
     body = {"startDate": start_date, "endDate": end_date, "timeUnit": "date", "category": categories, "ages": age_list or [], "gender": gender or ""}
     try:
-        res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body), timeout=30)
+        res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body), timeout=20)
         return (res.json().get('results', []), f"{start_date} ~ {end_date}") if res.status_code == 200 else ([], end_date)
     except: return [], end_date
 
-def send_to_google(payload):
-    """구글 앱스크립트로 전송하고 결과를 출력하는 함수"""
-    try:
-        response = requests.post(WEBAPP_URL, data=json.dumps(payload), timeout=60)
-        print(f"📡 전송 결과: {response.status_code}, 내용: {response.text}")
-        return response.status_code == 200
-    except Exception as e:
-        print(f"❌ 전송 실패: {e}")
-        return False
+def send_to_google(type_name, data):
+    """데이터를 40줄씩 나누어 전송하여 구글 서버 타임아웃 방지"""
+    if not data: return
+    chunk_size = 40
+    for i in range(0, len(data), chunk_size):
+        chunk = data[i:i + chunk_size]
+        payload = {"type": type_name, "data": chunk}
+        try:
+            res = requests.post(WEBAPP_URL, data=json.dumps(payload), timeout=30)
+            # 로그에 전송 상태 출력
+            print(f"📡 {type_name} 전송 ({i+1}~{min(i+chunk_size, len(data))}행): 결과 {res.status_code}")
+            time.sleep(1) # 전송 간격 유지
+        except Exception as e:
+            print(f"❌ 전송 실패: {e}")
 
 def run():
     anchor_cat = {"name": "냉장고", "param": ["50000210"]}
@@ -45,7 +50,7 @@ def run():
         {"name": "사운드바", "param": ["50002229"]}, {"name": "프로젝터", "param": ["50000214"]}
     ]
 
-    print("📊 [1/2] TOP_Trend 수집 중...")
+    print("📊 [1/2] TOP_Trend 수집 중 (글로벌 서열 보정)...")
     raw_w, raw_d = [], []
     for i in range(0, len(other_cats), 2):
         chunk = [anchor_cat] + other_cats[i:i+2]
@@ -63,16 +68,12 @@ def run():
         mx = max([x['val'] for x in lst]); div = mx if mx > 0 else 1
         return [{"type": t, "name": x['name'], "ratio": round((x['val']/div)*100, 5), "period": x['period']} for x in lst]
 
-    top_data = finalize_top(raw_w, "WEEKLY") + finalize_top(raw_d, "DAILY")
-    send_to_google({"type": "TOP_TREND", "data": top_data})
-    
-    # 2초 휴식 (구글 서버 과부하 방지)
-    time.sleep(2)
+    top_total = finalize_top(raw_w, "WEEKLY") + finalize_top(raw_d, "DAILY")
+    send_to_google("TOP_TREND", top_total)
 
-    print("📊 [2/2] Age_Trend 수집 및 연령별 통합 보정 중...")
+    print("📊 [2/2] Age_Trend 수집 중 (연령대별 통합 서열 보정)...")
     all_ages, age_raw_list = ["10", "20", "30", "40", "50", "60"], []
     full_list = [anchor_cat] + other_cats
-    
     for i in range(0, len(full_list), 3):
         chunk = full_list[i:i+3]
         for g_code, g_label in [("m", "남성"), ("f", "여성")]:
@@ -80,22 +81,4 @@ def run():
             for r in res:
                 for a in all_ages:
                     s = sum([d.get('ratio', 0) for d in r.get('data', []) if str(d.get('group', '')) == a])
-                    age_raw_list.append({"name": r['title'], "gender": g_label, "age": a, "raw_val": s, "period": period})
-
-    final_age_payload = []
-    for a in all_ages:
-        age_market = [x for x in age_raw_list if x['age'] == a]
-        if age_market:
-            age_mx = max([x['raw_val'] for x in age_market]); div = age_mx if age_mx > 0 else 1
-            for item in age_market:
-                final_age_payload.append({
-                    "gubun": f"AGE_{item['age']}", "gender": item['gender'], "name": item['name'],
-                    "ratio": round((item['raw_val']/div)*100, 5), "period": item['period']
-                })
-
-    # Age 데이터 전송
-    send_to_google({"type": "AGE_TREND", "data": final_age_payload})
-    print("✅ 모든 프로세스 완료!")
-
-if __name__ == "__main__":
-    run()
+                    age_raw_list

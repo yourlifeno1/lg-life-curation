@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timedelta
 
 # 네이버 API 및 구글 앱 스크립트 설정
-CLIENT_ID = "IlynXlpQmqqD8GfQRJj6"
+CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"  
 CLIENT_SECRET = "28cZQMwaJ9"
 # 매니저님의 최신 구글 앱스 스크립트 배포 URL
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzvlHcEpwVYggYiqKlrmnBy37KwQJk2TZDEKNNbTiuv99cqMfswBXSjrxipEZq9ajcc/exec"

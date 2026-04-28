@@ -1,5 +1,6 @@
 import requests
 import json
+import time
 from datetime import datetime, timedelta
 
 # [설정]
@@ -15,9 +16,19 @@ def get_naver_raw(categories, age_list=None, gender=None, days=7):
     headers = {"X-Naver-Client-Id": CLIENT_ID, "X-Naver-Client-Secret": CLIENT_SECRET, "Content-Type": "application/json"}
     body = {"startDate": start_date, "endDate": end_date, "timeUnit": "date", "category": categories, "ages": age_list or [], "gender": gender or ""}
     try:
-        res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body), timeout=20)
+        res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body), timeout=30)
         return (res.json().get('results', []), f"{start_date} ~ {end_date}") if res.status_code == 200 else ([], end_date)
     except: return [], end_date
+
+def send_to_google(payload):
+    """구글 앱스크립트로 전송하고 결과를 출력하는 함수"""
+    try:
+        response = requests.post(WEBAPP_URL, data=json.dumps(payload), timeout=60)
+        print(f"📡 전송 결과: {response.status_code}, 내용: {response.text}")
+        return response.status_code == 200
+    except Exception as e:
+        print(f"❌ 전송 실패: {e}")
+        return False
 
 def run():
     anchor_cat = {"name": "냉장고", "param": ["50000210"]}
@@ -34,7 +45,7 @@ def run():
         {"name": "사운드바", "param": ["50002229"]}, {"name": "프로젝터", "param": ["50000214"]}
     ]
 
-    print("📊 [1/2] TOP_Trend 수집 중 (주간 7일 기준)...")
+    print("📊 [1/2] TOP_Trend 수집 중...")
     raw_w, raw_d = [], []
     for i in range(0, len(other_cats), 2):
         chunk = [anchor_cat] + other_cats[i:i+2]
@@ -47,29 +58,30 @@ def run():
             v = r['data'][-1]['ratio'] if r.get('data') else 0
             if not any(x['name'] == r['title'] for x in raw_d): raw_d.append({"name": r['title'], "val": v, "period": p_d})
 
-    # TOP 보정 엔진
     def finalize_top(lst, t):
         if not lst: return []
         mx = max([x['val'] for x in lst]); div = mx if mx > 0 else 1
         return [{"type": t, "name": x['name'], "ratio": round((x['val']/div)*100, 5), "period": x['period']} for x in lst]
 
-    requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": finalize_top(raw_w, "WEEKLY") + finalize_top(raw_d, "DAILY")}))
+    top_data = finalize_top(raw_w, "WEEKLY") + finalize_top(raw_d, "DAILY")
+    send_to_google({"type": "TOP_TREND", "data": top_data})
+    
+    # 2초 휴식 (구글 서버 과부하 방지)
+    time.sleep(2)
 
-    print("📊 [2/2] Age_Trend 수집 중 (주간 7일 통합 보정)...")
+    print("📊 [2/2] Age_Trend 수집 및 연령별 통합 보정 중...")
     all_ages, age_raw_list = ["10", "20", "30", "40", "50", "60"], []
     full_list = [anchor_cat] + other_cats
     
-    # 3개씩 묶어 고속 호출
     for i in range(0, len(full_list), 3):
         chunk = full_list[i:i+3]
         for g_code, g_label in [("m", "남성"), ("f", "여성")]:
-            res, period = get_naver_raw(chunk, age_list=all_ages, gender=g_code, days=7) # 7일로 변경
+            res, period = get_naver_raw(chunk, age_list=all_ages, gender=g_code, days=7)
             for r in res:
                 for a in all_ages:
                     s = sum([d.get('ratio', 0) for d in r.get('data', []) if str(d.get('group', '')) == a])
                     age_raw_list.append({"name": r['title'], "gender": g_label, "age": a, "raw_val": s, "period": period})
 
-    # 연령대별 글로벌 보정 (연령 내 제품 서열화)
     final_age_payload = []
     for a in all_ages:
         age_market = [x for x in age_raw_list if x['age'] == a]
@@ -81,8 +93,9 @@ def run():
                     "ratio": round((item['raw_val']/div)*100, 5), "period": item['period']
                 })
 
-    requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": final_age_payload}))
-    print("✅ 7일 기준 최적화 수집 및 전송 완료!")
+    # Age 데이터 전송
+    send_to_google({"type": "AGE_TREND", "data": final_age_payload})
+    print("✅ 모든 프로세스 완료!")
 
 if __name__ == "__main__":
     run()

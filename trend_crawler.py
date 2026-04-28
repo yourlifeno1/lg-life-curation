@@ -97,18 +97,21 @@ def run_trend_crawler():
 
     print(f"📊 [2/2] 연령대별 트렌드 수집 시작...")
     age_trend_data = []
-    # 10대부터 60대까지 전체 코드 설정
-    target_ages = ["10", "20", "30", "40", "50", "60"] 
+    # 네이버가 주는 데이터와 상관없이 봇이 수집하는 '어제' 날짜를 정의
+    # (네이버가 26일 데이터를 주더라도, 우리가 '어제 기준 최신'임을 알기 위해)
+    target_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
     
-    for age_code in target_ages:
-        print(f" - {age_code}대 데이터 수집 중...")
-        # 기존에 만든 get_trend 함수를 그대로 사용
-        age_results = get_trend('date', categories, headers, NAVER_URL, age=age_code)
-        age_trend_data.extend(age_results)
+    for age in ["10", "20", "30", "40", "50", "60"]:
+        results = get_trend('date', categories, headers, NAVER_URL, age=age)
+        for res in results:
+            # 여기서 res['period']를 강제로 할당해야 시트에 찍힙니다.
+            res['period'] = target_date 
+            res['gubun'] = f"AGE_{age}"
+            age_trend_data.append(res)
     
     # AGE_TREND 시트로 전송
     if age_trend_data:
-        resp = requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": age_trend_data}))
+        resp = requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": target_date}))
         print(f"✅ Age_Trend 업데이트 완료 ({resp.text})")
 
 if __name__ == "__main__":

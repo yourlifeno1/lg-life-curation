@@ -6,18 +6,31 @@ CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"
 CLIENT_SECRET = "28cZQMwaJ9"
 NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
-def get_naver_raw(categories, days=7):
-    kr_now = datetime.now() + timedelta(hours=9)
-    start_date = (kr_now - timedelta(days=days)).strftime('%Y-%m-%d')
-    end_date = (kr_now - timedelta(days=1)).strftime('%Y-%m-%d')
+def get_dates(unit='date'):
+    today = datetime.now() + timedelta(hours=9)
+    if unit == 'week':
+        # 지난주 월요일 ~ 일요일 (가장 최근의 완성된 한 주)
+        last_monday = today - timedelta(days=today.weekday() + 7)
+        last_sunday = last_monday + timedelta(days=6)
+        return last_monday.strftime('%Y-%m-%d'), last_sunday.strftime('%Y-%m-%d')
+    else:
+        # 데일리: 안정성을 위해 그저께(D-2) 데이터 사용
+        target_day = today - timedelta(days=2)
+        return target_day.strftime('%Y-%m-%d'), target_day.strftime('%Y-%m-%d')
+
+def get_naver_raw(categories, start_date, end_date):
     headers = {"X-Naver-Client-Id": CLIENT_ID, "X-Naver-Client-Secret": CLIENT_SECRET, "Content-Type": "application/json"}
     body = {"startDate": start_date, "endDate": end_date, "timeUnit": "date", "category": categories}
     try:
         res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body), timeout=15)
-        return res.json().get('results', []), (f"{start_date} ~ {end_date}" if days > 1 else end_date)
-    except: return [], end_date
+        return res.json().get('results', [])
+    except: return []
 
 def run():
+    w_start, w_end = get_dates('week')
+    d_start, d_end = get_dates('date')
+    print(f"📅 [TOP] 주간: {w_start}~{w_end} / 데일리: {d_start}")
+
     anchor = {"name": "냉장고", "param": ["50000210"]}
     others = [
         {"name": "TV", "param": ["50000209"]}, {"name": "세탁기", "param": ["50000211"]},
@@ -32,31 +45,26 @@ def run():
         {"name": "사운드바", "param": ["50002229"]}, {"name": "프로젝터", "param": ["50000214"]}
     ]
 
-    print("📊 TOP_Trend 데이터 수집 중...")
     raw_w, raw_d = [], []
     for i in range(0, len(others), 2):
         chunk = [anchor] + others[i:i+2]
-        res_w, p_w = get_naver_raw(chunk, days=7)
-        res_d, p_d = get_naver_raw(chunk, days=1)
+        res_w = get_naver_raw(chunk, w_start, w_end)
+        res_d = get_naver_raw(chunk, d_start, d_end)
+        
         for r in res_w:
             avg = sum([d['ratio'] for d in r['data']]) / len(r['data']) if r.get('data') else 0
-            if not any(x['name'] == r['title'] for x in raw_w): raw_w.append({"name": r['title'], "val": avg, "period": p_w})
+            raw_w.append({"name": r['title'], "val": avg, "period": f"{w_start}~{w_end}"})
         for r in res_d:
-            v = r['data'][-1]['ratio'] if r.get('data') else 0
-            if not any(x['name'] == r['title'] for x in raw_d): raw_d.append({"name": r['title'], "val": v, "period": p_d})
+            v = r['data'][0]['ratio'] if r.get('data') else 0
+            raw_d.append({"name": r['title'], "val": v, "period": d_start})
 
     def finalize(lst, t):
         if not lst: return []
-        # ZeroDivisionError 방지: mx가 0이면 1로 설정
-        vals = [x['val'] for x in lst]
-        mx = max(vals) if vals and max(vals) > 0 else 1
+        mx = max([x['val'] for x in lst]) if max([x['val'] for x in lst]) > 0 else 1
         return [{"type": t, "name": x['name'], "ratio": round((x['val']/mx)*100, 5), "period": x['period']} for x in lst]
 
     payload = finalize(raw_w, "WEEKLY") + finalize(raw_d, "DAILY")
-    if payload:
-        requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": payload}))
-        print("✅ TOP_Trend 전송 완료")
-    else:
-        print("⚠️ 전송할 데이터가 없습니다.")
+    requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": payload}))
+    print("✅ TOP_Trend 전송 완료")
 
 if __name__ == "__main__": run()

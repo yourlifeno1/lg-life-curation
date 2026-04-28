@@ -917,9 +917,10 @@ if loc:
                     
                     # 1. 카드 헤더 시작 (문자열 더하기 방식으로 따옴표 충돌 방지)
                     html_content = '<div style="background:#FFFFFF; border:1px solid #007BFF; border-radius:12px; padding:15px; min-height:180px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
-                    html_content += '<div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #F1F3F5; padding-bottom:8px;">'
-                    html_content += '<div style="font-size:16px; font-weight:bold; color:#212529;">' + str(appliance) + '</div>'
-                    html_content += '<div style="font-size:12px; color:#868E96;">(총 ' + str(total_cnt) + '건)</div>'
+                
+                    html_content += '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid #F1F3F5; padding-bottom:8px;">'
+                    html_content += '    <span style="font-size:16px; font-weight:bold; color:#212529;">' + str(appliance) + '</span>'
+                    html_content += '    <span style="font-size:12px; color:#868E96;">총 ' + str(total_cnt) + '건</span>'
                     html_content += '</div>'
                     
                     # 2. 내부 이슈 리스트 생성

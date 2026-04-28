@@ -857,25 +857,24 @@ if loc:
         st.divider()
                           
         # ---------------------------------------------------------
-        # [설계 6번] 가전별 주요 분석 & 핵심 키워드
+        # [설계 6번] 가전별 주요 분석 & 핵심 키워드 (제품별 상세 이슈 포함)
         # ---------------------------------------------------------
         try:
             df = pd.read_csv(SHEET_CSV_URL)
             df['이슈 키워드'] = df['이슈 키워드'].replace(['냄새', '곰팡이'], '위생(곰팡이/냄새)')
 
-            # 2. 핵심 키워드 빈도 TOP 5
-            st.write("") # 간격 조절용
+            # 1. 핵심 키워드 빈도 TOP 5 (그래프 유지)
+            st.write("") 
             st.markdown(f"""
                 <div style="display: flex; align-items: baseline; margin-top: 15px; margin-bottom: 10px;">
                     <span style="font-size: 22px; margin-right: 8px;">🔍</span>
                     <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px;">
-                        구매 가전 이슈 키워드 TOP 5
+                        구매 가전 핵심 VOC 키워드 TOP 5
                     </span>
                 </div>
             """, unsafe_allow_html=True)
             
             all_keywords = df['이슈 키워드'].value_counts().head(5)
-            
             for kw, count in all_keywords.items():
                 max_cnt = all_keywords.max()
                 progress = (count / max_cnt) * 100
@@ -893,57 +892,58 @@ if loc:
 
             st.divider()
             
+            # 2. 구매 가전 이슈 제품별 상세 분석 (각 제품별 1~3위 이슈 출력)
             st.markdown(f"""
-                <div style="display: flex; align-items: baseline; margin-top: 15px; margin-bottom: 10px;">
+                <div style="display: flex; align-items: baseline; margin-top: 15px; margin-bottom: 15px;">
                     <span style="font-size: 22px; margin-right: 8px;">💡</span>
                     <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px;">
-                        구매 가전 이슈 순위 분석
+                        구매 가전 제품별 상세 이슈 분석
                     </span>
                 </div>
             """, unsafe_allow_html=True)
 
+            # 상위 3개 가전 제품 리스트
             top_apps = df['가전'].value_counts().head(3).index.tolist()
             
-            # 가로 3열 배치 (스크롤 압축)
+            # 가로 3열 배치
             cols = st.columns(3)
             for idx, appliance in enumerate(top_apps):
                 with cols[idx]:
-                    total_cnt = len(df[df['가전'] == appliance])
-                    st.markdown(f"""
-                    <div style="background:#FFFFFF; border:1px solid #007BFF; border-radius:10px; padding:10px; text-align:center;">
-                        <div style="font-size:12px; color:#6C757D;">{appliance}</div>
-                        <div style="font-size:20px; font-weight:bold; color:#212529;">{total_cnt}건</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    # 해당 가전 데이터 필터링
+                    target_app_df = df[df['가전'] == appliance]
+                    total_cnt = len(target_app_df)
+                    # 해당 가전의 이슈 키워드 TOP 3 추출
+                    app_issue_ranking = target_app_df['이슈 키워드'].value_counts().head(3)
+                    
+                    # 상세 카드 디자인 시작
+                    html_card = f"""
+                    <div style="background:#FFFFFF; border:1px solid #007BFF; border-radius:12px; padding:15px; min-height:180px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                        <div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #F1F3F5; padding-bottom:8px;">
+                            <div style="font-size:14px; font-weight:bold; color:#212529;">{appliance}</div>
+                            <div style="font-size:11px; color:#868E96;">(총 {total_cnt}건)</div>
+                        </div>
+                    """
+                    # 제품별 이슈 1~3위 리스트 추가
+                    for i, (issue, count) in enumerate(app_issue_ranking.items()):
+                        issue_color = "#DA004B" if i == 0 else "#495057" # 1위만 빨간색 강조
+                        html_card += f'''
+                        <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px;">
+                            <span style="color:{issue_color}; font-weight:{'bold' if i==0 else 'normal'};">{i+1}위 {issue}</span>
+                            <span style="color:#ADB5BD;">{count}건</span>
+                        </div>'''
+                    
+                    html_card += "</div>"
+                    st.markdown(html_card, unsafe_allow_html=True)
 
-            # 1위 가전 제품 이름 확보
-            matched_app = top_apps[0] 
-            
-            # 2. 전체 데이터에서 해당 제품 데이터만 필터링
-            target_app_df = df[df['가전'] == matched_app]
-            
-            if not target_app_df.empty:
-                # 3. 이슈 빈도 계산 및 최대 빈도수 확인
-                app_issue_counts = target_app_df['이슈 키워드'].value_counts()
-                max_freq = app_issue_counts.max()
-                
-                # 4. 동점인 모든 이슈를 리스트로 추출
-                top_issues = app_issue_counts[app_issue_counts == max_freq].index.tolist()
-                
-                # 5. 이슈들을 '및'으로 연결 (예: 배터리 및 발열)
-                if len(top_issues) > 1:
-                    matched_issue = " 및 ".join(top_issues)
-                else:
-                    matched_issue = top_issues[0]
-            else:
-                matched_issue = "성능 및 제품 상태"
+            # --- [최종 가이드 반영] ---
+            # 1위 제품의 1위 이슈로 가이드 자동 매칭
+            matched_app = top_apps[0] if top_apps else "주요 가전"
+            top_issue_for_guide = df[df['가전'] == matched_app]['이슈 키워드'].value_counts().index[0] if not top_apps else "핵심 이슈"
 
-            # --- [최종 완성] 3. TOP 3 지역 현장 대응 가이드 출력 ---
-            # (1) 지역 현장 대응 가이드 (매니저님이 강조하신 핵심 3줄 요약)
             st.info(f"""
             **📢 {u_dong} 지역 현장 대응 가이드**
-            - 현재 **{matched_app}** 제품은 **{matched_issue}** 이슈가 가장 지배적입니다.
-            - 키워드 이슈에 맞춰 LG전자 구독만의 전문가 방문관리, 무상 A/S, 소모품 교체를 제안하세요.
+            - 현재 **{matched_app}** 제품은 **{top_issue_for_guide}** 이슈가 가장 지배적입니다.
+            - 분석된 키워드 이슈에 맞춰 LG전자 구독만의 전문가 방문관리, 무상 A/S, 소모품 교체를 제안하세요.
             """)
 
             # (2) 가전 이슈 TOP 3 상세 응대 가이드

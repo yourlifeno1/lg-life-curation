@@ -12,22 +12,28 @@ NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
 def get_category_trend(categories, age=None, gender=None, unit='date'):
     kr_now = datetime.now() + timedelta(hours=9)
-    yesterday = (kr_now - timedelta(days=1)).strftime('%Y-%m-%d')
     
     if unit == 'week':
+        # 주간: 지난주 월요일 ~ 일요일 범위를 계산
         last_monday = kr_now - timedelta(days=kr_now.weekday() + 7)
         last_sunday = last_monday + timedelta(days=6)
         start_date = last_monday.strftime('%Y-%m-%d')
         end_date = last_sunday.strftime('%Y-%m-%d')
+        # ★ 시트에 찍힐 기간 문자열을 범위로 생성
+        display_period = f"{start_date} ~ {end_date}"
     else:
-        start_date = yesterday
-        end_date = yesterday
+        # 일간: 어제 날짜
+        yesterday = kr_now - timedelta(days=1)
+        start_date = yesterday.strftime('%Y-%m-%d')
+        end_date = yesterday.strftime('%Y-%m-%d')
+        # ★ 시트에 찍힐 기간 문자열을 단일 날짜로 생성
+        display_period = end_date
 
     res_list = []
     for i in range(0, len(categories), 3):
         chunk = categories[i:i+3]
         body = {
-            "startDate": start_date,
+            "startDate": start_date, # API 요청용 (일간/주간 동일)
             "endDate": end_date,
             "timeUnit": unit,
             "category": chunk,
@@ -40,7 +46,8 @@ def get_category_trend(categories, age=None, gender=None, unit='date'):
         if res.status_code == 200:
             for r in res.json().get('results', []):
                 ratio = r['data'][-1]['ratio'] if r.get('data') else 0
-                res_list.append({"name": r['title'], "ratio": ratio, "period": end_date})
+                # r['data'][-1]['period'] 대신 우리가 계산한 display_period를 사용합니다.
+                res_list.append({"name": r['title'], "ratio": ratio, "period": display_period})
     return res_list
 
 def run():

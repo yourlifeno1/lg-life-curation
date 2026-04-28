@@ -29,67 +29,62 @@ def run():
     ]
     
     all_items = [anchor] + others
+    # 네이버 연령대 코드 (1:10대, 2:20대 ...)
     age_map = {"1": "10", "2": "20", "3": "30", "4": "40", "5": "50", "6": "60"}
-    temp_storage = []
+    temp_results = []
 
-    print(f"📊 [AGE 분석] 데이터 정밀 수집 및 비중 계산 시작...")
+    print(f"📊 [AGE 상세분석] 데이터 수집 시작: {start_date} ~ {end_date}")
 
     for a_code, a_name in age_map.items():
-        print(f"   > {a_name}대 분석 중...")
+        print(f"   > {a_name}대 수집 중...")
         for i in range(0, len(all_items), 3):
             chunk = all_items[i:i+3]
             for g_code, g_label in [("m", "남성"), ("f", "여성")]:
-                headers = {
-                    "X-Naver-Client-Id": CLIENT_ID, 
-                    "X-Naver-Client-Secret": CLIENT_SECRET, 
-                    "Content-Type": "application/json"
-                }
+                headers = {"X-Naver-Client-Id": CLIENT_ID, "X-Naver-Client-Secret": CLIENT_SECRET, "Content-Type": "application/json"}
                 body = {"startDate": start_date, "endDate": end_date, "timeUnit": "date", "category": chunk, "ages": [a_code], "gender": g_code}
                 
                 try:
-                    res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body), timeout=25)
-                    # 403 에러 발생 시 잠시 대기 후 건너뛰기
-                    if res.status_code == 403:
-                        print("⚠️ API 한도 초과(403). 2초간 대기합니다...")
-                        time.sleep(2)
+                    res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body), timeout=20)
+                    # 403 Forbidden 방어를 위해 상태 확인
+                    if res.status_code != 200:
+                        print(f"      ⚠️ API 호출 오류 ({res.status_code}). 잠시 대기합니다.")
+                        time.sleep(1)
                         continue
                         
-                    data_json = res.json().get('results', [])
-                    for r in data_json:
-                        avg = sum([d['ratio'] for d in r.get('data', [])]) / len(r['data']) if r.get('data') else 0
-                        temp_storage.append({"age": a_name, "gender": g_label, "name": r['title'], "val": avg})
-                except: continue
-            # 네이버 서버 보호를 위해 0.5초 간격 유지
-            time.sleep(0.5)
+                    results = res.json().get('results', [])
+                    for r in results:
+                        ratios = [d['ratio'] for d in r.get('data', [])]
+                        avg = sum(ratios) / len(ratios) if ratios else 0
+                        temp_results.append({
+                            "age": a_name, "gender": g_label, "name": r['title'], "val": avg
+                        })
+                except Exception as e:
+                    print(f"      ❌ 에러 발생: {e}")
+                    continue
+            time.sleep(0.3) # 초당 호출 제한 방지
 
-    # ... (이하 글로벌 보정 및 성별 비중 계산 로직은 이전과 동일) ...
-    all_vals = [x['val'] for x in temp_storage]
+    # 1. 글로벌 보정 (전체 데이터 중 최대값 기준)
+    all_vals = [x['val'] for x in temp_results]
     global_max = max(all_vals) if all_vals and max(all_vals) > 0 else 1
-
+    
+    # 2. 전송용 데이터 구성
     final_payload = []
-    for a_name in age_map.values():
-        for item in all_items:
-            item_name = item['name']
-            m_val = next((x['val'] for x in temp_storage if x['age'] == a_name and x['name'] == item_name and x['gender'] == "남성"), 0)
-            f_val = next((x['val'] for x in temp_storage if x['age'] == a_name and x['name'] == item_name and x['gender'] == "여성"), 0)
-            
-            total = m_val + f_val
-            m_share = round((m_val / total * 100), 2) if total > 0 else 0
-            f_share = round((f_val / total * 100), 2) if total > 0 else 0
+    for x in temp_results:
+        final_payload.append({
+            "gubun": f"AGE_{x['age']}", 
+            "gender": x['gender'], 
+            "name": x['name'], 
+            "ratio": round((x['val'] / global_max) * 100, 5), # 이 값이 클릭 지수로 들어감
+            "period": f"{start_date}~{end_date}"
+        })
 
-            final_payload.append({
-                "gubun": f"AGE_{a_name}", "gender": "남성", "name": item_name,
-                "ratio": round((m_val / global_max) * 100, 5), "share": m_share, "period": f"{start_date}~{end_date}"
-            })
-            final_payload.append({
-                "gubun": f"AGE_{a_name}", "gender": "여성", "name": item_name,
-                "ratio": round((f_val / global_max) * 100, 5), "share": f_share, "period": f"{start_date}~{end_date}"
-            })
-
+    # 3. 통합 전송
     if final_payload:
-        print(f"📡 {len(final_payload)}행 통합 전송 중...")
-        requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": final_payload}))
-        print("✅ 모든 프로세스 완료!")
+        print(f"📡 전체 데이터({len(final_payload)}행) 시트 전송 중...")
+        response = requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": final_payload}))
+        print(f"✅ 전송 완료! (상태코드: {response.status_code})")
+    else:
+        print("⚠️ 전송할 데이터가 없습니다.")
 
 if __name__ == "__main__":
     run()

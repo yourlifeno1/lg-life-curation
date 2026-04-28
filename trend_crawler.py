@@ -111,7 +111,7 @@ def run_trend_crawler():
     
     # AGE_TREND 시트로 전송
     if age_trend_data:
-        resp = requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": target_date}))
+        resp = requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": age_trend_data}))
         print(f"✅ Age_Trend 업데이트 완료 ({resp.text})")
 
 if __name__ == "__main__":

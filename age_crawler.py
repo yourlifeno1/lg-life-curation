@@ -8,7 +8,7 @@ NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
 def get_dates():
     today = datetime.now() + timedelta(hours=9)
-    # 매니저님 로직: 지난주 월요일 ~ 일요일
+    # 지난주 월요일 ~ 일요일
     last_monday = today - timedelta(days=today.weekday() + 7)
     last_sunday = last_monday + timedelta(days=6)
     return last_monday.strftime('%Y-%m-%d'), last_sunday.strftime('%Y-%m-%d')
@@ -30,20 +30,20 @@ def run():
     ]
     
     all_items = [anchor] + others
-    all_ages = ["10", "20", "30", "40", "50", "60"]
-    # 수집된 모든 로우 데이터를 저장
+    # 네이버 API 전용 연령대 코드 (1:10대, 2:20대 ...)
+    age_map = {"1": "10", "2": "20", "3": "30", "4": "40", "5": "50", "6": "60"}
     temp_results = []
 
-    print(f"📊 [AGE 분석 시작] 기간: {start_date} ~ {end_date}")
+    print(f"📊 [AGE 정밀 분석] 기간: {start_date} ~ {end_date}")
 
-    for a in all_ages:
-        print(f"   > {a}대 데이터 수집 중...")
+    for a_code, a_name in age_map.items():
+        print(f"   > {a_name}대 데이터 수집 중...")
         for i in range(0, len(all_items), 3):
             chunk = all_items[i:i+3]
             for g_code, g_label in [("m", "남성"), ("f", "여성")]:
                 headers = {"X-Naver-Client-Id": CLIENT_ID, "X-Naver-Client-Secret": CLIENT_SECRET, "Content-Type": "application/json"}
-                # 중요: ages 파라미터에 단일 연령대만 넣어서 데이터가 섞이지 않게 함
-                body = {"startDate": start_date, "endDate": end_date, "timeUnit": "date", "category": chunk, "ages": [a], "gender": g_code}
+                # ages 파라미터에 정확한 코드 ["1"], ["2"] 등을 전달
+                body = {"startDate": start_date, "endDate": end_date, "timeUnit": "date", "category": chunk, "ages": [a_code], "gender": g_code}
                 
                 try:
                     res = requests.post(NAVER_URL, headers=headers, data=json.dumps(body), timeout=20).json().get('results', [])
@@ -51,12 +51,12 @@ def run():
                         ratios = [d['ratio'] for d in r.get('data', [])]
                         avg = sum(ratios) / len(ratios) if ratios else 0
                         temp_results.append({
-                            "age": a, "gender": g_label, "name": r['title'], "val": avg
+                            "age": a_name, "gender": g_label, "name": r['title'], "val": avg
                         })
                 except: continue
-        time.sleep(1) # API 과부하 방지
+        time.sleep(0.5)
 
-    # 글로벌 보정 (전체 연령대/성별 통합 최대값 기준)
+    # 글로벌 보정
     all_vals = [x['val'] for x in temp_results]
     global_max = max(all_vals) if all_vals and max(all_vals) > 0 else 1
     
@@ -70,11 +70,13 @@ def run():
             "period": f"{start_date}~{end_date}"
         })
 
-    # 구글 시트로 전송 (데이터 누락 방지를 위해 30행씩 끊어서 전송)
-    print(f"📡 전송 시작 (총 {len(final_payload)}행)")
-    for i in range(0, len(final_payload), 30):
-        requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": final_payload[i:i+30]}))
-        time.sleep(0.5)
-    print("✅ AGE 전 연령대 보정 수집 완료!")
+    # 🚀 덮어쓰기 방지: 모든 데이터를 단 한 번의 POST 요청으로 전송
+    if final_payload:
+        print(f"📡 전체 데이터({len(final_payload)}행) 통합 전송 중...")
+        res = requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": final_payload}), timeout=30)
+        print(f"✅ 전송 완료: {res.status_code}")
+    else:
+        print("⚠️ 전송할 데이터가 없습니다.")
 
-if __name__ == "__main__": run()
+if __name__ == "__main__":
+    run()

@@ -869,7 +869,7 @@ if loc:
                 <div style="display: flex; align-items: baseline; margin-top: 15px; margin-bottom: 10px;">
                     <span style="font-size: 22px; margin-right: 8px;">🔍</span>
                     <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px;">
-                        구매 가전 핵심 VOC 키워드 TOP 5
+                        구매 가전 VOC 키워드 TOP 5
                     </span>
                 </div>
             """, unsafe_allow_html=True)
@@ -918,8 +918,8 @@ if loc:
                     # 1. 카드 헤더 시작 (문자열 더하기 방식으로 따옴표 충돌 방지)
                     html_content = '<div style="background:#FFFFFF; border:1px solid #007BFF; border-radius:12px; padding:15px; min-height:180px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">'
                     html_content += '<div style="text-align:center; margin-bottom:10px; border-bottom:1px solid #F1F3F5; padding-bottom:8px;">'
-                    html_content += '<div style="font-size:14px; font-weight:bold; color:#212529;">' + str(appliance) + '</div>'
-                    html_content += '<div style="font-size:11px; color:#868E96;">(총 ' + str(total_cnt) + '건)</div>'
+                    html_content += '<div style="font-size:16px; font-weight:bold; color:#212529;">' + str(appliance) + '</div>'
+                    html_content += '<div style="font-size:12px; color:#868E96;">(총 ' + str(total_cnt) + '건)</div>'
                     html_content += '</div>'
                     
                     # 2. 내부 이슈 리스트 생성
@@ -927,7 +927,7 @@ if loc:
                         color = "#DA004B" if i == 0 else "#495057"
                         weight = "bold" if i == 0 else "normal"
                         
-                        html_content += '<div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px;">'
+                        html_content += '<div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:14px;">'
                         html_content += '<span style="color:' + color + '; font-weight:' + weight + ';">' + str(i+1) + '위 ' + str(issue) + '</span>'
                         html_content += '<span style="color:#ADB5BD;">' + str(count) + '건</span>'
                         html_content += '</div>'

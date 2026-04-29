@@ -21,6 +21,7 @@ def get_dates(mode='week'):
 
 def get_calibrated_score(ratios):
     if not ratios: return 0
+    # 이상치 억제 및 가중치 계산
     avg_raw = sum(ratios) / len(ratios)
     smooth_ratios = [min(v, avg_raw * 2.5) for v in ratios]
     sorted_ratios = sorted(smooth_ratios)
@@ -48,30 +49,56 @@ def run():
     ]
 
     results_storage = []
-    headers = {"X-Naver-Client-Id": CLIENT_ID, "X-Naver-Client-Secret": CLIENT_SECRET, "Content-Type": "application/json"}
+    headers = {
+        "X-Naver-Client-Id": CLIENT_ID, 
+        "X-Naver-Client-Secret": CLIENT_SECRET, 
+        "Content-Type": "application/json"
+    }
 
-    print("🚀 데이터 수집 및 냉장고 앵커 보정 시작...")
+    print("🚀 네이버 API 데이터 수집 시작...")
     for i in range(0, len(others), 2):
         chunk = [anchor] + others[i:i+2]
-        res_w = requests.post(NAVER_URL, headers=headers, data=json.dumps({"startDate": w_start, "endDate": w_end, "timeUnit": "date", "category": chunk})).json().get('results', [])
-        res_d = requests.post(NAVER_URL, headers=headers, data=json.dumps({"startDate": d_start, "endDate": d_end, "timeUnit": "date", "category": chunk})).json().get('results', [])
+        try:
+            res_w = requests.post(NAVER_URL, headers=headers, data=json.dumps({"startDate": w_start, "endDate": w_end, "timeUnit": "date", "category": chunk})).json().get('results', [])
+            res_d = requests.post(NAVER_URL, headers=headers, data=json.dumps({"startDate": d_start, "endDate": d_end, "timeUnit": "date", "category": chunk})).json().get('results', [])
+            
+            for idx, r in enumerate(res_w):
+                val_w = get_calibrated_score([d['ratio'] for d in r.get('data', [])])
+                val_d = get_calibrated_score([d['ratio'] for d in res_d[idx].get('data', [])]) if len(res_d) > idx else 0
+                
+                # 중복 수집 방지 (냉장고 등)
+                if not any(item['name'] == r['title'] for item in results_storage):
+                    results_storage.append({"name": r['title'], "val_w": val_w, "val_d": val_d})
+        except Exception as e:
+            print(f"⚠️ {chunk[1]['name']} 묶음 수집 중 에러 발생: {e}")
         
-        for idx, r in enumerate(res_w):
-            val_w = get_calibrated_score([d['ratio'] for d in r.get('data', [])])
-            val_d = get_calibrated_score([d['ratio'] for d in res_d[idx].get('data', [])]) if len(res_d) > idx else 0
-            if not any(item['name'] == r['title'] for item in results_storage):
-                results_storage.append({"name": r['title'], "val_w": val_w, "val_d": val_d})
         time.sleep(0.5)
 
-    # 유동적 최댓값 기준 100점 보정
-    ref_w = next((x['val_w'] for x in results_storage if x['name'] == "냉장고"), 1)
-    ref_d = next((x['val_d'] for x in results_storage if x['name'] == "냉장고"), 1)
+    # 수집 데이터 검증
+    if not results_storage:
+        print("❌ 에러: 수집된 데이터가 없습니다. API 설정을 확인하세요.")
+        return
+
+    # [수정] 69라인 에러 방지: 냉장고 데이터 추출 시 안전 장치
+    try:
+        ref_w = next(x['val_w'] for x in results_storage if x['name'] == "냉장고")
+        ref_d = next(x['val_d'] for x in results_storage if x['name'] == "냉장고")
+    except StopIteration:
+        print("⚠️ 경고: 수집 결과에 '냉장고'가 없어 첫 번째 품목을 기준점으로 삼습니다.")
+        ref_w = results_storage[0]['val_w']
+        ref_d = results_storage[0]['val_d']
+
+    # 0으로 나누기 방지
+    ref_w = ref_w if ref_w > 0 else 1
+    ref_d = ref_d if ref_d > 0 else 1
+
+    # 유동적 최댓값 계산 (냉장고를 기준으로 맞춘 뒤 전체 1등 찾기)
     max_rel_w = max([x['val_w'] / ref_w for x in results_storage])
     max_rel_d = max([x['val_d'] / ref_d for x in results_storage])
 
     final_payload = []
     for x in results_storage:
-        # WEEKLY 데이터 (앱 스크립트 규격에 맞춤)
+        # WEEKLY 데이터
         final_payload.append({
             "type": "WEEKLY", 
             "name": x['name'],
@@ -86,13 +113,13 @@ def run():
             "period": d_end
         })
 
-    # [핵심] 앱 스크립트가 기대하는 "TOP_TREND" 키값으로 전송
-    print(f"📤 전송 시도 중...")
+    # 구글 시트 전송
+    print(f"📤 {len(final_payload)}건의 데이터를 구글 시트로 전송 중...")
     try:
         response = requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": final_payload}))
         print(f"📡 서버 응답: {response.text}")
     except Exception as e:
-        print(f"❌ 전송 에러: {e}")
+        print(f"❌ 전송 에러 발생: {e}")
 
 if __name__ == "__main__":
     run()

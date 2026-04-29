@@ -873,7 +873,7 @@ if loc:
             AGE_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1Qox47HWyzFZT4mm3ZQsU8IYI2_PWtWb0Cg4_8YxaZsu7vBeUv7urCQO5z-Tcd5JhfZXkeG4bvqkw/pub?gid=1911167707&single=true&output=csv"
             age_df = pd.read_csv(AGE_SHEET_URL)
             
-            # 전처리: 컬럼명 및 데이터 공백 제거
+            # 전처리
             age_df.columns = [col.strip() for col in age_df.columns]
             age_df['구분'] = age_df['구분'].astype(str).str.strip()
 
@@ -883,18 +883,14 @@ if loc:
 
             for i, tab in enumerate(age_tabs):
                 with tab:
-                    display_name = age_display[i] # 예: "30대"
-                    age_num = display_name[:2]    # 예: "30"
+                    display_name = age_display[i]
+                    age_keyword = display_name[:2] # "10", "20", "30"...
                     
-                    # [매칭 핵심] 매니저님이 알려주신 시트 저장 형식 적용
-                    if age_num == "60":
-                        target_val = "60세 이상"  # 60대인 경우 시트 명칭 강제 지정
-                    else:
-                        # 10~50대는 "10~19세" 형태의 텍스트 생성
-                        target_val = f"{age_num}~{int(age_num)+9}세"
-
-                    # 시트의 '구분' 열에서 매칭되는 행 필터링
-                    target_data = age_df[age_df['구분'] == target_val]
+                    # [핵심 변경] 시트의 '구분' 열에서 해당 숫자 키워드가 포함된 행을 찾음
+                    # 예: '10~19세' 안에는 '10'이 포함되어 있으므로 매칭 성공!
+                    target_data = age_df[age_df['구분'].str.contains(age_keyword, na=False)]
+                    
+                    # 정렬
                     target_data = target_data.sort_values(by='통합 클릭지수', ascending=False).head(3)
 
                     if not target_data.empty:
@@ -918,16 +914,14 @@ if loc:
                                             </div>
                                         """, unsafe_allow_html=True)
                                 except:
-                                    st.caption("비중 데이터 분석 중")
+                                    st.caption("비중 분석 중")
                     else:
-                        # 아직 데이터가 안 나올 때를 위한 시트 내용 확인용 메시지
-                        st.info(f"💡 {target_val} 데이터를 찾는 중입니다.")
-                        # [진단용] 실제 시트에 어떤 값들이 들어있는지 하단에 작게 표시
-                        all_vals = age_df['구분'].unique().tolist()
-                        st.caption(f"시트 내 실제 '구분' 목록: {all_vals}")
+                        st.info(f"💡 {display_name} 데이터를 찾는 중입니다.")
+                        # 진단용 (데이터가 안 나올 때만 실제 시트의 구분 열 값을 보여줌)
+                        st.caption(f"시트 내 데이터: {age_df['구분'].unique().tolist()}")
 
         except Exception as e:
-            st.warning(f"리포트 로딩 중: {e}")
+            st.warning(f"데이터 로드 중: {e}")
 
         st.write("") # 간격 조절
                           

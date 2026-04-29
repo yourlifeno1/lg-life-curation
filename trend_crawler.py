@@ -1,9 +1,9 @@
 import requests, json, time, math
 from datetime import datetime, timedelta
 
-# 1. 매니저님의 최신 URL 및 인증정보 (반드시 확인)
+# 1. 최신 앱 스크립트 주소 및 인증정보
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyxt3R5TGgym0eqaeuPC1ZQ87B2CH1TC9MYHw8Lyf1VpRGmxgGWKVAD7kuSnZkXCUWT/exec"
-CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"  # 복구됨
+CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"  # 누락되었던 ID 복구
 CLIENT_SECRET = "28cZQMwaJ9"
 NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
@@ -14,17 +14,18 @@ def get_dates(mode='week'):
         last_sunday = last_monday + timedelta(days=6)
         return last_monday.strftime('%Y-%m-%d'), last_sunday.strftime('%Y-%m-%d')
     else:
-        # 최근 5일 흐름 반영
+        # 최근 5일 흐름 반영 (노이즈 억제용)
         start_day = today - timedelta(days=6)
         end_day = today - timedelta(days=2)
         return start_day.strftime('%Y-%m-%d'), end_day.strftime('%Y-%m-%d')
 
 def get_calibrated_score(ratios):
     if not ratios: return 0
+    # 피크 억제 및 중간값 반영
     avg_raw = sum(ratios) / len(ratios)
-    smooth_ratios = [min(v, avg_raw * 2.5) for v in ratios] # 피크 억제
+    smooth_ratios = [min(v, avg_raw * 2.5) for v in ratios]
     sorted_ratios = sorted(smooth_ratios)
-    median_val = sorted_ratios[len(sorted_ratios)//2] # 중간값
+    median_val = sorted_ratios[len(sorted_ratios)//2]
     weights = [math.exp(i / len(smooth_ratios)) for i in range(len(smooth_ratios))]
     weighted_avg = sum(v * w for v, w in zip(smooth_ratios, weights)) / sum(weights)
     return (median_val * 0.5) + (weighted_avg * 0.5)
@@ -50,32 +51,20 @@ def run():
     results_storage = []
     headers = {"X-Naver-Client-Id": CLIENT_ID, "X-Naver-Client-Secret": CLIENT_SECRET, "Content-Type": "application/json"}
 
-    print(f"📡 데이터 수집 및 앵커 보정 시작...")
+    print("🚀 데이터 수집 시작...")
     for i in range(0, len(others), 2):
         chunk = [anchor] + others[i:i+2]
-        
-        # 주간/일간 수집
         res_w = requests.post(NAVER_URL, headers=headers, data=json.dumps({"startDate": w_start, "endDate": w_end, "timeUnit": "date", "category": chunk})).json().get('results', [])
         res_d = requests.post(NAVER_URL, headers=headers, data=json.dumps({"startDate": d_start, "endDate": d_end, "timeUnit": "date", "category": chunk})).json().get('results', [])
         
-        if not res_w:
-            print(f"⚠️ 경고: {chunk[1]['name']} 묶음 데이터를 가져오지 못함")
-            continue
-
         for idx, r in enumerate(res_w):
             val_w = get_calibrated_score([d['ratio'] for d in r.get('data', [])])
             val_d = get_calibrated_score([d['ratio'] for d in res_d[idx].get('data', [])]) if len(res_d) > idx else 0
-            
-            # 중복 체크 후 저장
             if not any(item['name'] == r['title'] for item in results_storage):
                 results_storage.append({"name": r['title'], "val_w": val_w, "val_d": val_d})
         time.sleep(0.5)
 
-    if not results_storage:
-        print("❌ 전송할 데이터가 없습니다. API 응답을 확인하세요.")
-        return
-
-    # 2. 유동적 앵커 보정 (냉장고 대비 상대 배수 산출)
+    # 유동적 앵커 보정
     ref_w = next((x['val_w'] for x in results_storage if x['name'] == "냉장고"), 1)
     ref_d = next((x['val_d'] for x in results_storage if x['name'] == "냉장고"), 1)
 
@@ -84,21 +73,24 @@ def run():
 
     final_payload = []
     for x in results_storage:
-        # 주간 데이터
         final_payload.append({
             "type": "WEEKLY", "name": x['name'],
             "ratio": round(((x['val_w'] / ref_w) / max_rel_w) * 100, 5), "period": f"{w_start}~{w_end}"
         })
-        # 일간 데이터
         final_payload.append({
             "type": "DAILY", "name": x['name'],
             "ratio": round(((x['val_d'] / ref_d) / max_rel_d) * 100, 5), "period": d_end
         })
 
-    # 3. 전송 (payload 구조 최적화)
-    print(f"📤 {len(final_payload)}개 행 전송 시도...")
+    # 전송 및 결과 출력
+    print(f"📤 전송 중... (URL: {WEBAPP_URL[:50]}...)")
     response = requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": final_payload}))
-    print(f"🏁 결과: {response.text}")
+    
+    if response.status_code == 200:
+        print(f"✅ 결과: {response.text}")
+    else:
+        print(f"❌ 전송 실패: {response.status_code}")
+        print(f"내용: {response.text[:200]}") # 에러 내용 일부 출력
 
 if __name__ == "__main__":
     run()

@@ -869,28 +869,34 @@ if loc:
         """, unsafe_allow_html=True)
 
         try:
-            # 1. 데이터 로드 및 전처리
+            # 1. 데이터 로드
             AGE_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1Qox47HWyzFZT4mm3ZQsU8IYI2_PWtWb0Cg4_8YxaZsu7vBeUv7urCQO5z-Tcd5JhfZXkeG4bvqkw/pub?gid=1911167707&single=true&output=csv"
             age_df = pd.read_csv(AGE_SHEET_URL)
             
-            # 컬럼명 앞뒤 공백 제거
+            # 전처리: 컬럼명 및 데이터 앞뒤 공백 제거
             age_df.columns = [col.strip() for col in age_df.columns]
-            
-            # '구분' 열의 데이터를 문자열로 바꾸고 앞뒤 공백 제거
             age_df['구분'] = age_df['구분'].astype(str).str.strip()
 
-            # 2. 탭 생성 (화면 표시용)
+            # 2. 탭 생성 (화면 표시용 명칭)
             age_display = ["10대", "20대", "30대", "40대", "50대", "60대 이상"]
             age_tabs = st.tabs(age_display)
 
+            # 3. 매칭 로직 (시트의 "10~19세" 형식 대응)
             for i, tab in enumerate(age_tabs):
                 with tab:
-                    # [수정 포인트] 시트에 "10"이라고 적힌 경우와 "10대"라고 적힌 경우 모두 대응
                     display_name = age_display[i] # "10대"
-                    search_value = display_name.replace("대", "").replace(" 이상", "").strip() # "10"
                     
-                    # '구분' 열에서 "10대" 또는 "10"을 모두 찾음
-                    target_data = age_df[age_df['구분'].isin([display_name, search_value])]
+                    # 시트 데이터 형식에 맞게 검색어 생성
+                    # 예: "10대" -> "10~19세", "20대" -> "20~29세" ...
+                    start_age = display_name[:2] # "10", "20" 등 숫자만 추출
+                    
+                    if "60" in start_age:
+                        search_val = "60~100세" # 네이버 API 60대 이상 표기 방식
+                    else:
+                        search_val = f"{start_age}~{int(start_age)+9}세" # "10~19세" 형태 생성
+                    
+                    # [매칭] 시트의 '구분' 열에서 해당 문자열 찾기
+                    target_data = age_df[age_df['구분'] == search_val]
                     target_data = target_data.sort_values(by='통합 클릭지수', ascending=False).head(3)
 
                     if not target_data.empty:
@@ -900,27 +906,27 @@ if loc:
                                 st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:14px; color:#1E3A8A;'>{idx+1}위 {row['품목명']}</div>", unsafe_allow_html=True)
                                 
                                 # 성별 비중 계산
-                                m_val = float(row['남성 클릭지수'])
-                                f_val = float(row['여성 클릭지수'])
-                                total = m_val + f_val
-                                
-                                if total > 0:
-                                    m_p = (m_val / total) * 100
-                                    f_p = (f_val / total) * 100
-                                    st.markdown(f"""
-                                        <div style="display: flex; width: 100%; height: 12px; border-radius: 6px; overflow: hidden; margin-top: 5px; background:#eee;">
-                                            <div style="width: {m_p}%; background-color: #3B82F6;"></div>
-                                            <div style="width: {f_p}%; background-color: #EF4444;"></div>
-                                        </div>
-                                        <div style="display: flex; justify-content: space-between; font-size: 10px; color: #666; margin-top: 2px;">
-                                            <span>남 {m_p:.0f}%</span><span>여 {f_p:.0f}%</span>
-                                        </div>
-                                    """, unsafe_allow_html=True)
+                                try:
+                                    m_v, f_v = float(row['남성 클릭지수']), float(row['여성 클릭지수'])
+                                    total = m_v + f_v
+                                    if total > 0:
+                                        m_p, f_p = (m_v/total)*100, (f_v/total)*100
+                                        st.markdown(f"""
+                                            <div style="display: flex; width: 100%; height: 12px; border-radius: 6px; overflow: hidden; margin-top: 5px; background:#eee;">
+                                                <div style="width: {m_p}%; background-color: #3B82F6;"></div>
+                                                <div style="width: {f_p}%; background-color: #EF4444;"></div>
+                                            </div>
+                                            <div style="display: flex; justify-content: space-between; font-size: 10px; color: #666; margin-top: 2px;">
+                                                <span>남 {m_p:.0f}%</span><span>여 {f_p:.0f}%</span>
+                                            </div>
+                                        """, unsafe_allow_html=True)
+                                except:
+                                    st.caption("비중 데이터 오류")
                     else:
-                        st.info(f"💡 {display_name} 데이터를 불러오는 중입니다.")
+                        st.info(f"💡 {display_name}({search_val}) 데이터를 찾는 중입니다.")
 
         except Exception as e:
-            st.warning(f"데이터 로드 중 알림: {e}")
+            st.warning(f"데이터 로딩 알림: {e}")
 
         st.write("") # 간격 조절
                           

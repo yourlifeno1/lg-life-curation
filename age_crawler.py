@@ -1,43 +1,26 @@
 import requests, json, time, math
 from datetime import datetime, timedelta
 
+# 매니저님의 최신 GAS URL
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbznNxgFxVLI4rnwm-FeHIo0JHdlhynsJAsfishMHfXFh6U4auGBegt-NcnL2fZFPEKO/exec"
 CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"
 CLIENT_SECRET = "28cZQMwaJ9"
 NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
-def get_dates():
-    today = datetime.now() + timedelta(hours=9)
-    last_monday = today - timedelta(days=today.weekday() + 7)
-    last_sunday = last_monday + timedelta(days=6)
-    return last_monday.strftime('%Y-%m-%d'), last_sunday.strftime('%Y-%m-%d')
-
 def get_calibrated_score(ratios):
-    """
-    연령대별 데이터 오염 방지: 이상치 억제 + 시간 가중치
-    """
+    """이상치 억제 및 시간 가중치 적용"""
     if not ratios: return 0
-    
-    # 1. 이상치 억제 (Outlier Smoothing)
-    # 특정일 클릭이 평균보다 과도하게 높으면(3.5배) 필터링
     avg_raw = sum(ratios) / len(ratios)
-    smooth_ratios = [min(v, avg_raw * 3.5) for v in ratios]
-    
-    # 2. 시간 가중치 (Exponential Decay)
-    # 최근 트렌드에 더 높은 점수 부여
+    smooth_ratios = [min(v, avg_raw * 2.5) for v in ratios] # 피크 억제
     weights = [math.exp(i / len(smooth_ratios)) for i in range(len(smooth_ratios))]
-    weighted_avg = sum(v * w for v, w in zip(smooth_ratios, weights)) / sum(weights)
-    
-    # 3. 활동성 체크
-    # 최근 3일 중 0이 2일 이상이면 '가짜 유행'으로 간주하여 70% 삭감
-    if smooth_ratios[-3:].count(0) >= 2:
-        weighted_avg *= 0.3
-        
-    return weighted_avg
+    return sum(v * w for v, w in zip(smooth_ratios, weights)) / sum(weights)
 
 def run():
-    start_date, end_date = get_dates()
-    # 앵커(냉장고) 설정
+    # 날짜 설정 (지난주 월~일)
+    today = datetime.now() + timedelta(hours=9)
+    start_date = (today - timedelta(days=today.weekday() + 7)).strftime('%Y-%m-%d')
+    end_date = (today - timedelta(days=today.weekday() + 1)).strftime('%Y-%m-%d')
+
     anchor = {"name": "냉장고", "param": ["50000210"]}
     others = [
         {"name": "TV", "param": ["50000209"]}, {"name": "세탁기", "param": ["50000211"]},
@@ -52,58 +35,62 @@ def run():
         {"name": "사운드바", "param": ["50002229"]}, {"name": "프로젝터", "param": ["50000214"]}
     ]
     all_items = [anchor] + others
-    age_config = [
-        {"code": "10", "label": "10∼19세"}, {"code": "20", "label": "20∼29세"},
-        {"code": "30", "label": "30∼39세"}, {"code": "40", "label": "40∼49세"},
-        {"code": "50", "label": "50∼59세"}, {"code": "60", "label": "60세 이상"}
-    ]
+    age_groups = ["10", "20", "30", "40", "50", "60"]
+    age_labels = {"10":"10∼19세", "20":"20∼29세", "30":"30∼39세", "40":"40∼49세", "50":"50∼59세", "60":"60세 이상"}
 
-    combined_results = []
+    raw_data_list = [] # 연령별 통합 데이터를 먼저 수집
 
-    for age in age_config:
-        print(f"🔎 {age['label']} 데이터 정밀 보정 중...")
+    for age_code in age_groups:
+        print(f"🔎 {age_labels[age_code]} 연령대 통합 분석 중...")
         for i in range(0, len(all_items), 3):
             chunk = all_items[i:i+3]
             headers = {"X-Naver-Client-Id": CLIENT_ID, "X-Naver-Client-Secret": CLIENT_SECRET, "Content-Type": "application/json"}
             
-            # 통합/남성/여성 데이터를 각각 호출
-            res_total = requests.post(NAVER_URL, headers=headers, data=json.dumps({"startDate": start_date, "endDate": end_date, "timeUnit": "date", "category": chunk, "ages": [age['code']]})).json().get('results', [])
-            res_m = requests.post(NAVER_URL, headers=headers, data=json.dumps({"startDate": start_date, "endDate": end_date, "timeUnit": "date", "category": chunk, "ages": [age['code']], "gender": "m"})).json().get('results', [])
-            res_f = requests.post(NAVER_URL, headers=headers, data=json.dumps({"startDate": start_date, "endDate": end_date, "timeUnit": "date", "category": chunk, "ages": [age['code']], "gender": "f"})).json().get('results', [])
+            # [1단계] 성별 구분 없는 연령대 통합 클릭 데이터 요청
+            res_total = requests.post(NAVER_URL, headers=headers, data=json.dumps({"startDate": start_date, "endDate": end_date, "timeUnit": "date", "category": chunk, "ages": [age_code]})).json().get('results', [])
+            
+            # [2단계] 동일 조건에서의 남성/여성 개별 데이터 요청 (비중 계산용)
+            res_m = requests.post(NAVER_URL, headers=headers, data=json.dumps({"startDate": start_date, "endDate": end_date, "timeUnit": "date", "category": chunk, "ages": [age_code], "gender": "m"})).json().get('results', [])
+            res_f = requests.post(NAVER_URL, headers=headers, data=json.dumps({"startDate": start_date, "endDate": end_date, "timeUnit": "date", "category": chunk, "ages": [age_code], "gender": "f"})).json().get('results', [])
 
             for idx, r in enumerate(res_total):
-                # 보정된 스코어 산출
-                total_v = get_calibrated_score([d['ratio'] for d in r.get('data', [])])
-                m_v = get_calibrated_score([d['ratio'] for d in res_m[idx].get('data', [])]) if len(res_m) > idx else 0
-                f_v = get_calibrated_score([d['ratio'] for d in res_f[idx].get('data', [])]) if len(res_f) > idx else 0
+                total_score = get_calibrated_score([d['ratio'] for d in r.get('data', [])])
+                m_score = get_calibrated_score([d['ratio'] for d in res_m[idx].get('data', [])]) if len(res_m) > idx else 0
+                f_score = get_calibrated_score([d['ratio'] for d in res_f[idx].get('data', [])]) if len(res_f) > idx else 0
                 
-                sum_gender = m_v + f_v
-                m_share = m_v / sum_gender if sum_gender > 0 else 0.5
-                f_share = f_v / sum_gender if sum_gender > 0 else 0.5
+                # 성별 비중(Share) 산출
+                sum_gender = m_score + f_score
+                m_share = m_score / sum_gender if sum_gender > 0 else 0.5
+                f_share = f_score / sum_gender if sum_gender > 0 else 0.5
 
-                combined_results.append({
-                    "age": age['label'], "name": r['title'], 
-                    "total_val": total_v, "m_share": m_share, "f_share": f_share
+                raw_data_list.append({
+                    "age_label": age_labels[age_code], "name": r['title'],
+                    "total_score": total_score, "m_share": m_share, "f_share": f_share
                 })
         time.sleep(0.5)
 
-    # 글로벌 보정 (전체 연령대 통합 1위 기준)
-    all_totals = [x['total_val'] for x in combined_results]
-    global_max = max(all_totals) if all_totals and max(all_totals) > 0 else 1
+    # [3단계] 전체 카테고리 비교를 통한 글로벌 재나열 (글로벌 앵커링)
+    # 냉장고(전체 연령 통합 기준)를 앵커로 삼아 모든 데이터를 다시 줄 세웁니다.
+    # 여기서는 단순 최댓값을 기준으로 100점 재정렬을 수행합니다.
+    max_score = max([x['total_score'] for x in raw_data_list]) if raw_data_list else 1
     
     final_payload = []
-    for x in combined_results:
-        total_ratio = round((x['total_val'] / global_max) * 100, 5)
+    for x in raw_data_list:
+        # 글로벌 기준으로 환산된 통합 클릭지수
+        total_ratio = round((x['total_score'] / max_score) * 100, 5)
         final_payload.append({
-            "gubun": x['age'], "name": x['name'],
+            "gubun": x['age_label'],
+            "name": x['name'],
             "total_ratio": total_ratio,
             "male_ratio": round(total_ratio * x['m_share'], 5),
             "female_ratio": round(total_ratio * x['f_share'], 5),
             "period": f"{start_date}~{end_date}"
         })
 
+    # [4단계] 구글 시트로 전송
     if final_payload:
         requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": final_payload}))
-        print("✅ Age Trend 정밀 보정 및 전송 완료!")
+        print(f"✅ {len(final_payload)}개 데이터의 연령대 통합 분석 및 글로벌 보정 완료!")
 
-if __name__ == "__main__": run()
+if __name__ == "__main__":
+    run()

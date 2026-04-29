@@ -1,7 +1,9 @@
 import requests, json, time, math
 from datetime import datetime, timedelta
 
+# 1. 매니저님의 최신 URL 및 인증정보 (반드시 확인)
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyxt3R5TGgym0eqaeuPC1ZQ87B2CH1TC9MYHw8Lyf1VpRGmxgGWKVAD7kuSnZkXCUWT/exec"
+CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"  # 복구됨
 CLIENT_SECRET = "28cZQMwaJ9"
 NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
@@ -12,27 +14,25 @@ def get_dates(mode='week'):
         last_sunday = last_monday + timedelta(days=6)
         return last_monday.strftime('%Y-%m-%d'), last_sunday.strftime('%Y-%m-%d')
     else:
+        # 최근 5일 흐름 반영
         start_day = today - timedelta(days=6)
         end_day = today - timedelta(days=2)
         return start_day.strftime('%Y-%m-%d'), end_day.strftime('%Y-%m-%d')
 
 def get_calibrated_score(ratios):
     if not ratios: return 0
-    # 이상치 억제 (2.5배 캡핑)
     avg_raw = sum(ratios) / len(ratios)
-    smooth_ratios = [min(v, avg_raw * 2.5) for v in ratios]
-    # 중간값 가중치 (하루만 튀는 값 방지)
+    smooth_ratios = [min(v, avg_raw * 2.5) for v in ratios] # 피크 억제
     sorted_ratios = sorted(smooth_ratios)
-    median_val = sorted_ratios[len(sorted_ratios)//2]
-    # 시간 가중치 (최근일수록 높게)
+    median_val = sorted_ratios[len(sorted_ratios)//2] # 중간값
     weights = [math.exp(i / len(smooth_ratios)) for i in range(len(smooth_ratios))]
     weighted_avg = sum(v * w for v, w in zip(smooth_ratios, weights)) / sum(weights)
-    
     return (median_val * 0.5) + (weighted_avg * 0.5)
 
 def run():
     w_start, w_end = get_dates('week')
     d_start, d_end = get_dates('day')
+    
     anchor = {"name": "냉장고", "param": ["50000210"]}
     others = [
         {"name": "TV", "param": ["50000209"]}, {"name": "세탁기", "param": ["50000211"]},
@@ -48,40 +48,57 @@ def run():
     ]
 
     results_storage = []
+    headers = {"X-Naver-Client-Id": CLIENT_ID, "X-Naver-Client-Secret": CLIENT_SECRET, "Content-Type": "application/json"}
+
+    print(f"📡 데이터 수집 및 앵커 보정 시작...")
     for i in range(0, len(others), 2):
         chunk = [anchor] + others[i:i+2]
-        headers = {"X-Naver-Client-Id": CLIENT_ID, "X-Naver-Client-Secret": CLIENT_SECRET, "Content-Type": "application/json"}
-        # 주간/일간 수집 (코드 간략화)
+        
+        # 주간/일간 수집
         res_w = requests.post(NAVER_URL, headers=headers, data=json.dumps({"startDate": w_start, "endDate": w_end, "timeUnit": "date", "category": chunk})).json().get('results', [])
         res_d = requests.post(NAVER_URL, headers=headers, data=json.dumps({"startDate": d_start, "endDate": d_end, "timeUnit": "date", "category": chunk})).json().get('results', [])
         
+        if not res_w:
+            print(f"⚠️ 경고: {chunk[1]['name']} 묶음 데이터를 가져오지 못함")
+            continue
+
         for idx, r in enumerate(res_w):
             val_w = get_calibrated_score([d['ratio'] for d in r.get('data', [])])
             val_d = get_calibrated_score([d['ratio'] for d in res_d[idx].get('data', [])]) if len(res_d) > idx else 0
-            results_storage.append({"name": r['title'], "val_w": val_w, "val_d": val_d})
+            
+            # 중복 체크 후 저장
+            if not any(item['name'] == r['title'] for item in results_storage):
+                results_storage.append({"name": r['title'], "val_w": val_w, "val_d": val_d})
         time.sleep(0.5)
 
-    # 1. 냉장고를 기준으로 모든 제품의 '상대 배수' 계산
+    if not results_storage:
+        print("❌ 전송할 데이터가 없습니다. API 응답을 확인하세요.")
+        return
+
+    # 2. 유동적 앵커 보정 (냉장고 대비 상대 배수 산출)
     ref_w = next((x['val_w'] for x in results_storage if x['name'] == "냉장고"), 1)
     ref_d = next((x['val_d'] for x in results_storage if x['name'] == "냉장고"), 1)
 
-    for x in results_storage:
-        x['rel_w'] = x['val_w'] / ref_w
-        x['rel_d'] = x['val_d'] / ref_d
-
-    # 2. 상대 배수 중 최댓값을 100으로 설정 (진짜 1위 추출)
-    max_rel_w = max([x['rel_w'] for x in results_storage])
-    max_rel_d = max([x['rel_d'] for x in results_storage])
+    max_rel_w = max([x['val_w'] / ref_w for x in results_storage])
+    max_rel_d = max([x['val_d'] / ref_d for x in results_storage])
 
     final_payload = []
     for x in results_storage:
+        # 주간 데이터
         final_payload.append({
             "type": "WEEKLY", "name": x['name'],
-            "ratio": round((x['rel_w'] / max_rel_w) * 100, 5), "period": f"{w_start}~{w_end}"
+            "ratio": round(((x['val_w'] / ref_w) / max_rel_w) * 100, 5), "period": f"{w_start}~{w_end}"
         })
+        # 일간 데이터
         final_payload.append({
             "type": "DAILY", "name": x['name'],
-            "ratio": round((x['rel_d'] / max_rel_d) * 100, 5), "period": d_end
+            "ratio": round(((x['val_d'] / ref_d) / max_rel_d) * 100, 5), "period": d_end
         })
 
-    requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": final_payload}))
+    # 3. 전송 (payload 구조 최적화)
+    print(f"📤 {len(final_payload)}개 행 전송 시도...")
+    response = requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": final_payload}))
+    print(f"🏁 결과: {response.text}")
+
+if __name__ == "__main__":
+    run()

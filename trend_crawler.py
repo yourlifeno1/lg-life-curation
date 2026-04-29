@@ -1,9 +1,9 @@
 import requests, json, time, math
 from datetime import datetime, timedelta
 
-# 1. 최신 앱 스크립트 주소 및 인증정보
+# 1. 매니저님의 최신 배포 URL 및 네이버 API 정보
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyxt3R5TGgym0eqaeuPC1ZQ87B2CH1TC9MYHw8Lyf1VpRGmxgGWKVAD7kuSnZkXCUWT/exec"
-CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"  # 누락되었던 ID 복구
+CLIENT_ID = "IIynXlpQmqgD8GfQRJj6" 
 CLIENT_SECRET = "28cZQMwaJ9"
 NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
@@ -14,14 +14,13 @@ def get_dates(mode='week'):
         last_sunday = last_monday + timedelta(days=6)
         return last_monday.strftime('%Y-%m-%d'), last_sunday.strftime('%Y-%m-%d')
     else:
-        # 최근 5일 흐름 반영 (노이즈 억제용)
+        # 최근 흐름 반영 (노이즈 억제)
         start_day = today - timedelta(days=6)
         end_day = today - timedelta(days=2)
         return start_day.strftime('%Y-%m-%d'), end_day.strftime('%Y-%m-%d')
 
 def get_calibrated_score(ratios):
     if not ratios: return 0
-    # 피크 억제 및 중간값 반영
     avg_raw = sum(ratios) / len(ratios)
     smooth_ratios = [min(v, avg_raw * 2.5) for v in ratios]
     sorted_ratios = sorted(smooth_ratios)
@@ -51,7 +50,7 @@ def run():
     results_storage = []
     headers = {"X-Naver-Client-Id": CLIENT_ID, "X-Naver-Client-Secret": CLIENT_SECRET, "Content-Type": "application/json"}
 
-    print("🚀 데이터 수집 시작...")
+    print("🚀 데이터 수집 및 냉장고 앵커 보정 시작...")
     for i in range(0, len(others), 2):
         chunk = [anchor] + others[i:i+2]
         res_w = requests.post(NAVER_URL, headers=headers, data=json.dumps({"startDate": w_start, "endDate": w_end, "timeUnit": "date", "category": chunk})).json().get('results', [])
@@ -64,33 +63,36 @@ def run():
                 results_storage.append({"name": r['title'], "val_w": val_w, "val_d": val_d})
         time.sleep(0.5)
 
-    # 유동적 앵커 보정
+    # 유동적 최댓값 기준 100점 보정
     ref_w = next((x['val_w'] for x in results_storage if x['name'] == "냉장고"), 1)
     ref_d = next((x['val_d'] for x in results_storage if x['name'] == "냉장고"), 1)
-
     max_rel_w = max([x['val_w'] / ref_w for x in results_storage])
     max_rel_d = max([x['val_d'] / ref_d for x in results_storage])
 
     final_payload = []
     for x in results_storage:
+        # WEEKLY 데이터 (앱 스크립트 규격에 맞춤)
         final_payload.append({
-            "type": "WEEKLY", "name": x['name'],
-            "ratio": round(((x['val_w'] / ref_w) / max_rel_w) * 100, 5), "period": f"{w_start}~{w_end}"
+            "type": "WEEKLY", 
+            "name": x['name'],
+            "ratio": round(((x['val_w'] / ref_w) / max_rel_w) * 100, 5), 
+            "period": f"{w_start}~{w_end}"
         })
+        # DAILY 데이터
         final_payload.append({
-            "type": "DAILY", "name": x['name'],
-            "ratio": round(((x['val_d'] / ref_d) / max_rel_d) * 100, 5), "period": d_end
+            "type": "DAILY", 
+            "name": x['name'],
+            "ratio": round(((x['val_d'] / ref_d) / max_rel_d) * 100, 5), 
+            "period": d_end
         })
 
-    # 전송 및 결과 출력
-    print(f"📤 전송 중... (URL: {WEBAPP_URL[:50]}...)")
-    response = requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": final_payload}))
-    
-    if response.status_code == 200:
-        print(f"✅ 결과: {response.text}")
-    else:
-        print(f"❌ 전송 실패: {response.status_code}")
-        print(f"내용: {response.text[:200]}") # 에러 내용 일부 출력
+    # [핵심] 앱 스크립트가 기대하는 "TOP_TREND" 키값으로 전송
+    print(f"📤 전송 시도 중...")
+    try:
+        response = requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": final_payload}))
+        print(f"📡 서버 응답: {response.text}")
+    except Exception as e:
+        print(f"❌ 전송 에러: {e}")
 
 if __name__ == "__main__":
     run()

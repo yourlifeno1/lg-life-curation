@@ -1,7 +1,7 @@
 import requests, json, time, math
 from datetime import datetime, timedelta
 
-# 매니저님의 신규 GAS URL 반영
+# 매니저님의 최신 GAS URL
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbznNxgFxVLI4rnwm-FeHIo0JHdlhynsJAsfishMHfXFh6U4auGBegt-NcnL2fZFPEKO/exec"
 CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"
 CLIENT_SECRET = "28cZQMwaJ9"
@@ -10,25 +10,36 @@ NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 def get_dates(mode='week'):
     today = datetime.now() + timedelta(hours=9)
     if mode == 'week':
-        # 지난주 월~일
         last_monday = today - timedelta(days=today.weekday() + 7)
         last_sunday = last_monday + timedelta(days=6)
         return last_monday.strftime('%Y-%m-%d'), last_sunday.strftime('%Y-%m-%d')
     else:
-        # 최근 5일간의 데이터를 가져와서 '어제'의 점수를 보정함 (오염 방지)
+        # DAILY 보정을 위해 최근 5일 데이터를 가져옴
         start_day = today - timedelta(days=6)
         end_day = today - timedelta(days=2)
         return start_day.strftime('%Y-%m-%d'), end_day.strftime('%Y-%m-%d')
 
-def get_weighted_score(ratios):
-    """최근 데이터 가중치 부여 및 단기 노이즈 제거"""
+def get_calibrated_score(ratios, name):
+    """
+    피크 억제 및 시간 가중치 보정 함수
+    """
     if not ratios: return 0
-    # 최근일수록 가중치 증가
-    weights = [math.exp(i / len(ratios)) for i in range(len(ratios))]
-    weighted_avg = sum(v * w for v, w in zip(ratios, weights)) / sum(weights)
     
-    # 활동성 페널티: 최근 데이터 중 0이 너무 많으면 노이즈로 간주
-    if ratios[-2:].count(0) >= 1: weighted_avg *= 0.5
+    # 1. 이상치 억제 (Outlier Smoothing)
+    # 특정 날짜가 평균보다 3배 이상 높으면 해당 값을 평균 수준으로 깎음 (TV 핫딜 방지)
+    avg_raw = sum(ratios) / len(ratios)
+    smooth_ratios = [min(v, avg_raw * 3) for v in ratios]
+    
+    # 2. 시간 가중치 (Exponential Decay)
+    # 최근 날짜에 더 높은 비중을 둠
+    weights = [math.exp(i / len(smooth_ratios)) for i in range(len(smooth_ratios))]
+    weighted_avg = sum(v * w for v, w in zip(smooth_ratios, weights)) / sum(weights)
+    
+    # 3. 품목별 활동성 체크
+    # 최근 2일간 클릭이 급감했다면 현재 트렌드가 아니라고 판단 (50% 감점)
+    if smooth_ratios[-2:].count(0) >= 1:
+        weighted_avg *= 0.5
+        
     return weighted_avg
 
 def get_naver_raw(categories, start_date, end_date):
@@ -57,46 +68,41 @@ def run():
         {"name": "사운드바", "param": ["50002229"]}, {"name": "프로젝터", "param": ["50000214"]}
     ]
 
-    results_storage = [] # {name, val_w, val_d}
+    results_storage = [] 
 
-    print(f"📊 [TOP 분석] 가중치 보정 로직 가동...")
+    print(f"📊 [TOP 분석] TV 피크 억제 로직 가동 중...")
     for i in range(0, len(others), 2):
         chunk = [anchor] + others[i:i+2]
         res_w = get_naver_raw(chunk, w_start, w_end)
         res_d = get_naver_raw(chunk, d_start, d_end)
         
         for idx, r in enumerate(res_w):
-            # 주간 가중치 평균
-            val_w = get_weighted_score([d['ratio'] for d in r.get('data', [])])
-            # 일간 가중치 평균 (최근 5일 흐름 반영)
-            val_d = get_weighted_score([d['ratio'] for d in res_d[idx].get('data', [])]) if len(res_d) > idx else 0
+            # 주간 보정 점수
+            val_w = get_calibrated_score([d['ratio'] for d in r.get('data', [])], r['title'])
+            # 일간 보정 점수 (최근 5일 흐름 기반)
+            val_d = get_calibrated_score([d['ratio'] for d in res_d[idx].get('data', [])], r['title']) if len(res_d) > idx else 0
             
-            # 중복 방지하며 저장
             existing = next((x for x in results_storage if x['name'] == r['title']), None)
             if not existing:
                 results_storage.append({"name": r['title'], "val_w": val_w, "val_d": val_d})
         time.sleep(0.5)
 
-    # 글로벌 보정 (전체 품목 중 최고점 기준)
     max_w = max([x['val_w'] for x in results_storage]) if results_storage else 1
     max_d = max([x['val_d'] for x in results_storage]) if results_storage else 1
 
     final_payload = []
     for x in results_storage:
-        # WEEKLY 데이터
         final_payload.append({
             "type": "WEEKLY", "name": x['name'],
             "ratio": round((x['val_w'] / max_w) * 100, 5), "period": f"{w_start}~{w_end}"
         })
-        # DAILY 데이터
         final_payload.append({
             "type": "DAILY", "name": x['name'],
             "ratio": round((x['val_d'] / max_d) * 100, 5), "period": d_end
         })
 
     if final_payload:
-        print(f"📡 {len(final_payload)}행 전송 중...")
         requests.post(WEBAPP_URL, data=json.dumps({"type": "TOP_TREND", "data": final_payload}))
-        print("✅ 업데이트 완료!")
+        print(f"✅ 전송 완료! ({len(final_payload)}행)")
 
 if __name__ == "__main__": run()

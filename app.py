@@ -855,6 +855,65 @@ if loc:
             st.error(f"상세 데이터를 분석하는 중 오류가 발생했습니다: {e}")
                           
         st.divider()
+
+        # ---------------------------------------------------------
+        # [신규 추가] 금주의 연령별 가전 관심도 (상세 리포트 중단)
+        # ---------------------------------------------------------
+        st.markdown(f"""
+            <div style="display: flex; align-items: baseline; margin-top: 10px; margin-bottom: 5px;">
+                <span style="font-size: 22px; margin-right: 8px;">📈</span>
+                <span style="font-size: 20px; font-weight: bold; color: #212529; letter-spacing: -0.5px;">
+                    금주의 연령별 가전 관심도
+                </span>
+            </div>
+        """, unsafe_allow_html=True)
+
+        try:
+            # 매니저님이 주신 Age_Trend 시트 주소
+            AGE_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1Qox47HWyzFZT4mm3ZQsU8IYI2_PWtWb0Cg4_8YxaZsu7vBeUv7urCQO5z-Tcd5JhfZXkeG4bvqkw/pub?gid=1911167707&single=true&output=csv"
+            age_df = pd.read_csv(AGE_SHEET_URL)
+            age_df.columns = age_df.columns.str.strip()
+
+            # 연령대별 탭 생성
+            age_groups = ["10대", "20대", "30대", "40대", "50대", "60대+"]
+            age_tabs = st.tabs(age_groups)
+
+            for i, tab in enumerate(age_tabs):
+                with tab:
+                    target_age = age_groups[i]
+                    # 해당 연령대 데이터 필터링 (통합 클릭지수 기준 상위 3개)
+                    target_data = age_df[age_df['구분'] == target_age].sort_values(by='통합 클릭지수', ascending=False).head(3)
+
+                    if not target_data.empty:
+                        cols = st.columns(3)
+                        for idx, (_, row) in enumerate(target_data.iterrows()):
+                            with cols[idx]:
+                                st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:15px; color:#1E3A8A;'>{idx+1}위 {row['품목명']}</div>", unsafe_allow_html=True)
+                                
+                                m_val = float(row['남성 클릭지수'])
+                                f_val = float(row['여성 클릭지수'])
+                                total_val = m_val + f_val
+                                
+                                if total_val > 0:
+                                    m_p = (m_val / total_val) * 100
+                                    f_p = (f_val / total_val) * 100
+                                    
+                                    st.markdown(f"""
+                                        <div style="display: flex; width: 100%; height: 14px; border-radius: 7px; overflow: hidden; margin-top: 8px; background:#eee;">
+                                            <div style="width: {m_p}%; background-color: #3B82F6;"></div>
+                                            <div style="width: {f_p}%; background-color: #EF4444;"></div>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between; font-size: 10px; color: #666; margin-top: 3px;">
+                                            <span>남 {m_p:.0f}%</span>
+                                            <span>여 {f_p:.0f}%</span>
+                                        </div>
+                                    """, unsafe_allow_html=True)
+                    else:
+                        st.info(f"현재 {target_age} 트렌드 데이터를 수집 중입니다.")
+        except Exception as e:
+            st.caption("데이터 로드 중... (내일 리셋 후 자동 업데이트)")
+
+        st.write("") # 간격 조절
                           
         # ---------------------------------------------------------
         # [설계 6번] 가전별 주요 분석 & 핵심 키워드 (제품별 상세 이슈 포함)

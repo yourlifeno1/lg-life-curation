@@ -922,8 +922,8 @@ if loc:
                 # 데이터가 있는데 안 나온다면 'target_age'와 시트의 '구분' 값이 다른 것임
                 st.info(f"💡 {target_age} 데이터를 매칭할 수 없습니다. (시트의 '구분' 열 값을 확인하세요)")
 
-    except Exception as e:
-        st.error(f"데이터 표시 중 오류 발생: {e}")
+        except Exception as e:
+            st.error(f"데이터 표시 중 오류 발생: {e}")
 
         st.write("") # 간격 조절
                           

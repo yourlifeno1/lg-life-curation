@@ -869,61 +869,58 @@ if loc:
         """, unsafe_allow_html=True)
 
         try:
+            # 1. 데이터 로드 및 전처리
             AGE_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1Qox47HWyzFZT4mm3ZQsU8IYI2_PWtWb0Cg4_8YxaZsu7vBeUv7urCQO5z-Tcd5JhfZXkeG4bvqkw/pub?gid=1911167707&single=true&output=csv"
             age_df = pd.read_csv(AGE_SHEET_URL)
-    
-            # [핵심 1] 모든 데이터의 앞뒤 공백 제거 (매칭 에러 방지)
+            
+            # 컬럼명 앞뒤 공백 제거
             age_df.columns = [col.strip() for col in age_df.columns]
-            for col in age_df.columns:
-                if age_df[col].dtype == 'object':
-                    age_df[col] = age_df[col].str.strip()
+            
+            # '구분' 열의 데이터를 문자열로 바꾸고 앞뒤 공백 제거
+            age_df['구분'] = age_df['구분'].astype(str).str.strip()
 
-            # [핵심 2] 탭 이름 정의 (시트의 '구분' 값과 정확히 맞춤)
-            # 만약 시트에 '10대'라고 되어있으면 '10대'로, '10'이라고 되어있으면 '10'으로 맞춰야 합니다.
-            age_groups = ["10대", "20대", "30대", "40대", "50대", "60대 이상"]
-            age_tabs = st.tabs(age_groups)
+            # 2. 탭 생성 (화면 표시용)
+            age_display = ["10대", "20대", "30대", "40대", "50대", "60대 이상"]
+            age_tabs = st.tabs(age_display)
 
             for i, tab in enumerate(age_tabs):
                 with tab:
-                    target_age = age_groups[i]
-            
-                    # [핵심 3] 데이터 필터링 (통합 클릭지수 기준)
-                    # '통합 클릭지수' 컬럼이 있는지 확인 후 필터링
-                    col_name = '통합 클릭지수' if '통합 클릭지수' in age_df.columns else age_df.columns[2] # 없으면 3번째 컬럼 사용
-            
-                    t_data = age_df[age_df['구분'] == target_age].sort_values(by=col_name, ascending=False).head(3)
+                    # [수정 포인트] 시트에 "10"이라고 적힌 경우와 "10대"라고 적힌 경우 모두 대응
+                    display_name = age_display[i] # "10대"
+                    search_value = display_name.replace("대", "").replace(" 이상", "").strip() # "10"
+                    
+                    # '구분' 열에서 "10대" 또는 "10"을 모두 찾음
+                    target_data = age_df[age_df['구분'].isin([display_name, search_value])]
+                    target_data = target_data.sort_values(by='통합 클릭지수', ascending=False).head(3)
 
-                    if not t_data.empty:
-                        t_cols = st.columns(3)
-                        for idx, (_, row) in enumerate(t_data.iterrows()):
-                            with t_cols[idx]:
-                                st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:15px; color:#1E3A8A;'>{idx+1}위 {row['품목명']}</div>", unsafe_allow_html=True)
-                        
-                                # 성별 데이터 수치화 (에러 방지용 float 변환)
-                                try:
-                                    m_v = float(row['남성 클릭지수'])
-                                    f_v = float(row['여성 클릭지수'])
-                                except:
-                                    m_v, f_v = 1, 1 # 데이터 오류 시 5:5로 표시
-                            
-                                total = m_v + f_v
+                    if not target_data.empty:
+                        cols = st.columns(3)
+                        for idx, (_, row) in enumerate(target_data.iterrows()):
+                            with cols[idx]:
+                                st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:14px; color:#1E3A8A;'>{idx+1}위 {row['품목명']}</div>", unsafe_allow_html=True)
+                                
+                                # 성별 비중 계산
+                                m_val = float(row['남성 클릭지수'])
+                                f_val = float(row['여성 클릭지수'])
+                                total = m_val + f_val
+                                
                                 if total > 0:
-                                    m_p, f_p = (m_v/total)*100, (f_v/total)*100
+                                    m_p = (m_val / total) * 100
+                                    f_p = (f_val / total) * 100
                                     st.markdown(f"""
-                                        <div style="display: flex; width: 100%; height: 14px; border-radius: 7px; overflow: hidden; margin-top: 8px; background:#eee;">
+                                        <div style="display: flex; width: 100%; height: 12px; border-radius: 6px; overflow: hidden; margin-top: 5px; background:#eee;">
                                             <div style="width: {m_p}%; background-color: #3B82F6;"></div>
                                             <div style="width: {f_p}%; background-color: #EF4444;"></div>
                                         </div>
-                                        <div style="display: flex; justify-content: space-between; font-size: 10px; color: #666; margin-top: 3px;">
+                                        <div style="display: flex; justify-content: space-between; font-size: 10px; color: #666; margin-top: 2px;">
                                             <span>남 {m_p:.0f}%</span><span>여 {f_p:.0f}%</span>
                                         </div>
                                     """, unsafe_allow_html=True)
-            else:
-                # 데이터가 있는데 안 나온다면 'target_age'와 시트의 '구분' 값이 다른 것임
-                st.info(f"💡 {target_age} 데이터를 매칭할 수 없습니다. (시트의 '구분' 열 값을 확인하세요)")
+                    else:
+                        st.info(f"💡 {display_name} 데이터를 불러오는 중입니다.")
 
         except Exception as e:
-            st.error(f"데이터 표시 중 오류 발생: {e}")
+            st.warning(f"데이터 로드 중 알림: {e}")
 
         st.write("") # 간격 조절
                           

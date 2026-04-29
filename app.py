@@ -873,30 +873,28 @@ if loc:
             AGE_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1Qox47HWyzFZT4mm3ZQsU8IYI2_PWtWb0Cg4_8YxaZsu7vBeUv7urCQO5z-Tcd5JhfZXkeG4bvqkw/pub?gid=1911167707&single=true&output=csv"
             age_df = pd.read_csv(AGE_SHEET_URL)
             
-            # 전처리: 컬럼명 및 데이터 앞뒤 공백 제거
+            # 전처리: 컬럼명 및 데이터 공백 제거
             age_df.columns = [col.strip() for col in age_df.columns]
             age_df['구분'] = age_df['구분'].astype(str).str.strip()
 
-            # 2. 탭 생성 (화면 표시용 명칭)
+            # 2. 탭 생성
             age_display = ["10대", "20대", "30대", "40대", "50대", "60대 이상"]
             age_tabs = st.tabs(age_display)
 
-            # 3. 매칭 로직 (시트의 "10~19세" 형식 대응)
             for i, tab in enumerate(age_tabs):
                 with tab:
-                    display_name = age_display[i] # "10대"
+                    display_name = age_display[i] # 예: "30대"
+                    age_num = display_name[:2]    # 예: "30"
                     
-                    # 시트 데이터 형식에 맞게 검색어 생성
-                    # 예: "10대" -> "10~19세", "20대" -> "20~29세" ...
-                    start_age = display_name[:2] # "10", "20" 등 숫자만 추출
-                    
-                    if "60" in start_age:
-                        search_val = "60~100세" # 네이버 API 60대 이상 표기 방식
+                    # [매칭 핵심] 매니저님이 알려주신 시트 저장 형식 적용
+                    if age_num == "60":
+                        target_val = "60세 이상"  # 60대인 경우 시트 명칭 강제 지정
                     else:
-                        search_val = f"{start_age}~{int(start_age)+9}세" # "10~19세" 형태 생성
-                    
-                    # [매칭] 시트의 '구분' 열에서 해당 문자열 찾기
-                    target_data = age_df[age_df['구분'] == search_val]
+                        # 10~50대는 "10~19세" 형태의 텍스트 생성
+                        target_val = f"{age_num}~{int(age_num)+9}세"
+
+                    # 시트의 '구분' 열에서 매칭되는 행 필터링
+                    target_data = age_df[age_df['구분'] == target_val]
                     target_data = target_data.sort_values(by='통합 클릭지수', ascending=False).head(3)
 
                     if not target_data.empty:
@@ -905,7 +903,6 @@ if loc:
                             with cols[idx]:
                                 st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:14px; color:#1E3A8A;'>{idx+1}위 {row['품목명']}</div>", unsafe_allow_html=True)
                                 
-                                # 성별 비중 계산
                                 try:
                                     m_v, f_v = float(row['남성 클릭지수']), float(row['여성 클릭지수'])
                                     total = m_v + f_v
@@ -921,12 +918,16 @@ if loc:
                                             </div>
                                         """, unsafe_allow_html=True)
                                 except:
-                                    st.caption("비중 데이터 오류")
+                                    st.caption("비중 데이터 분석 중")
                     else:
-                        st.info(f"💡 {display_name}({search_val}) 데이터를 찾는 중입니다.")
+                        # 아직 데이터가 안 나올 때를 위한 시트 내용 확인용 메시지
+                        st.info(f"💡 {target_val} 데이터를 찾는 중입니다.")
+                        # [진단용] 실제 시트에 어떤 값들이 들어있는지 하단에 작게 표시
+                        all_vals = age_df['구분'].unique().tolist()
+                        st.caption(f"시트 내 실제 '구분' 목록: {all_vals}")
 
         except Exception as e:
-            st.warning(f"데이터 로딩 알림: {e}")
+            st.warning(f"리포트 로딩 중: {e}")
 
         st.write("") # 간격 조절
                           

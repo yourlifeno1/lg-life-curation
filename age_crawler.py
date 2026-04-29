@@ -2,7 +2,7 @@ import requests, json, time, math
 from datetime import datetime, timedelta
 
 # 매니저님의 최신 GAS URL
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbznNxgFxVLI4rnwm-FeHIo0JHdlhynsJAsfishMHfXFh6U4auGBegt-NcnL2fZFPEKO/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyxt3R5TGgym0eqaeuPC1ZQ87B2CH1TC9MYHw8Lyf1VpRGmxgGWKVAD7kuSnZkXCUWT/exec""
 CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"
 CLIENT_SECRET = "28cZQMwaJ9"
 NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"

@@ -26,6 +26,6 @@ jobs:
         run: python trend_crawler.py
         # 순위 데이터를 먼저 수집하여 시트의 기초를 잡습니다.
 
-      #- name: Run AGE Crawler
-      #  run: python age_crawler.py
+      - name: Run AGE Crawler
+        run: python age_crawler.py
         # 연령별 데이터를 수집하여 정밀 분석 데이터를 채웁니다.

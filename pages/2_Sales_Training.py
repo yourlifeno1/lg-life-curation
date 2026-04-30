@@ -23,19 +23,24 @@ PERSONA_PROMPTS = {
 }
 
 # 4. AI 응답 생성 함수
-def get_ai_response(prompt, history, menu):
-    system_instruction = PERSONA_PROMPTS[menu]
-    full_prompt = f"System: {system_instruction}\n"
-    for msg in history[-3:]:
+def get_ai_response(prompt, history, persona):
+    full_prompt = f"System: {PERSONA_PROMPTS[persona]}\n"
+    for msg in history:
         full_prompt += f"{msg['role']}: {msg['content']}\n"
     full_prompt += f"User: {prompt}\nAssistant:"
 
     try:
         response = requests.post(API_URL, headers=headers, json={"inputs": full_prompt})
-        result = response.json()[0]['generated_text']
+        data = response.json()
+        
+        # 만약 모델이 준비 중이라면 기다려야 한다는 메시지를 줍니다.
+        if "error" in data:
+            return f"💡 고객이 잠시 고민 중입니다(로딩 중). 30초 뒤에 다시 말을 걸어주세요! (에러내용: {data['error']})"
+            
+        result = data[0]['generated_text']
         return result.split("Assistant:")[-1].strip()
-    except:
-        return "고객이 잠시 생각에 잠겼습니다... (토큰 설정을 확인해주세요)"
+    except Exception as e:
+        return f"💡 연결 확인 중: {str(e)}"
 
 # --- 화면 레이아웃 ---
 st.title("🏆 세일즈 4대 장인 훈련소")

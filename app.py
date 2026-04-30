@@ -8,11 +8,9 @@ import xml.etree.ElementTree as ET
 import math
 
 # 1. 인증키 설정
-SEOUL_API_KEY = "5658537164796f7539376a424f4f66"
-CITY_DATA_KEY = "444d537a57796f7537385949716278"
-MOLIT_API_KEY = "cea470e38c930cce42ece10e65d31edd837b1eca751387d260737bcf63315379"
-NAVER_CLIENT_ID = "IlynXlpQmqqD8GfQRJj6"
-NAVER_CLIENT_SECRET = "28cZQMwaJ9"
+SEOUL_API_KEY = st.secrets["SEOUL_API_KEY"]
+CITY_DATA_KEY = st.secrets["CITY_DATA_KEY"]
+MOLIT_API_KEY = st.secrets["MOLIT_API_KEY"]
 
 # 매니저님이 방금 추출하신 구글 시트 웹 게시 주소
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRXnh3VI7oOzSbMWMUCI6Owk4G6oK_2hb1kWjTtNNgAfyox_ZgypeM0QK-P6e-nDaRfhpY02WEGTt9z/pub?gid=430558979&single=true&output=csv"

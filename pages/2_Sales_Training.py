@@ -1,10 +1,12 @@
 import streamlit as st
 import requests
+import time
 
-# 1. 환경 설정 (승인 필요 없는 고성능 한국어 지원 모델)
+# 1. 환경 설정 (최신 라우터 엔드포인트 사용)
+# Qwen2.5-7B-Instruct: 한국어 성능이 매우 안정적인 모델
 API_URL = "https://huggingface.co"
 HF_TOKEN = st.secrets["HF_TOKEN"]
-headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+headers = {"Authorization": f"Bearer {HF_TOKEN}", "Content-Type": "application/json"}
 
 st.set_page_config(page_title="세일즈 4대 장인 훈련소", layout="wide")
 
@@ -23,8 +25,8 @@ PERSONA_PROMPTS = {
 }
 
 # 4. AI 응답 생성 함수
+# 4. AI 응답 생성 함수 (재시도 로직 및 예외 처리 강화)
 def get_ai_response(prompt, history, persona):
-    # Qwen2.5 채팅 포맷 적용
     system_message = PERSONA_PROMPTS[persona]
     full_prompt = f"<|im_start|>system\n{system_message}<|im_end|>\n"
     
@@ -42,24 +44,33 @@ def get_ai_response(prompt, history, persona):
             "top_p": 0.9,
             "return_full_text": False
         },
-        "options": {"wait_for_model": True}
+        "options": {"wait_for_model": True, "use_cache": False}
     }
 
-    try:
-        response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
-        data = response.json()
-        
-        # 응답 데이터 파싱 (리스트 형태 대응)
-        if isinstance(data, list) and len(data) > 0:
-            return data[0]['generated_text'].strip()
-        elif isinstance(data, dict) and "generated_text" in data:
-            return data['generated_text'].strip()
-        elif "error" in data:
-            return f"💡 시스템 알림: {data['error']}"
-        
-        return "💡 답변을 생성할 수 없습니다. 잠시 후 다시 시도해 주세요."
-    except Exception as e:
-        return f"💡 연결 지연 발생: {str(e)}"
+    # 최대 3번 재시도 로직
+    for attempt in range(3):
+        try:
+            response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
+            
+            # 서버 에러(503, 504) 발생 시 잠시 대기 후 재시도
+            if response.status_code == 503:
+                time.sleep(5)
+                continue
+                
+            response.raise_for_status() # 4xx, 5xx 에러 시 예외 발생
+            data = response.json()
+            
+            if isinstance(data, list) and len(data) > 0:
+                return data[0]['generated_text'].strip()
+            elif isinstance(data, dict) and "generated_text" in data:
+                return data['generated_text'].strip()
+            
+        except requests.exceptions.RequestException as e:
+            if attempt == 2: # 마지막 시도까지 실패 시
+                return f"💡 연결 에러가 지속됩니다: {str(e)}"
+            time.sleep(2)
+            
+    return "💡 현재 서비스 이용이 어렵습니다. 잠시 후 다시 시도해 주세요."
 
 # --- 화면 레이아웃 (기존과 동일) ---
 st.title("🏆 세일즈 4대 장인 훈련소")

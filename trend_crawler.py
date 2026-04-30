@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 # 1. 매니저님의 최신 배포 URL 및 네이버 API 정보
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzRWXSaM0jbaPR97j0BXwSK8DcF1CrJIZdw-QYu7R2rPRgtmFxycxwHweXZ1kIweQDU/exec"
 CLIENT_ID = "NAVER_CLIENT_ID" 
-CLIENT_SECRET = "NAVER_CLIENT_SECRE"
+CLIENT_SECRET = "NAVER_CLIENT_SECRET"
 NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
 def get_dates(mode='week'):

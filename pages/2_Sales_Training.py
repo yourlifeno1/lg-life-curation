@@ -3,7 +3,7 @@ import requests
 
 # 1. 환경 설정
 # Hugging Face 모델: Gemma 1.1 7b-it 사용
-API_URL = "https://api-inference.huggingface.co/models/google/gemma-1.1-7b-it"
+API_URL = "https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta"
 HF_TOKEN = st.secrets["HF_TOKEN"]
 headers = {"Authorization": f"Bearer {HF_TOKEN}"}
 

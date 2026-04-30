@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 
 # 1. 환경 설정
-API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3"
 HF_TOKEN = st.secrets["HF_TOKEN"]
 headers = {"Authorization": f"Bearer {HF_TOKEN}"}
 

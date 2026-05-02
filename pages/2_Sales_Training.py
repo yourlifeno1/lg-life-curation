@@ -38,35 +38,46 @@ def speak(text):
 
 # 3. AI 답변 생성 함수
 def get_ai_response(prompt, history, persona):
-    # 페르소나의 역할을 더 명확하고 강하게 지시합니다.
-    system_message = (
-        f"{PERSONA_PROMPTS[persona]} "
-        "너는 절대로 AI나 상담원인 척하지 마. "
-        "오직 설정된 고객의 역할에만 완벽하게 몰입해서 한국어로 짧게 대답해."
-    )
+    # 1. 페르소나 주입을 더 강력하게 재설계합니다.
+    persona_setting = PERSONA_PROMPTS[persona]
     
-    # Llama-3.1 모델이 시스템 프롬프트를 더 잘 이해하도록 구조화
+    # 강력한 가이드라인 설정
+    system_instruction = (
+        f"### 반드시 지켜야 할 역할 설정 ###\n"
+        f"당신의 정체성: {persona_setting}\n"
+        f"당신은 절대 인공지능이 아닙니다. 친절한 안내원도 아닙니다.\n"
+        f"지금부터 당신은 오직 이 고객의 역할에만 빙의하여 말해야 합니다.\n"
+        f"말투, 성격, 태도를 해당 고객처럼 유지하고 한국어로만 대답하세요.\n"
+        f"질문에 답하기 곤란하면 화를 내거나 무시해도 좋습니다.\n"
+        f"################################"
+    )
+
+    # 2. 메시지 리스트 구성
     messages = [
-        {"role": "system", "content": system_message}
+        {"role": "system", "content": system_instruction}
     ]
     
-    # 대화 기록 추가 (맥락 유지)
+    # 최근 기록은 2~3개로 제한하여 엉뚱한 맥락으로 빠지는 것을 방지합니다.
     for msg in history[-3:]:
         messages.append({"role": msg["role"], "content": msg["content"]})
         
-    messages.append({"role": "user", "content": prompt})
+    # 마지막 사용자 질문에 다시 한번 역할 상기 (강력한 효과)
+    messages.append({
+        "role": "user", 
+        "content": f"[주의: {persona_setting}답게 행동하세요]\n{prompt}"
+    })
 
     try:
         response = client.chat_completion(
             messages, 
             max_tokens=150, 
-            temperature=0.8, # 창의성을 약간 높여 페르소나 연기를 돕습니다.
+            temperature=0.85, # 약간의 무작위성을 주어 더 인간다운 연기를 유도합니다.
             stream=False
         )
         return response.choices[0].message.content.strip()
         
     except Exception as e:
-        return f"💡 연결 확인 중: {str(e)}"
+        return f"💡 통신 오류가 발생했습니다. 잠시 후 다시 시도해 주세요: {str(e)}"
 
 # --- UI 레이아웃 ---
 st.set_page_config(page_title="세일즈 음성 훈련소", layout="centered")

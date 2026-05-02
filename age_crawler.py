@@ -49,10 +49,12 @@ def run():
     raw_data_list = [] # 연령별 통합 데이터를 먼저 수집
 
     headers = {
-        "X-Naver-Client-Id": CLIENT_ID, 
-        "X-Naver-Client-Secret": CLIENT_SECRET, 
+        "X-Naver-Client-Id": CLIENT_ID.strip(),
+        "X-Naver-Client-Secret": CLIENT_SECRET.strip(),
         "Content-Type": "application/json"
     }
+    
+    print(f"✅ API 키 로드 성공! (ID 길이: {len(CLIENT_ID)})")
 
     for age_code in age_groups:
         print(f"🔎 {age_labels[age_code]} 분석 중...")

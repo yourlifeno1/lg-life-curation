@@ -4,17 +4,15 @@ from gtts import gTTS
 import base64
 import io
 
-# 1. 클라이언트 및 페르소나 설정
+# 1. 모델 ID 업데이트 (가장 안정적인 Gemma 2 모델 적용)
 MODEL_ID = "google/gemma-2-9b-it"
 
-# [지침] 발급받으신 Read 토큰을 Streamlit Secrets에 저장 후 아래와 같이 호출합니다.
+# 클라이언트 호출 부분은 동일합니다.
 try:
     HF_TOKEN = st.secrets["HF_TOKEN"]
-except Exception:
-    st.error("💡 Streamlit Secrets에서 'HF_TOKEN'을 찾을 수 없습니다.")
-    st.stop()
-
-client = InferenceClient(model=MODEL_ID, token=HF_TOKEN)
+    client = InferenceClient(model=MODEL_ID, token=HF_TOKEN)
+except Exception as e:
+    st.error(f"설정 확인 필요: {e}")
 
 PERSONA_PROMPTS = {
     "라포형성의 달인": "너는 30대 주부 고객이야. 한국어로 짧고 차갑게 대답해.",

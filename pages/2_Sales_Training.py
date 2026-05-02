@@ -68,6 +68,7 @@ def get_ai_response(prompt, history, persona):
         return response.choices[0].message.content.strip()
     except Exception as e:
         return f"💡 연결 확인 중: {str(e)}"
+        
 # --- UI 레이아웃 ---
 st.set_page_config(page_title="세일즈 음성 훈련소", layout="centered")
 st.title("🏆 세일즈 음성 훈련소")
@@ -81,19 +82,53 @@ if "last_persona" not in st.session_state or st.session_state.last_persona != me
     st.session_state.messages = [] # 페르소나 변경 시 대화 리셋
 
 # 기존 대화 표시
+# 대화 내용 표시 구간
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
 
-# 채팅 입력창
-if prompt := st.chat_input("고객에게 말씀해 보세요"):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.write(prompt)
+# --- [추가] 마이크 입력 섹션 ---
+st.write("---")
+st.subheader("🎤 음성으로 대화하기")
+# 마이크 버튼 배치 (텍스트 변환 기능 포함)
+audio_info = mic_recorder(
+    start_prompt="🎤 말씀을 시작하세요",
+    stop_prompt="🛑 말씀을 마치려면 클릭",
+    just_once=True,
+    use_container_width=True,
+    key='recorder'
+)
 
+# 마이크로부터 인식된 텍스트가 있을 경우 처리
+voice_text = ""
+if audio_info and 'text' in audio_info and audio_info['text']:
+    voice_text = audio_info['text']
+
+# 채팅 입력창 (키보드 입력용)
+chat_text = st.chat_input("또는 직접 텍스트를 입력하세요")
+
+# 음성 입력 혹은 텍스트 입력이 들어왔을 때 실행
+final_prompt = voice_text if voice_text else chat_text
+
+if final_prompt:
+    # 1. 사용자 메시지 기록
+    st.session_state.messages.append({"role": "user", "content": final_prompt})
+    with st.chat_message("user"):
+        st.write(final_prompt)
+
+    # 2. 어시스턴트(AI 고객) 응답 생성
     with st.chat_message("assistant"):
         with st.spinner(f"'{menu}' 고객이 듣고 있습니다..."):
-            response = get_ai_response(prompt, st.session_state.messages[:-1], menu)
+            # 이전 대화 맥락과 현재 페르소나 전달
+            response = get_ai_response(final_prompt, st.session_state.messages[:-1], menu)
             st.write(response)
-            speak(response) # 답변을 음성으로 출력
+            
+            # 3. 답변 음성 출력 (TTS)
+            speak(response)
+            
+            # 4. 답변 기록 저장
             st.session_state.messages.append({"role": "assistant", "content": response})
+    
+    # 음성 입력인 경우 화면 갱신을 유도하여 다음 대화를 준비함
+    if voice_text:
+        st.rerun()

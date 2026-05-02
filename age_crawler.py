@@ -1,11 +1,10 @@
 import requests, json, time, math
-import os
 from datetime import datetime, timedelta
 
 # 매니저님의 최신 GAS URL
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzRWXSaM0jbaPR97j0BXwSK8DcF1CrJIZdw-QYu7R2rPRgtmFxycxwHweXZ1kIweQDU/exec"
-CLIENT_ID = os.environ.get("NAVER_CLIENT_ID", "").strip()
-CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET", "").strip()
+CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"
+CLIENT_SECRET = "28cZQMwaJ9"
 NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
 def get_calibrated_score(ratios):
@@ -17,12 +16,6 @@ def get_calibrated_score(ratios):
     return sum(v * w for v, w in zip(smooth_ratios, weights)) / sum(weights)
 
 def run():
-    # API 키 확인 보안 장치
-    if not CLIENT_ID or not CLIENT_SECRET:
-        print("❌ 에러: NAVER API 키가 설정되지 않았습니다. GitHub Secrets를 확인하세요.")
-        return
-
-    print(f"✅ API 키 로드 성공! (ID 길이: {len(CLIENT_ID)})")
 
     # ✅ 누락되었던 날짜 설정 로직을 추가합니다.
     today = datetime.now() + timedelta(hours=9)
@@ -53,8 +46,6 @@ def run():
         "X-Naver-Client-Secret": CLIENT_SECRET.strip(),
         "Content-Type": "application/json"
     }
-    
-    print(f"✅ API 키 로드 성공! (ID 길이: {len(CLIENT_ID)})")
 
     for age_code in age_groups:
         print(f"🔎 {age_labels[age_code]} 분석 중...")

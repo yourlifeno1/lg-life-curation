@@ -22,6 +22,11 @@ def run():
         print("❌ 에러: NAVER API 키가 환경 변수에 설정되지 않았습니다.")
         return
 
+    # ✅ 누락되었던 날짜 설정 로직을 추가합니다.
+    today = datetime.now() + timedelta(hours=9)
+    start_date = (today - timedelta(days=today.weekday() + 7)).strftime('%Y-%m-%d')
+    end_date = (today - timedelta(days=today.weekday() + 1)).strftime('%Y-%m-%d')
+
     anchor = {"name": "냉장고", "param": ["50000210"]}
     others = [
         {"name": "TV", "param": ["50000209"]}, {"name": "세탁기", "param": ["50000211"]},
@@ -94,7 +99,7 @@ def run():
                 "period": f"{start_date}~{end_date}"
             })
         requests.post(WEBAPP_URL, data=json.dumps({"type": "AGE_TREND", "data": final_payload}))
-        print(f"✅ 연령대 데이터 {len(final_payload)}건 전송 완료!")
+        print(f"✅ 연령대 데이터 전송 완료!")
 
 if __name__ == "__main__":
     run()

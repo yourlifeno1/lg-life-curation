@@ -34,10 +34,10 @@ def get_calibrated_score(ratios):
 def run():
     # API 키 확인 보안 장치
     if not CLIENT_ID or not CLIENT_SECRET:
-        print("❌ 에러: NAVER API 키가 환경 변수에 설정되지 않았습니다.")
+        print("❌ 에러: NAVER API 키가 설정되지 않았습니다. GitHub Secrets를 확인하세요.")
         return
 
-    print("✅ API 키 로드 성공! 수집을 시작합니다.")
+    print(f"✅ API 키 로드 성공! (ID 길이: {len(CLIENT_ID)})")
         
     w_start, w_end = get_dates('week')
     d_start, d_end = get_dates('day')

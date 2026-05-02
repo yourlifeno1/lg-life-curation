@@ -59,10 +59,12 @@ def run():
     results_storage = []
     
     headers = {
-        "X-Naver-Client-Id": CLIENT_ID, 
-        "X-Naver-Client-Secret": CLIENT_SECRET, 
+        "X-Naver-Client-Id": CLIENT_ID.strip(),
+        "X-Naver-Client-Secret": CLIENT_SECRET.strip(),
         "Content-Type": "application/json"
     }
+    
+    print(f"✅ API 키 로드 성공! (ID 길이: {len(CLIENT_ID)})")
 
     print("🚀 네이버 API 데이터 수집 시작...")
     for i in range(0, len(others), 2):

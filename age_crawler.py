@@ -8,19 +8,46 @@ CLIENT_SECRET = "28cZQMwaJ9"
 NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
 def get_calibrated_score(ratios):
-    """이상치 억제 및 시간 가중치 적용"""
+    """
+    2주(14일) 데이터를 기반으로 '하루 반짝' 노이즈를 완벽 차단하는 함수
+    """
     if not ratios: return 0
+    
+    # [1단계] 데이터 수 검증 (14일 데이터가 들어왔는지 확인)
+    # 14일 중 유의미한 수치(예: 10 이상)가 최소 4일은 찍혀야 '트렌드'로 인정
+    significant_days = [v for v in ratios if v > 10.0]
+    if len(significant_days) < 4:
+        # 하루 이틀 반짝인 경우는 데이터 신뢰도가 낮으므로 무시
+        return 0
+
+    # [2단계] 이상치 억제 (Smoothing)
     avg_raw = sum(ratios) / len(ratios)
-    smooth_ratios = [min(v, avg_raw * 2.5) for v in ratios] # 피크 억제
+    # 2주 평균보다 2배 이상 튀는 값은 강력하게 누름
+    smooth_ratios = [min(v, avg_raw * 2.0) for v in ratios]
+    
+    # [3단계] 중앙값(Median) 산출 (중심점 잡기)
+    # 데이터가 14개이므로 중앙값이 7개일 때보다 훨씬 견고합니다.
+    sorted_ratios = sorted(smooth_ratios)
+    median_val = sorted_ratios[len(sorted_ratios)//2]
+    
+    # [4단계] 시간 가중치 계산 (최신 14일 흐름 반영)
     weights = [math.exp(i / len(smooth_ratios)) for i in range(len(smooth_ratios))]
-    return sum(v * w for v, w in zip(smooth_ratios, weights)) / sum(weights)
+    weighted_avg = sum(v * w for v, w in zip(smooth_ratios, weights)) / sum(weights)
+    
+    # [5단계] 최종 결합 (2주 데이터에서는 중앙값 60%, 가중평균 40%)
+    # 데이터가 많아졌으므로 가중평균의 비중을 조금 높여 트렌드 반영 속도를 보완합니다.
+    return (median_val * 0.6) + (weighted_avg * 0.4)
 
 def run():
-
-    # ✅ 누락되었던 날짜 설정 로직을 추가합니다.
+    
+    # --- 날짜 설정 부분 (2주로 확장) ---
     today = datetime.now() + timedelta(hours=9)
-    start_date = (today - timedelta(days=today.weekday() + 7)).strftime('%Y-%m-%d')
+    # 기존 +7에서 +14로 변경하여 2주 전 월요일부터 시작하게 합니다.
+    start_date = (today - timedelta(days=today.weekday() + 14)).strftime('%Y-%m-%d')
+    # 지난주 일요일까지로 마감 (이 부분은 유지)
     end_date = (today - timedelta(days=today.weekday() + 1)).strftime('%Y-%m-%d')
+    
+    print(f"📅 분석 기간 확장: {start_date} ~ {end_date} (14일간)")
 
     anchor = {"name": "냉장고", "param": ["50000210"]}
     others = [

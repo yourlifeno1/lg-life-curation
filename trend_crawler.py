@@ -16,19 +16,34 @@ def get_dates(mode='week'):
     else:
         # 최근 흐름 반영 (노이즈 억제)
         start_day = today - timedelta(days=6)
-        end_day = today - timedelta(days=2)
+        end_day = today - timedelta(days=1)
         return start_day.strftime('%Y-%m-%d'), end_day.strftime('%Y-%m-%d')
 
 def get_calibrated_score(ratios):
+    """
+    모든 품목의 특이 클릭 튐을 방지하는 강화된 보정 함수
+    """
     if not ratios: return 0
-    # 이상치 억제 및 가중치 계산
+    
+    # [1단계] 이상치 억제 (Smoothing)
+    # 평균의 1.8배를 넘는 값은 노이즈로 간주하고 강력하게 억제합니다.
     avg_raw = sum(ratios) / len(ratios)
-    smooth_ratios = [min(v, avg_raw * 2.5) for v in ratios]
+    limit_multiplier = 1.8  # 이 수치가 낮을수록 튀는 값을 더 세게 누릅니다.
+    smooth_ratios = [min(v, avg_raw * limit_multiplier) for v in ratios]
+    
+    # [2단계] 통계적 안정성 확보
     sorted_ratios = sorted(smooth_ratios)
-    median_val = sorted_ratios[len(sorted_ratios)//2]
+    median_val = sorted_ratios[len(sorted_ratios)//2] # 중앙값은 튀는 값에 영향을 받지 않습니다.
+    
+    # [3단계] 시간 가중치 계산 (최신 트렌드 반영)
+    # 최신 데이터에 가중치를 주되, 지수 함수를 사용해 완만하게 적용합니다.
     weights = [math.exp(i / len(smooth_ratios)) for i in range(len(smooth_ratios))]
     weighted_avg = sum(v * w for v, w in zip(smooth_ratios, weights)) / sum(weights)
-    return (median_val * 0.5) + (weighted_avg * 0.5)
+    
+    # [4단계] 최종 점수 결합 (중앙값 중심)
+    # 튀는 현상을 막기 위해 중앙값의 비중을 70%로 높이고, 최신 경향(가중평균)을 30%만 섞습니다.
+    # 이렇게 하면 TV가 하루 이틀 크게 튀어도 전체 점수는 크게 변하지 않습니다.
+    return (median_val * 0.7) + (weighted_avg * 0.3)
 
 def run():
     

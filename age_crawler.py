@@ -15,7 +15,7 @@ def get_calibrated_score(ratios):
     
     # [1단계] 데이터 수 검증 (14일 데이터가 들어왔는지 확인)
     # 14일 중 유의미한 수치(예: 10 이상)가 최소 4일은 찍혀야 '트렌드'로 인정
-    significant_days = [v for v in ratios if v > 10.0]
+    significant_days = [v for v in ratios if v > 0.5]
     if len(significant_days) < 4:
         # 하루 이틀 반짝인 경우는 데이터 신뢰도가 낮으므로 무시
         return 0

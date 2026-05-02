@@ -7,48 +7,58 @@ CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"
 CLIENT_SECRET = "28cZQMwaJ9"
 NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
-def get_dates(mode='week'):
+def get_dates():
+    # 한국 시간 기준 (KST) 세팅
     today = datetime.now() + timedelta(hours=9)
-    if mode == 'week':
-        last_monday = today - timedelta(days=today.weekday() + 7)
-        last_sunday = last_monday + timedelta(days=6)
-        return last_monday.strftime('%Y-%m-%d'), last_sunday.strftime('%Y-%m-%d')
-    else:
-        # 최근 흐름 반영 (노이즈 억제)
-        start_day = today - timedelta(days=6)
-        end_day = today - timedelta(days=1)
-        return start_day.strftime('%Y-%m-%d'), end_day.strftime('%Y-%m-%d')
+    
+    # 1. [출력용] 주간 범위: 지난주 월요일 ~ 지난주 일요일 (항상 7일)
+    # today.weekday()가 0(월)~6(일)이므로, +7을 하면 무조건 지난주 월요일이 됩니다.
+    last_monday = today - timedelta(days=today.weekday() + 7)
+    last_sunday = last_monday + timedelta(days=6)
+    
+    # 2. [출력용] 일간 기준일: 어제 (Yesterday)
+    yesterday = today - timedelta(days=1)
+    
+    # 3. [내부 분석용] 지지난주 월요일부터 수집 시작 (이상치 방어용 14일+ 분석)
+    # 주간 데이터 시작일보다 7일 더 과거부터 읽어옵니다.
+    analysis_start = last_monday - timedelta(days=7)
+    
+    return {
+        "analysis_start": analysis_start.strftime('%Y-%m-%d'), # 내부 수집 시작
+        "display_week_start": last_monday.strftime('%Y-%m-%d'), # 시트 표시용
+        "display_week_end": last_sunday.strftime('%Y-%m-%d'),   # 시트 표시용
+        "display_day": yesterday.strftime('%Y-%m-%d')          # 시트 표시용 (어제)
+    }
 
 def get_calibrated_score(ratios):
-    """
-    모든 품목의 특이 클릭 튐을 방지하는 강화된 보정 함수
-    """
+    """14일 데이터를 분석하여 하루 반짝 노이즈를 제거하는 보정 함수"""
     if not ratios: return 0
     
-    # [1단계] 이상치 억제 (Smoothing)
-    # 평균의 1.8배를 넘는 값은 노이즈로 간주하고 강력하게 억제합니다.
+    # 1. 노이즈 컷오프: 14일 중 의미 있는 클릭이 4일 미만이면 '하루 반짝'으로 간주
+    significant_days = [v for v in ratios if v > 10.0]
+    if len(significant_days) < 4: return 0
+
+    # 2. 평활화 및 중앙값 계산 (안정성 확보)
     avg_raw = sum(ratios) / len(ratios)
-    limit_multiplier = 1.8  # 이 수치가 낮을수록 튀는 값을 더 세게 누릅니다.
-    smooth_ratios = [min(v, avg_raw * limit_multiplier) for v in ratios]
-    
-    # [2단계] 통계적 안정성 확보
+    smooth_ratios = [min(v, avg_raw * 1.8) for v in ratios]
     sorted_ratios = sorted(smooth_ratios)
-    median_val = sorted_ratios[len(sorted_ratios)//2] # 중앙값은 튀는 값에 영향을 받지 않습니다.
+    median_val = sorted_ratios[len(sorted_ratios)//2]
     
-    # [3단계] 시간 가중치 계산 (최신 트렌드 반영)
-    # 최신 데이터에 가중치를 주되, 지수 함수를 사용해 완만하게 적용합니다.
+    # 3. 시간 가중치 적용 (최근 14일 중 뒷부분에 힘을 실음)
     weights = [math.exp(i / len(smooth_ratios)) for i in range(len(smooth_ratios))]
     weighted_avg = sum(v * w for v, w in zip(smooth_ratios, weights)) / sum(weights)
     
-    # [4단계] 최종 점수 결합 (중앙값 중심)
-    # 튀는 현상을 막기 위해 중앙값의 비중을 70%로 높이고, 최신 경향(가중평균)을 30%만 섞습니다.
-    # 이렇게 하면 TV가 하루 이틀 크게 튀어도 전체 점수는 크게 변하지 않습니다.
     return (median_val * 0.7) + (weighted_avg * 0.3)
 
 def run():
+    dates = get_dates()
     
-    w_start, w_end = get_dates('week')
-    d_start, d_end = get_dates('day')
+    # 내부적으로는 14일 이상의 데이터를 조회하여 보정 함수에 넘깁니다.
+    w_start = dates["analysis_start"] 
+    w_end = dates["display_week_end"] # 지난주 일요일까지 분석
+    
+    d_start = dates["analysis_start"] # 일간 데이터도 동일한 분석 시작일 사용
+    d_end = dates["display_day"]      # 어제 날짜까지 분석
     
     anchor = {"name": "냉장고", "param": ["50000210"]}
     others = [
@@ -115,19 +125,20 @@ def run():
 
     final_payload = []
     for x in results_storage:
-        # WEEKLY 데이터
+        # WEEKLY 페이로드 (지난주 전체 보정값)
         final_payload.append({
             "type": "WEEKLY", 
             "name": x['name'],
             "ratio": round(((x['val_w'] / ref_w) / max_rel_w) * 100, 5), 
-            "period": f"{w_start}~{w_end}"
+            "period": f"{dates['display_week_start']}~{dates['display_week_end']}" 
         })
-        # DAILY 데이터
+        
+        # DAILY 페이로드 (어제 하루 보정값)
         final_payload.append({
             "type": "DAILY", 
             "name": x['name'],
             "ratio": round(((x['val_d'] / ref_d) / max_rel_d) * 100, 5), 
-            "period": d_end
+            "period": dates["display_day"] 
         })
 
     # 구글 시트 전송

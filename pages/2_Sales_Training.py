@@ -6,7 +6,14 @@ import io
 
 # 1. 클라이언트 및 페르소나 설정
 MODEL_ID = "HuggingFaceH4/zephyr-7b-beta"
-HF_TOKEN = st.secrets["HF_TOKEN"]
+
+# [지침] 발급받으신 Read 토큰을 Streamlit Secrets에 저장 후 아래와 같이 호출합니다.
+try:
+    HF_TOKEN = st.secrets["HF_TOKEN"]
+except Exception:
+    st.error("💡 Streamlit Secrets에서 'HF_TOKEN'을 찾을 수 없습니다.")
+    st.stop()
+
 client = InferenceClient(model=MODEL_ID, token=HF_TOKEN)
 
 PERSONA_PROMPTS = {
@@ -18,55 +25,71 @@ PERSONA_PROMPTS = {
 
 # 2. 음성 출력 함수 (TTS)
 def speak(text):
-    tts = gTTS(text=text, lang='ko')
-    fp = io.BytesIO()
-    tts.write_to_fp(fp)
-    fp.seek(0)
-    b64 = base64.b64encode(fp.read()).decode()
-    md = f'<audio autoplay="true" src="data:audio/mp3;base64,{b64}">'
-    st.markdown(md, unsafe_allow_html=True)
+    if not text: return
+    try:
+        tts = gTTS(text=text, lang='ko')
+        fp = io.BytesIO()
+        tts.write_to_fp(fp)
+        fp.seek(0)
+        b64 = base64.b64encode(fp.read()).decode()
+        # autoplay를 통해 답변 생성 즉시 목소리가 나오도록 함
+        md = f'<audio autoplay="true" src="data:audio/mp3;base64,{b64}">'
+        st.markdown(md, unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"TTS 생성 실패: {e}")
 
 # 3. AI 답변 생성 함수
 def get_ai_response(prompt, history, persona):
     system_message = PERSONA_PROMPTS[persona]
     messages = [{"role": "system", "content": system_message}]
-    for msg in history[-3:]:
+    
+    # 최근 5개의 대화 맥락을 포함하여 자연스러운 대화 유도
+    for msg in history[-5:]:
         messages.append({"role": msg["role"], "content": msg["content"]})
+    
     messages.append({"role": "user", "content": prompt})
 
     try:
-        response = ""
-        for message in client.chat_completion(messages, max_tokens=200, temperature=0.7, stream=False):
-            response += message.choices[0].delta.content or ""
-        return response.strip()
+        # [중요 수정] stream=False 일 때는 반복문을 쓰지 않고 바로 content에 접근합니다.
+        response = client.chat_completion(
+            messages, 
+            max_tokens=200, 
+            temperature=0.7, 
+            stream=False
+        )
+        # 응답 객체에서 텍스트 내용만 추출
+        return response.choices[0].message.content.strip()
+        
     except Exception as e:
         if "503" in str(e):
-            return "💡 고객이 잠시 생각 중입니다. 20초 뒤에 다시 말씀해 주세요."
+            return "💡 고객이 잠시 생각 중입니다. 10초 뒤에 다시 말씀해 주세요."
         return f"💡 연결 확인 중: {str(e)}"
 
 # --- UI 레이아웃 ---
+st.set_page_config(page_title="세일즈 음성 훈련소", layout="centered")
 st.title("🏆 세일즈 음성 훈련소")
 menu = st.sidebar.radio("훈련 과정을 선택하세요", list(PERSONA_PROMPTS.keys()))
 
+# 세션 상태 초기화
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "last_persona" not in st.session_state or st.session_state.last_persona != menu:
     st.session_state.last_persona = menu
-    st.session_state.messages = []
+    st.session_state.messages = [] # 페르소나 변경 시 대화 리셋
 
-# 대화창 및 입력
+# 기존 대화 표시
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
 
-# 음성 입력을 지원하는 채팅창
-if prompt := st.chat_input("고객에게 말씀해 보세요 (텍스트 입력)"):
+# 채팅 입력창
+if prompt := st.chat_input("고객에게 말씀해 보세요"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.write(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("고객이 듣고 있습니다..."):
+        with st.spinner(f"'{menu}' 고객이 듣고 있습니다..."):
             response = get_ai_response(prompt, st.session_state.messages[:-1], menu)
             st.write(response)
             speak(response) # 답변을 음성으로 출력

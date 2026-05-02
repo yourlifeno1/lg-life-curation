@@ -38,29 +38,34 @@ def speak(text):
 
 # 3. AI 답변 생성 함수
 def get_ai_response(prompt, history, persona):
-    system_message = PERSONA_PROMPTS[persona]
-    messages = [{"role": "system", "content": system_message}]
+    # 페르소나의 역할을 더 명확하고 강하게 지시합니다.
+    system_message = (
+        f"{PERSONA_PROMPTS[persona]} "
+        "너는 절대로 AI나 상담원인 척하지 마. "
+        "오직 설정된 고객의 역할에만 완벽하게 몰입해서 한국어로 짧게 대답해."
+    )
     
-    # 최근 5개의 대화 맥락을 포함하여 자연스러운 대화 유도
-    for msg in history[-5:]:
+    # Llama-3.1 모델이 시스템 프롬프트를 더 잘 이해하도록 구조화
+    messages = [
+        {"role": "system", "content": system_message}
+    ]
+    
+    # 대화 기록 추가 (맥락 유지)
+    for msg in history[-3:]:
         messages.append({"role": msg["role"], "content": msg["content"]})
-    
+        
     messages.append({"role": "user", "content": prompt})
 
     try:
-        # [중요 수정] stream=False 일 때는 반복문을 쓰지 않고 바로 content에 접근합니다.
         response = client.chat_completion(
             messages, 
-            max_tokens=200, 
-            temperature=0.7, 
+            max_tokens=150, 
+            temperature=0.8, # 창의성을 약간 높여 페르소나 연기를 돕습니다.
             stream=False
         )
-        # 응답 객체에서 텍스트 내용만 추출
         return response.choices[0].message.content.strip()
         
     except Exception as e:
-        if "503" in str(e):
-            return "💡 고객이 잠시 생각 중입니다. 10초 뒤에 다시 말씀해 주세요."
         return f"💡 연결 확인 중: {str(e)}"
 
 # --- UI 레이아웃 ---

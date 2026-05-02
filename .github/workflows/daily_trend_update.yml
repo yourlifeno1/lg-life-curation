@@ -3,7 +3,7 @@ name: Daily Trend Data Update
 on:
   schedule:
     # 매일 아침 한국 시간(KST) 오전 8시 30분에 자동 실행 (UTC 23:30)
-    - cron: '30 23 * * *'
+    - cron: '30 3 * * *'
   workflow_dispatch: # 수동 실행 버튼 활성화
 
 jobs:

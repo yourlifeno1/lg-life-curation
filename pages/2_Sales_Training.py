@@ -5,7 +5,7 @@ import base64
 import io
 
 # 1. 클라이언트 및 페르소나 설정
-MODEL_ID = "HuggingFaceH4/zephyr-7b-beta"
+MODEL_ID = "google/gemma-2-9b-it"
 
 # [지침] 발급받으신 Read 토큰을 Streamlit Secrets에 저장 후 아래와 같이 호출합니다.
 try:

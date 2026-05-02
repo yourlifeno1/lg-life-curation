@@ -3,6 +3,8 @@ from huggingface_hub import InferenceClient
 from gtts import gTTS
 import base64
 import io
+# 마이크 입력을 위한 라이브러리 추가
+from streamlit_mic_recorder import mic_recorder
 
 # 1. 모델 ID 업데이트 (가장 안정적인 Gemma 2 모델 적용)
 MODEL_ID = "meta-llama/Llama-3.1-8B-Instruct"

@@ -106,11 +106,10 @@ if audio_info:
     # 텍스트 데이터가 존재하는지 확인
     if 'text' in audio_info and audio_info['text']:
         voice_text = audio_info['text'].strip()
+        st.success(f"인식된 문장: {voice_text}") # 인식이 되면 화면에 표시
     else:
-        # 데이터는 오는데 텍스트만 없을 경우 안내 (디버깅 용도)
-        if 'bytes' in audio_info:
-            st.warning("음성은 녹음되었으나 텍스트로 변환되지 않았습니다. 더 명확하게 말씀해 주시거나 브라우저 설정을 확인하세요.")
-
+        st.error("텍스트 변환 실패: 브라우저의 음성 인식 엔진이 응답하지 않습니다.")
+        
 # 채팅 입력창 (키보드 입력용)
 chat_text = st.chat_input("또는 직접 텍스트를 입력하세요")
 

@@ -7,28 +7,29 @@ CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"
 CLIENT_SECRET = "28cZQMwaJ9"
 NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
-def get_dates():
-    # 한국 시간 기준 (KST) 세팅
-    today = datetime.now() + timedelta(hours=9)
+def get_calibrated_score(ratios):
+    """
+    TOP_Trend의 0값 방지 및 TV 튐 현상을 잡기 위한 보완 로직
+    """
+    if not ratios or sum(ratios) == 0: return 0
     
-    # 1. [출력용] 주간 범위: 지난주 월요일 ~ 지난주 일요일 (항상 7일)
-    # today.weekday()가 0(월)~6(일)이므로, +7을 하면 무조건 지난주 월요일이 됩니다.
-    last_monday = today - timedelta(days=today.weekday() + 7)
-    last_sunday = last_monday + timedelta(days=6)
+    # [수정] 0값 방지: 데이터가 1.0 이상인 날이 1일만 있어도 생존 (기존은 4일 이상)
+    significant_days = [v for v in ratios if v > 1.0]
+    if len(significant_days) < 1: return 0
+
+    # [수정] 피크 억제: 평균 대비 배수를 2.2배로 타이트하게 조정 (TV 독주 방지)
+    avg_raw = sum(ratios) / len(ratios)
+    smooth_ratios = [min(v, avg_raw * 2.2) for v in ratios]
     
-    # 2. [출력용] 일간 기준일: 어제 (Yesterday)
-    yesterday = today - timedelta(days=1)
+    sorted_ratios = sorted(smooth_ratios)
+    median_val = sorted_ratios[len(sorted_ratios)//2]
     
-    # 3. [내부 분석용] 지지난주 월요일부터 수집 시작 (이상치 방어용 14일+ 분석)
-    # 주간 데이터 시작일보다 7일 더 과거부터 읽어옵니다.
-    analysis_start = last_monday - timedelta(days=7)
+    # 시간 가중치 적용
+    weights = [math.exp(i / (len(smooth_ratios)/2)) for i in range(len(smooth_ratios))]
+    weighted_avg = sum(v * w for v, w in zip(smooth_ratios, weights)) / sum(weights)
     
-    return {
-        "analysis_start": analysis_start.strftime('%Y-%m-%d'), # 내부 수집 시작
-        "display_week_start": last_monday.strftime('%Y-%m-%d'), # 시트 표시용
-        "display_week_end": last_sunday.strftime('%Y-%m-%d'),   # 시트 표시용
-        "display_day": yesterday.strftime('%Y-%m-%d')          # 시트 표시용 (어제)
-    }
+    # [수정] 안정성 강화: 중앙값 60%, 트렌드 40%로 조정하여 튐 현상 억제
+    return (median_val * 0.6) + (weighted_avg * 0.4)
 
 def get_calibrated_score(ratios):
     """14일 데이터를 분석하여 하루 반짝 노이즈를 제거하는 보정 함수"""
@@ -89,6 +90,7 @@ def run():
     }
 
     print("🚀 네이버 API 데이터 수집 시작...")
+    
     for i in range(0, len(others), 2):
         chunk = [anchor] + others[i:i+2]
         try:
@@ -112,38 +114,52 @@ def run():
         print("❌ 에러: 수집된 데이터가 없습니다. API 설정을 확인하세요.")
         return
 
-    # [수정] 69라인 에러 방지: 냉장고 데이터 추출 시 안전 장치
+    # --- 수정 시작: 정규화 및 소프트 스케일링 구간 ---
+    
+    # 1. 기준점(냉장고) 설정 및 0나누기 방지
     try:
         ref_w = next(x['val_w'] for x in results_storage if x['name'] == "냉장고")
         ref_d = next(x['val_d'] for x in results_storage if x['name'] == "냉장고")
     except StopIteration:
-        print("⚠️ 경고: 수집 결과에 '냉장고'가 없어 첫 번째 품목을 기준점으로 삼습니다.")
         ref_w = results_storage[0]['val_w']
         ref_d = results_storage[0]['val_d']
 
-    # 0으로 나누기 방지
     ref_w = ref_w if ref_w > 0 else 1
     ref_d = ref_d if ref_d > 0 else 1
 
-    # 유동적 최댓값 계산 (냉장고를 기준으로 맞춘 뒤 전체 1등 찾기)
-    max_rel_w = max([x['val_w'] / ref_w for x in results_storage])
-    max_rel_d = max([x['val_d'] / ref_d for x in results_storage])
+    # 2. 유동적 최대 상대값 계산
+    max_rel_w = max([x['val_w'] / ref_w for x in results_storage]) if results_storage else 1
+    max_rel_d = max([x['val_d'] / ref_d for x in results_storage]) if results_storage else 1
+
+    # 3. [핵심] 독주 방지용 소프트 스케일링 함수 정의
+    def calculate_final_ratio(current_val, ref_val, max_relative_val):
+        if max_relative_val <= 0: return 0
+        
+        # 냉장고 대비 상대적 위치 (예: 냉장고가 1일 때 TV가 20이면 20.0)
+        rel_pos = current_val / ref_val
+        
+        # [수정] 단순 백분율 대신, 편차를 줄이기 위해 루트(sqrt) 연산을 살짝 가미합니다.
+        # 이렇게 하면 100점 근처의 독주를 누르고 낮은 점수들을 위로 끌어올립니다.
+        raw_ratio = (rel_pos / max_relative_val)
+        adjusted_ratio = math.sqrt(raw_ratio) * 100
+        
+        return round(adjusted_ratio, 5)
 
     final_payload = []
     for x in results_storage:
-        # WEEKLY 페이로드 (지난주 전체 보정값)
+        # WEEKLY 페이로드 (보정된 상대 지수 적용)
         final_payload.append({
             "type": "WEEKLY", 
             "name": x['name'],
-            "ratio": round(((x['val_w'] / ref_w) / max_rel_w) * 100, 5), 
+            "ratio": calculate_final_ratio(x['val_w'], ref_w, max_rel_w), 
             "period": f"{dates['display_week_start']}~{dates['display_week_end']}" 
         })
         
-        # DAILY 페이로드 (어제 하루 보정값)
+        # DAILY 페이로드 (보정된 상대 지수 적용)
         final_payload.append({
             "type": "DAILY", 
             "name": x['name'],
-            "ratio": round(((x['val_d'] / ref_d) / max_rel_d) * 100, 5), 
+            "ratio": calculate_final_ratio(x['val_d'], ref_d, max_rel_d), 
             "period": dates["display_day"] 
         })
 

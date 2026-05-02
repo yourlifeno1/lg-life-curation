@@ -32,6 +32,11 @@ def get_calibrated_score(ratios):
     return (median_val * 0.5) + (weighted_avg * 0.5)
 
 def run():
+    # API 키 확인 보안 장치
+    if not CLIENT_ID or not CLIENT_SECRET:
+        print("❌ 에러: NAVER API 키가 환경 변수에 설정되지 않았습니다.")
+        return
+        
     w_start, w_end = get_dates('week')
     d_start, d_end = get_dates('day')
     

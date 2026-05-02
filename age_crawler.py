@@ -1,4 +1,5 @@
 import requests, json, time, math
+import os
 from datetime import datetime, timedelta
 
 # 매니저님의 최신 GAS URL

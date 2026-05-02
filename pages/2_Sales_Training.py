@@ -93,12 +93,11 @@ st.subheader("🎤 음성으로 대화하기")
 
 # 마이크 버튼 배치 (한국어 설정 추가)
 audio_info = mic_recorder(
-    start_prompt="🎤 말씀을 시작하세요 (한국어)",
+    start_prompt="🎤 말씀을 시작하세요",
     stop_prompt="🛑 말씀을 마치려면 클릭",
     just_once=True,
     use_container_width=True,
-    language='ko',  # [핵심 수정] 한국어 인식을 명시적으로 설정합니다.
-    key='recorder'
+    key='recorder' # 고유한 키값 유지
 )
 
 # 마이크로부터 인식된 텍스트 추출 및 검증

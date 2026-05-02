@@ -87,39 +87,46 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
 
-# --- [추가] 마이크 입력 섹션 ---
+# --- [수정본] 마이크 입력 섹션 ---
 st.write("---")
 st.subheader("🎤 음성으로 대화하기")
-# 마이크 버튼 배치 (텍스트 변환 기능 포함)
+
+# 마이크 버튼 배치 (한국어 설정 추가)
 audio_info = mic_recorder(
-    start_prompt="🎤 말씀을 시작하세요",
+    start_prompt="🎤 말씀을 시작하세요 (한국어)",
     stop_prompt="🛑 말씀을 마치려면 클릭",
     just_once=True,
     use_container_width=True,
+    language='ko',  # [핵심 수정] 한국어 인식을 명시적으로 설정합니다.
     key='recorder'
 )
 
-# 마이크로부터 인식된 텍스트가 있을 경우 처리
+# 마이크로부터 인식된 텍스트 추출 및 검증
 voice_text = ""
-if audio_info and 'text' in audio_info and audio_info['text']:
-    voice_text = audio_info['text']
+if audio_info:
+    # 텍스트 데이터가 존재하는지 확인
+    if 'text' in audio_info and audio_info['text']:
+        voice_text = audio_info['text'].strip()
+    else:
+        # 데이터는 오는데 텍스트만 없을 경우 안내 (디버깅 용도)
+        if 'bytes' in audio_info:
+            st.warning("음성은 녹음되었으나 텍스트로 변환되지 않았습니다. 더 명확하게 말씀해 주시거나 브라우저 설정을 확인하세요.")
 
 # 채팅 입력창 (키보드 입력용)
 chat_text = st.chat_input("또는 직접 텍스트를 입력하세요")
 
-# 음성 입력 혹은 텍스트 입력이 들어왔을 때 실행
+# 최종 입력값 결정
 final_prompt = voice_text if voice_text else chat_text
 
 if final_prompt:
-    # 1. 사용자 메시지 기록
+    # 1. 사용자 메시지 기록 및 표시
     st.session_state.messages.append({"role": "user", "content": final_prompt})
     with st.chat_message("user"):
         st.write(final_prompt)
 
     # 2. 어시스턴트(AI 고객) 응답 생성
     with st.chat_message("assistant"):
-        with st.spinner(f"'{menu}' 고객이 듣고 있습니다..."):
-            # 이전 대화 맥락과 현재 페르소나 전달
+        with st.spinner(f"'{menu}' 고객이 응답을 준비 중입니다..."):
             response = get_ai_response(final_prompt, st.session_state.messages[:-1], menu)
             st.write(response)
             
@@ -129,6 +136,6 @@ if final_prompt:
             # 4. 답변 기록 저장
             st.session_state.messages.append({"role": "assistant", "content": response})
     
-    # 음성 입력인 경우 화면 갱신을 유도하여 다음 대화를 준비함
+    # 음성 입력인 경우에만 화면 갱신 (반복 입력 방지 및 상태 업데이트)
     if voice_text:
         st.rerun()

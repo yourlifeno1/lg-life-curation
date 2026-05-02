@@ -34,21 +34,27 @@ def get_calibrated_score(ratios):
     """14일 데이터를 분석하여 하루 반짝 노이즈를 제거하는 보정 함수"""
     if not ratios: return 0
     
-    # 1. 노이즈 컷오프: 14일 중 의미 있는 클릭이 4일 미만이면 '하루 반짝'으로 간주
-    significant_days = [v for v in ratios if v > 10.0]
-    if len(significant_days) < 4: return 0
+    # 1. 노이즈 컷오프: 
+    # 지수가 2.0 이상만 되어도 유의미한 클릭으로 간주 (기존 10.0은 너무 엄격함)
+    significant_days = [v for v in ratios if v > 2.0]
+    if len(significant_days) < 3: return 0
 
     # 2. 평활화 및 중앙값 계산 (안정성 확보)
     avg_raw = sum(ratios) / len(ratios)
-    smooth_ratios = [min(v, avg_raw * 1.8) for v in ratios]
+    limit_multiplier = 3.0 
+    smooth_ratios = [min(v, avg_raw * limit_multiplier) for v in ratios]
+    
+    # 3. 중앙값 산출
     sorted_ratios = sorted(smooth_ratios)
     median_val = sorted_ratios[len(sorted_ratios)//2]
     
-    # 3. 시간 가중치 적용 (최근 14일 중 뒷부분에 힘을 실음)
-    weights = [math.exp(i / len(smooth_ratios)) for i in range(len(smooth_ratios))]
+    # 4. 시간 가중치 적용 (최근 트렌드에 더 강력한 힘을 실음)
+    weights = [math.exp(i / (len(smooth_ratios)/2)) for i in range(len(smooth_ratios))]
     weighted_avg = sum(v * w for v, w in zip(smooth_ratios, weights)) / sum(weights)
     
-    return (median_val * 0.7) + (weighted_avg * 0.3)
+    # 5. 최종 결합 비중 조절:
+    # 트렌드 반영(가중평균)을 70%로 높여 실제 순위에 가깝게 만듦 (기존은 중앙값이 70%)
+    return (median_val * 0.3) + (weighted_avg * 0.7)
 
 def run():
     dates = get_dates()

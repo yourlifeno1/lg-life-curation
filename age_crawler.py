@@ -22,6 +22,8 @@ def run():
         print("❌ 에러: NAVER API 키가 환경 변수에 설정되지 않았습니다.")
         return
 
+    print("✅ API 키 로드 성공! 수집을 시작합니다.")
+
     # ✅ 누락되었던 날짜 설정 로직을 추가합니다.
     today = datetime.now() + timedelta(hours=9)
     start_date = (today - timedelta(days=today.weekday() + 7)).strftime('%Y-%m-%d')

@@ -5,7 +5,7 @@ import base64
 import io
 
 # 1. 모델 ID 업데이트 (가장 안정적인 Gemma 2 모델 적용)
-MODEL_ID = "google/gemma-2-9b-it"
+MODEL_ID = "meta-llama/Llama-3.1-8B-Instruct"
 
 # 클라이언트 호출 부분은 동일합니다.
 try:

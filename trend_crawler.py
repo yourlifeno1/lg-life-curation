@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 
 # 1. 매니저님의 최신 배포 URL 및 네이버 API 정보
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzRWXSaM0jbaPR97j0BXwSK8DcF1CrJIZdw-QYu7R2rPRgtmFxycxwHweXZ1kIweQDU/exec"
-client_id = os.environ.get("NAVER_CLIENT_ID")
-client_secret = os.environ.get("NAVER_CLIENT_SECRET")
+CLIENT_ID = os.environ.get("NAVER_CLIENT_ID")
+CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET")
 NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
 def get_dates(mode='week'):
@@ -36,6 +36,8 @@ def run():
     if not CLIENT_ID or not CLIENT_SECRET:
         print("❌ 에러: NAVER API 키가 환경 변수에 설정되지 않았습니다.")
         return
+
+    print("✅ API 키 로드 성공! 수집을 시작합니다.")
         
     w_start, w_end = get_dates('week')
     d_start, d_end = get_dates('day')
@@ -55,6 +57,7 @@ def run():
     ]
 
     results_storage = []
+    
     headers = {
         "X-Naver-Client-Id": CLIENT_ID, 
         "X-Naver-Client-Secret": CLIENT_SECRET, 

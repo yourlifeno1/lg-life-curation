@@ -171,67 +171,17 @@ for i, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
             st.write(message["content"])
 
-# --- 6. 입력 섹션 (하단 고정 레이아웃) ---
-# 1. 하단 고정을 위한 CSS 주입
-st.markdown("""
-    <style>
-        /* 입력창 컨테이너 고정 스타일 */
-        .fixed-bottom {
-            position: fixed;
-            bottom: 30px;
-            left: 0;
-            right: 0;
-            background-color: white;
-            padding: 10px 20px;
-            z-index: 999;
-            border-top: 1px solid #ddd;
-        }
-        /* 하단 여백 확보 (메시지가 입력창에 가려지지 않게 함) */
-        .main .block-container {
-            padding-bottom: 120px;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-# 2. 고정될 컨테이너 생성
-input_container = st.container()
-
-with input_container:
-    # HTML 클래스를 적용할 수 없으므로, 내부 컬럼 배치
-    col1, col2 = st.columns([0.82, 0.18], vertical_alignment="center")
-
-    with col1:
-        chat_input = st.text_input(
-            "메시지 입력", 
-            key="chat_text_input", 
-            placeholder="고객에게 할 말을 입력하세요.",
-            label_visibility="collapsed" 
-        )
-
-    with col2:
-        audio_info = mic_recorder(
-            start_prompt="🎤", 
-            stop_prompt="🛑", 
-            just_once=True, 
-            key='sales_mic'
-        )
-
-# (이후 final_input 처리 로직은 기존과 동일)
+# --- 6. 입력 섹션 ---
+st.write("---")
+audio_info = mic_recorder(start_prompt="🎤 응대 시작 (마이크)", stop_prompt="🛑 완료", just_once=True, key='sales_mic')
+chat_input = st.chat_input("메시지를 입력하세요...")
 
 final_input = ""
-
-# 음성 입력 처리
 if audio_info and 'bytes' in audio_info:
     with st.spinner("음성 분석 중..."):
         audio_file = io.BytesIO(audio_info['bytes'])
         audio_file.name = "audio.wav"
-        final_input = groq_client.audio.transcriptions.create(
-            file=audio_file, 
-            model="whisper-large-v3", 
-            language="ko", 
-            response_format="text"
-        )
-# 텍스트 입력 처리
+        final_input = groq_client.audio.transcriptions.create(file=audio_file, model="whisper-large-v3", language="ko", response_format="text")
 elif chat_input:
     final_input = chat_input
 

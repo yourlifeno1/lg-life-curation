@@ -75,19 +75,37 @@ if st.session_state.persona_info:
     st.sidebar.subheader("👥 오늘의 고객 정보")
     st.sidebar.info(st.session_state.persona_info)
 
-# --- 4. 시나리오 구성 (입장 상황 묘사) ---
+# --- 4. 시나리오 구성 (입장 상황 묘사 고도화 버전) ---
 if not st.session_state.scenario_ready:
     with st.status("🚀 시나리오 준비 중...", expanded=False):
+        # 페르소나 생성 및 데이터 추출
         st.session_state.persona_info = generate_step_specific_persona(menu)
         data = st.session_state.raw_persona_data
         
+        # 1. VOC(전화) 상황: 목소리와 감정 상태 강조
         if menu == "VOC해결(전화)":
-            situation = f"📍 **상황 발생** : (따르릉...) {data['age_gender']} 고객의 전화입니다. {data['mood']}가 느껴집니다."
+            situation = (
+                f"📍 **상황 발생** : (따르릉...) {data['age_gender']} 고객의 전화입니다. "
+                f"현재 고객은 **{data['mood_category']}** 상태이며, 전화기 너머로 **{data['mood_detail']}**이 고스란히 느껴집니다."
+            )
+        
+        # 2. 라포/니즈파악 상황: 외양과 세부 제스처 강조
         elif any(x in menu for x in ["라포형성", "니즈파악"]):
-            situation = f"📍 **상황 발생** : {data['age_gender']} 고객이 {data['companion']}으로 입장합니다. {data['looks']}에 {data['mood']}입니다."
+            situation = (
+                f"📍 **상황 발생** : {data['age_gender']} 고객이 {data['companion']}으로 매장에 입장합니다. "
+                f"{data['looks']}을 한 고객은 현재 **{data['mood_category']}**한 태도로, "
+                f"특히 **{data['mood_detail']}**을 보이며 {data['product']} 코너를 유심히 살피고 있습니다."
+            )
+        
+        # 3. 클로징/매장 VOC 상황: 심리적 갈등과 현재 표정 강조
         else:
-            situation = f"📍 **상황 발생** : {data['age_gender']} 고객이 {data['mood']}로 최종 결정을 고민 중입니다."
+            situation = (
+                f"📍 **상황 발생** : {data['age_gender']} 고객이 {data['product']} 앞에서 최종 결정을 앞두고 고민 중입니다. "
+                f"고객의 표정에는 **{data['mood_category']}**한 기색이 역력하며, "
+                f"**{data['mood_detail']}**을 보이고 있어 매니저님의 세심한 대응이 필요한 시점입니다."
+            )
             
+        # 메시지 저장 및 상태 업데이트
         st.session_state.messages.append({"role": "assistant", "content": situation})
         st.session_state.scenario_ready = True
     st.rerun()

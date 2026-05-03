@@ -14,6 +14,36 @@ STAGES = {
     "VOC (전화)": "📞 보이스 컨택트 랩"
 }
 
+# --- [추가] 훈련 단계별 가이드 문구 정의 ---
+GUIDE_TEXTS = {
+    "라포형성": {
+        "title": "🤝 아이스브레이킹 코트",
+        "slogan": "마음을 열어야 지갑이 열립니다.",
+        "desc": "고객과의 차가운 정적을 깨뜨릴 시간입니다! 가벼운 스몰토크로 고객의 경계를 허물고 대화의 주도권을 잡아보세요."
+    },
+    "니즈파악": {
+        "title": "🔍 인사이트 스퀘어",
+        "slogan": "고객의 문장 사이, 숨겨진 진심을 찾으세요.",
+        "desc": "본격적인 정보전이 시작되는 곳입니다. 예리한 질문으로 고객의 라이프스타일을 꿰뚫는 통찰력을 발휘하세요."
+    },
+    "클로징": {
+        "title": "🏆 골든 피치 아레나",
+        "slogan": "승리를 확정 짓는 결정적 한마디.",
+        "desc": "거절할 수 없는 제안을 던질 차례입니다. 망설이는 고객의 확신을 이끌어내고 최종 승리를 쟁취하세요!"
+    },
+    "VOC (매장)": {
+        "title": "🚨 필드 세이프 존",
+        "slogan": "위기를 기회로 바꾸는 현장의 기술.",
+        "desc": "긴급 상황 발생! 까다로운 불만 사항을 유연하게 해결하여 화가 난 고객을 다시 LG의 팬으로 만드세요."
+    },
+    "VOC (전화)": {
+        "title": "📞 보이스 컨택트 랩",
+        "slogan": "보이지 않는 진심, 목소리로 전달하세요.",
+        "desc": "오직 목소리만으로 신뢰를 회복해야 합니다. 세심한 경청과 공감으로 진정성 있는 해결책을 제시하세요."
+    }
+}
+
+
 ALL_CATEGORIES = "TV, 냉장고, 세탁기, 건조기, 워시타워, 에어컨, 공기청정기, 청소기, 식기세척기, 정수기, 스타일러"
 VOC_TYPES = ["고객응대", "설명부족", "판촉/사은품", "약속불이행", "배송/설치", "제품", "전문성"]
 
@@ -99,6 +129,10 @@ if not st.session_state.scenario_ready:
         st.session_state.persona_info = generate_step_specific_persona(menu_key)
         data = st.session_state.raw_persona_data
         
+        # [수정 포인트] 해당 단계의 가이드 문구 가져오기
+        guide = GUIDE_TEXTS.get(menu_key, {})
+        guide_msg = f"🏟️ **{guide['title']}**\n\n*{guide['slogan']}*\n\n{guide['desc']}\n\n---"
+        
         # 1. VOC(전화) 상황
         if menu_key == "VOC (전화)":
             customer_name = data.get('name', '고객')
@@ -126,6 +160,7 @@ if not st.session_state.scenario_ready:
         st.session_state.messages.append({"role": "assistant", "content": situation})
         st.session_state.scenario_ready = True
     st.rerun()
+    
 # --- 5. 대화 화면 출력 루프 ---
 for i, message in enumerate(st.session_state.messages):
     if i == 0 and "📍 **상황 발생**" in message["content"]:

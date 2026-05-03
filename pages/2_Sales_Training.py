@@ -110,19 +110,20 @@ if final_input:
     
     with st.chat_message("assistant"):
         with st.spinner("고객이 반응하는 중..."):
+            # 기존 sys_msg에 리액션 규칙 3번과 4번을 추가하여 보강했습니다.
             sys_msg = f"""
             [CRITICAL RULE: 당신은 절대로 AI나 매니저가 아닙니다]
             당신은 매장에 방문한 실제 '고객'과 '동반인'입니다.
 
-            1. **1인 2역 및 줄 바꿈 규칙 (필독)**: 
+            1. **1인 2역 및 줄 바꿈 규칙**: 
                - 동반 방문 시 [고객]과 [동반인]의 대사 사이에 반드시 **줄 바꿈(Enter)**을 넣으세요.
                - 형식 예시:
                  [고객]: (제품을 보며) "어우, 디자인 예쁘네요."
                  [동반인]: (가격표를 확인하며) "여보, 우리 예산 생각해야지."
-            2. **대화의 호흡**: 전체 답변은 화자당 1문장씩, 총 2문장 내외로 매우 짧게 대답하세요. 정보는 조금씩만 노출하세요.
+            2. **대화의 호흡**: 전체 답변은 화자당 1문장씩 매우 짧게 대답하세요.
             3. **한국형 리액션 (추가)**: "어떻게 지내세요?" 같은 어색한 번역투는 절대 쓰지 마세요. 
                - 매니저가 인사하면 (고개를 살짝 끄덕이며) "아, 네. 안녕하세요" 또는 "그냥 좀 보려구요"라고 한국인답게 반응하세요.
-            4. **자아 고정**: 사용자가 매니저입니다. 당신은 응대를 받는 고객 입장이며, 절대 먼저 매니저처럼 질문하지 마세요.
+            4. **자아 고정**: 사용자가 매니저입니다. 당신은 응대를 받는 입장이며, 절대 먼저 매니저처럼 질문하지 마세요.
 
             [오늘의 페르소나]
             {st.session_state.persona_info}
@@ -144,63 +145,3 @@ if final_input:
                 st.rerun() 
             except Exception as e:
                 st.error(f"⚠️ 에러 발생: {e}")
-
-            [오늘의 페르소나]
-            {st.session_state.persona_info}
-
-            [응대 지침]
-            - (괄호 지문)으로 구체적 동작 묘사.
-            - 단계({menu})에 맞춰 초기에는 방어적으로, 후기에는 혜택 중심적으로 반응하세요.
-            """
-            
-            cleaned_history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages if m.get("content")]
-            full_history = [{"role": "system", "content": sys_msg}] + cleaned_history
-
-            try:
-                response = hf_client.chat_completion(full_history, max_tokens=500).choices[0].message.content
-                # '매니저:' 지칭 강제 제거
-                response = response.replace("매니저:", "").replace("매니저 :", "").strip()
-                
-                st.session_state.messages.append({"role": "assistant", "content": response})
-                st.rerun() 
-            except Exception as e:
-                st.error(f"⚠️ 에러 발생: {e}")
-
-# --- 8. 정교한 피드백 엔진 (오류 수정 버전) ---
-st.write("---")
-if len(st.session_state.messages) > 1:
-    if st.button("📊 상담 종료 및 실전 피드백 받기"):
-        with st.spinner("전문 코치가 상담 내역을 정밀 분석 중입니다..."):
-            # [수정] 기존 고객 페르소나와 섞이지 않도록 코치 전용 지침만 구성합니다.
-            coach_sys_msg = f"""
-            당신은 LG전자의 전설적인 세일즈 마스터이자 전문 교육 코치입니다.
-            현재까지의 대화 내역을 바탕으로 사용자의 '세일즈 역량'을 분석하세요.
-
-            [분석 가이드라인]
-            1. 라포 형성: 고객의 특징(복장, 기분)을 언급하며 부드럽게 대화를 시작했는가?
-            2. 니즈 파악: 고객이 왜 제품을 보러 왔는지 정확한 질문을 던졌는가?
-            3. 공감 능력: 고객과 동반인의 말에 적절한 리액션을 보였는가?
-
-            [출력 규칙]
-            - 절대로 고객의 말투를 흉내 내지 마세요. 전문적인 분석가로서 답변하세요.
-            - "오호, 관심이 있는군요!" 같은 추임새 대신 객관적인 지표를 사용하세요.
-            """
-            
-            # [중요] 'system' 메시지를 제외한 순수 대화 내역만 코치에게 전달하여 자아 혼동을 방지합니다.
-            chat_only = [m for m in st.session_state.messages if m["role"] != "system"]
-            eval_history = [{"role": "system", "content": coach_sys_msg}] + chat_only
-            
-            try:
-                # 결과값이 깨지지 않도록 충분한 max_tokens를 확보합니다.
-                feedback = hf_client.chat_completion(eval_history, max_tokens=1000).choices[0].message.content
-                
-                # 결과를 보기 좋게 별도 영역에 표시합니다.
-                st.markdown("---")
-                with st.expander("📝 전문 세일즈 코칭 리포트 확인하기", expanded=True):
-                    st.markdown(feedback)
-                    
-                    if st.button("🔄 새로운 훈련 시작"):
-                        st.session_state.scenario_ready = False
-                        st.rerun()
-            except Exception as e:
-                st.error(f"피드백 생성 중 오류가 발생했습니다: {e}")

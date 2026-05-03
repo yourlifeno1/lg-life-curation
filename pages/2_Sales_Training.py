@@ -8,7 +8,7 @@ import random
 import time
 from streamlit_mic_recorder import mic_recorder
 
-# --- [수정] 중앙 집중식 가전 카테고리 관리 ---
+# [픽스] 가전 카테고리 전체 범위 (매니저님이 여기서 직접 관리 가능)
 ALL_CATEGORIES = (
     "TV, 냉장고, 세탁기, 건조기, 워시타워, 에어컨, 공기청정기, 청소기, 의류관리기, "
     "식기세척기, 제습기, 사운드바, 스탠바이미, 프로젝터, 노트북, 김치냉장고, "
@@ -39,46 +39,42 @@ def get_user_detailed_address(lat, lon):
     except:
         return "서울특별시 도봉구 쌍문1동"
 
-# --- 3. [수정] 가전 전체 범위 및 동반인 포함 페르소나 생성 ---
-def generate_dynamic_persona(region, menu):
+# --- 3. [에러 해결] 인자 3개를 받도록 정의 수정 ---
+# 에러 원인: 호출 시 3개를 보냈으나 정의에서 2개만 받음 -> category_list 추가
+def generate_dynamic_persona(region, menu, category_list):
     """
-    LG전자 베스트샵 실전 세일즈를 위한 페르소나를 생성합니다.
+    가전 전체 카테고리를 반영하고 동반인(40% 확률) 여부를 포함한 페르소나를 생성합니다.
     """
-    # [로직] 동반인 등장 확률 설정 (40%)
+    is_closing = "클로징" in menu
+    # 동반인 등장 확률 40% 적용
     has_companion = random.random() < 0.4
     companion_type = random.choice(["부부 동반", "가족 동반(아이 포함)", "부모님 동반"]) if has_companion else "1인 방문"
     
-    # [로직] 상담 단계에 따른 목표(Goal) 가이드
-    goal_guide = "친밀감 형성" if "라포" in menu else "최종 혜택 확인 및 결제 결정"
-    
+    # 클로징 단계 전용 망설임 요소[cite: 3]
+    hesitation = "없음"
+    if is_closing:
+        hesitation_types = [
+            f"{companion_type}의 동의가 더 필요함" if has_companion else "배우자와 최종 상의가 필요함",
+            "사은품 구성이나 추가 할인이 기대에 못 미침",
+            "타사 제품의 특정 기능과 LG 제품 사이에서 마지막까지 고민 중",
+            "결제 혜택 조건이 복잡하여 확신이 안 섬"
+        ]
+        hesitation = random.choice(hesitation_types)
+
     prompt = f"""
-    당신은 LG전자 베스트샵 고객 페르소나 생성기입니다. 
-    지역({region})과 상담 단계({menu})에 맞는 성인 고객을 1명(또는 1팀) 생성하세요.
-
-    [필수 지침]
-    1. 방문 형태: {companion_type}를 반드시 반영하세요.
-    2. 제품 범위: {ALL_CATEGORIES} 중 한 가지 카테고리를 무작위로 선택하세요.
-    3. 금기 사항: 설명이나 인사말 없이 아래 항목만 정확히 출력하세요.
-
-    [출력 항목]
-    - persona: (예: 신혼 가전을 보러 온 예비 부부)
-    - age: (19-70 사이 숫자)
-    - goal: ({goal_guide}를 포함한 구체적 구매 목적)
-    - stance: (고객의 성격 및 동반인과의 의사결정 주도권 관계)
-    """
+    당신은 LG전자 베스트샵 고객 페르소나 생성기입니다.
+    지역({region}), 단계({menu})에 맞는 성인 고객 페르소나를 생성하세요.
     
+    [필수 조건]
+    - 방문 형태: {companion_type} (대화 시 동반인의 반응을 포함할 것)[cite: 3]
+    - 관심 제품: {category_list} 중 하나를 무작위로 선택하여 구체적 상황 설정[cite: 3]
+    - 클로징 제약: {hesitation} (이 포인트가 해소되어야 구매 결정)[cite: 3]
+    - 출력 항목: persona, age(19-70), goal(상담 목적), stance(성격 및 태도)[cite: 3]
+    """
     try:
-        # 이 부분은 실제 hf_client.chat_completion 호출부로 대체됩니다.
-        response = hf_client.chat_completion([{"role": "system", "content": prompt}], max_tokens=250)
-        return response.choices[0].message.content
-    except Exception:
-        return f"현재 {region} 매장에 방문한 {companion_type} 고객입니다."
-
-# --- 구현 지침 ---
-# 1. ALL_CATEGORIES 변수: 제품군이 늘어날 경우 이 변수만 수정하면 전체 로직에 반영됩니다.
-# 2. companion_type: random.random()을 사용하여 매번 훈련할 때마다 고객 구성이 달라져 지루함을 방지합니다.
-# 3. 프롬프트 구조: 이미지에서 보였던 'AI의 자기소개'나 '코드 노출'을 막기 위해 [필수 지침]을 강화했습니다.
-
+        return hf_client.chat_completion([{"role": "system", "content": prompt}], max_tokens=250).choices[0].message.content
+    except:
+        return f"{region} 지역의 {companion_type} 고객 (관심제품: 냉장고)"
 
 # --- 4. 메인 UI 및 세션 관리 ---
 st.set_page_config(page_title="LG전자 실전 세일즈 훈련소", layout="centered")
@@ -86,23 +82,24 @@ st.title("🏆 LG전자 실전 세일즈 훈련소")
 
 loc = get_geolocation()
 if not loc:
-    st.info("📍 위치 정보를 파악 중입니다...")
+    st.info("📍 위치 정보를 파악 중입니다. 잠시만 기다려 주세요.")
     st.stop()
 
 user_full_addr = get_user_detailed_address(loc['coords']['latitude'], loc['coords']['longitude'])
 st.sidebar.info(f"📍 현재 위치: {user_full_addr}")
 menu = st.sidebar.selectbox("🎯 훈련 단계 선택", ["라포형성 달인", "니즈파악 대장", "클로징의 장인", "VOC해결(매장)", "VOC해결(전화)"])
 
+# 메뉴 변경 시 초기화 로직
 if "current_menu" not in st.session_state or st.session_state.current_menu != menu:
     st.session_state.messages = []
     st.session_state.current_menu = menu
     st.session_state.scenario_ready = False
     st.session_state.persona_info = None
 
-# --- 5. 시나리오 생성 (방문/전화 분리) ---
+# --- 5. 시나리오 생성 (106라인 포함 영역) ---
 if not st.session_state.scenario_ready:
     with st.status("🚀 새로운 시뮬레이션 환경을 구성하고 있습니다...", expanded=True) as status:
-        # 페르소나 생성 시 ALL_CATEGORIES 전달[cite: 3]
+        # [해결] 여기서 3개의 인자를 전달하고, 위의 def에서도 3개를 받도록 수정되었습니다.[cite: 3]
         st.session_state.persona_info = generate_dynamic_persona(user_full_addr, menu, ALL_CATEGORIES)
         
         is_phone = "전화" in menu
@@ -113,8 +110,9 @@ if not st.session_state.scenario_ready:
         else:
             situation_prompt = f"""
             베스트샵 {user_full_addr}점 매장 상황. 페르소나: {p_info}.
-            - 동반인이 있다면 동반인과의 대화나 행동(제품 확인, 귓속말 등) 포함[cite: 3]
-            - 📍 **상황 발생** : [구체적인 시선, 손동작 묘사]
+            - {ALL_CATEGORIES} 중 해당 제품 존에서의 상황.
+            - 시선, 손동작, 스마트폰 검색 등 비언어적 행동 위주 묘사.
+            - 📍 **상황 발생** : [구체적 묘사]
             """
         
         situation = hf_client.chat_completion([{"role": "system", "content": situation_prompt}], max_tokens=250).choices[0].message.content
@@ -123,7 +121,7 @@ if not st.session_state.scenario_ready:
         status.update(label="✅ 구성 완료!", state="complete")
     st.rerun()
 
-# --- 6. 대화 표시 및 입력 처리 (생략 없이 유지) ---
+# --- 6. 대화 표시 및 입력 처리 ---
 for message in st.session_state.messages:
     if "📍 **상황 발생**" in message["content"]:
         st.info(message["content"])

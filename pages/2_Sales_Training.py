@@ -1,7 +1,6 @@
 import streamlit as st
 from huggingface_hub import InferenceClient
 from groq import Groq
-from streamlit_js_eval import get_geolocation
 import io
 import random
 from streamlit_mic_recorder import mic_recorder
@@ -24,9 +23,9 @@ def init_session_state(menu):
         st.session_state.messages = []
         st.session_state.scenario_ready = False
         st.session_state.persona_info = None
-        st.session_state.raw_persona_data = {} # 분석용 데이터 저장
+        st.session_state.raw_persona_data = {}
 
-# --- 2. 페르소나 생성 엔진 (한국인 정서 최적화) ---
+# --- 2. 페르소나 생성 엔진 ---
 def generate_step_specific_persona(menu):
     is_voc_phone = menu == "VOC해결(전화)"
     gender = random.choice(["남성", "여성"])
@@ -35,7 +34,6 @@ def generate_step_specific_persona(menu):
     companion = "2인 (부부 동반)" if not is_voc_phone and random.random() < 0.5 else "1인 방문"
     product = random.choice(ALL_CATEGORIES.split(", "))
     
-    # 데이터 저장용 딕셔너리
     st.session_state.raw_persona_data = {
         "age_gender": f"{age_group} ({gender})",
         "companion": companion,
@@ -46,7 +44,7 @@ def generate_step_specific_persona(menu):
         name = random.choice(["김지수", "이현우", "박서윤", "최민호"])
         info = f"1. 고객 이름: {name}\n2. 연령대(성별): {age_group} ({gender})\n3. 거주지: {residence}\n4. 구매 제품: {product}\n5. 고객 상태: {random.choice(VOC_TYPES)} 건으로 화가 난 상태"
     else:
-        info = f"1. 연령대(성별): {age_group} ({gender})\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 상담/구매 제품: {product}\n5. 특징: 한국인 특유의 자연스러운 말투와 리액션 사용"
+        info = f"1. 연령대(성별): {age_group} ({gender})\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 상담/구매 제품: {product}\n5. 특징: 한국인 특유의 자연스러운 말투 사용"
         
     return info
 
@@ -57,32 +55,34 @@ st.title("🏆 LG전자 실전 세일즈 훈련소")
 menu = st.sidebar.selectbox("🎯 훈련 단계 선택", ["라포형성 달인", "니즈파악 대장", "클로징의 장인", "VOC해결(매장)", "VOC해결(전화)"])
 init_session_state(menu)
 
-# --- 5. 시나리오 구성 및 출력 로직 수정 ---
+# --- 4. [해결 포인트] 좌측 사이드바에 고객 정보 출력 ---
+if st.session_state.persona_info:
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("👥 오늘의 고객 정보")
+    st.sidebar.info(st.session_state.persona_info) # 사이드바에 정보 고정
+
+# --- 5. 시나리오 구성 ---
 if not st.session_state.scenario_ready:
     with st.status("🚀 시뮬레이션 준비 중...", expanded=False):
         st.session_state.persona_info = generate_step_specific_persona(menu)
         data = st.session_state.raw_persona_data
         
-        # [로직 픽스] 단계별 시작 문구 설정
         if menu == "VOC해결(전화)":
             situation = "📍 **상황 발생** : (따르릉... 따르릉...) 전화벨이 울립니다. 고객의 목소리가 들리기 시작합니다."
         elif any(x in menu for x in ["라포형성", "니즈파악"]):
             situation = f"📍 **상황 발생** : {data['age_gender']} 고객이 {data['companion']}으로 매장에 들어옵니다."
-        else: # 클로징 등
+        else:
             situation = "📍 **상황 발생** : 상담이 마무리 단계에 접어들었습니다. 고객이 최종 결정을 고민하고 있습니다."
             
-        # 메시지 리스트의 첫 번째에 상황을 추가합니다.
         st.session_state.messages.append({"role": "assistant", "content": situation})
         st.session_state.scenario_ready = True
     st.rerun()
 
-# --- 6. 대화 화면 (출력 부분 수정) ---
+# --- 6. 대화 화면 출력 ---
 for i, message in enumerate(st.session_state.messages):
-    # 첫 번째 메시지는 항상 상황 발생 문구이므로 st.info로 출력합니다.
     if i == 0 and "📍 **상황 발생**" in message["content"]:
-        st.info(message["content"])  # [해결] 이 부분이 누락되어 보이지 않았던 것입니다.
+        st.info(message["content"])
     else:
-        # 두 번째 메시지부터는 일반 채팅 메시지로 출력합니다.
         with st.chat_message(message["role"]):
             st.write(message["content"])
 
@@ -106,16 +106,14 @@ if final_input:
 
     with st.chat_message("assistant"):
         with st.spinner("고객 응답 중..."):
-            # [수정] 자연스러운 한국어 대사 지침 강화
             sys_msg = f"""
             당신은 LG전자 베스트샵을 방문한 한국인 고객입니다. 
             {st.session_state.persona_info}
             
             [응대 지침]
             1. 모든 대사 앞에는 반드시 (괄호 지문)으로 표정이나 상태를 묘사하세요.
-            2. 외국어 직역투가 아닌, 한국인 세일즈 현장에서 실제 쓰이는 자연스러운 구어체를 사용하세요. 
-               (예: "좀 보려구요", "그렇긴 한데", "한번 봐도 될까요?")
-            3. 2인 동반 시 [고객], [동반인]을 구분하여 실제 두 명과 대화하는 느낌을 주세요.
+            2. 한국인 세일즈 현장에서 실제 쓰이는 자연스러운 구어체를 사용하세요.
+            3. 2인 동반 시 [고객], [동반인]을 구분하여 1인 2역을 수행하세요.
             4. 단계({menu})의 목적에 맞춰 반응하세요.
             """
             history = [{"role": "system", "content": sys_msg}] + st.session_state.messages

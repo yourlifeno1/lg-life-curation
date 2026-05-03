@@ -112,27 +112,27 @@ st.set_page_config(page_title="LG 세일즈 아레나", layout="centered")
 # [수정된 스타일 정의] - 선택자를 더 명확히 하여 엉뚱한 배치를 방지합니다.
 st.markdown("""
     <style>
-        /* 1. 하단 여백 확보 */
+        /* 1. 본문 하단 여백: 고정 바 높이만큼 확보 */
         .main .block-container {
-            padding-bottom: 150px !important;
+            padding-bottom: 180px !important;
         }
 
-        /* 2. 하단 바 전용 스타일 (입력창과 마이크를 감싸는 영역만 고정) */
+        /* 2. 하단 고정 바: 입력창과 마이크 버튼이 있는 섹션 고정 */
         [data-testid="stVerticalBlock"] > div:has(div[data-testid="stTextInput"]) {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background-color: white;
-            z-index: 1000;
-            padding: 10px 20px 30px 20px;
-            border-top: 1px solid #f0f0f0;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            background-color: #ffffff !important;
+            z-index: 9999 !important; /* 마이크 버튼이 위로 올라오도록 최우선순위 부여 */
+            padding: 15px 20px 40px 20px !important;
+            border-top: 1px solid #eeeeee !important;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.1) !important;
         }
 
-        /* 3. 불필요한 라벨 제거 */
-        div[data-testid="stTextInput"] label {
-            display: none !important;
+        /* 3. 마이크 버튼 컨테이너 정렬 및 가독성 향상 */
+        [data-testid="stHorizontalBlock"] {
+            align-items: center !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -201,20 +201,21 @@ for i, message in enumerate(st.session_state.messages):
             st.write(message["content"])
 
 # --- 6. 입력 섹션 (하단 고정 전용 컨테이너) ---
+# --- 6. 입력 섹션 (전체 로직의 맨 하단에 위치) ---
 with st.container():
-    # 수평 정렬을 위해 columns 사용
-    input_col1, input_col2 = st.columns([0.8, 0.2], vertical_alignment="center")
+    # 마이크 버튼이 보이지 않는다면 컬럼 비율을 75:25 정도로 넓혀보세요.
+    col1, col2 = st.columns([0.75, 0.25], vertical_alignment="center")
 
-    with input_col1:
-        # label_visibility를 collapsed로 설정하여 공간 절약
+    with col1:
         chat_input = st.text_input(
-            "메시지 입력", 
+            "대화 입력", 
             key="chat_text_input", 
             placeholder="고객에게 할 말을 입력하세요.",
             label_visibility="collapsed"
         )
 
-    with input_col2:
+    with col2:
+        # 마이크 버튼 위젯
         audio_info = mic_recorder(
             start_prompt="🎤", 
             stop_prompt="🛑", 
@@ -222,7 +223,7 @@ with st.container():
             key='sales_mic'
         )
 
-# 입력 처리 로직 (기존과 동일하되 chat_input 변수 활용)
+# 입력 처리 로직 (기존과 동일)
 final_input = ""
 if audio_info and 'bytes' in audio_info:
     with st.spinner("음성 분석 중..."):

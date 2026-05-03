@@ -140,7 +140,11 @@ def clean_text(text):
     for pattern in system_patterns:
         text = text.replace(pattern, "")
         
-    # 3. 연속된 공백 및 불필요한 문장 부호 정리
+    # 3. [신규 추가] 가독성을 위한 문장 단위 줄 바꿈
+    # 문장 종결 부호(. ? !) 뒤에 공백이 오면 줄 바꿈(\n)으로 변경합니다.
+    text = re.sub(r'([.?!])\s+', r'\1\n', text)
+        
+    # 4. 연속된 공백 및 불필요한 문장 부호 정리
     text = text.replace("  ", " ").strip()
     return text
 

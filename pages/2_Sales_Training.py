@@ -25,19 +25,19 @@ def init_session_state(menu):
         st.session_state.persona_info = None
         st.session_state.raw_persona_data = {}
 
-# --- 2. 페르소나 생성 엔진 (데이터 세분화) ---
+# --- 2. 페르소나 생성 엔진 ---
 def generate_step_specific_persona(menu):
     is_voc_phone = menu == "VOC해결(전화)"
     gender = random.choice(["남성", "여성"])
     age_group = random.choice(["20대 후반", "30대 초반", "40대 중반", "50대 초반", "60대 이상"])
     residence = random.choice(["신축 아파트", "구축 빌라", "전원주택", "오피스텔"])
+    # 50% 확률로 동반인 설정
     companion = "2인 (부부 동반)" if not is_voc_phone and random.random() < 0.5 else "1인 방문"
     product = random.choice(ALL_CATEGORIES.split(", "))
     
     looks = random.choice(["깔끔한 정장 차림", "편안한 트레이닝복", "비즈니스 캐주얼", "등산복 차림"])
     mood = random.choice(["부드러운 미소를 띤 얼굴", "다소 급해 보이는 표정", "진지하게 제품을 살피는 눈빛", "피곤해 보이지만 꼼꼼한 태도"])
     
-    # 나중에 상황 묘사에 쓰기 위해 원본 데이터를 세션에 저장
     st.session_state.raw_persona_data = {
         "age_gender": f"{age_group} ({gender})",
         "companion": companion,
@@ -66,19 +66,18 @@ if st.session_state.persona_info:
     st.sidebar.subheader("👥 오늘의 고객 정보")
     st.sidebar.info(st.session_state.persona_info)
 
-# --- 4. 시나리오 구성 (입장 상황 묘사 되살리기) ---
+# --- 4. 시나리오 구성 (입장 상황 묘사) ---
 if not st.session_state.scenario_ready:
-    with st.status("🚀 시뮬레이션 준비 중...", expanded=False):
+    with st.status("🚀 시나리오 준비 중...", expanded=False):
         st.session_state.persona_info = generate_step_specific_persona(menu)
         data = st.session_state.raw_persona_data
         
         if menu == "VOC해결(전화)":
-            situation = f"📍 **상황 발생** : (따르릉...) {data['age_gender']} 고객으로부터 전화가 왔습니다. 목소리에서 {data['mood']}가 느껴집니다."
+            situation = f"📍 **상황 발생** : (따르릉...) {data['age_gender']} 고객의 전화입니다. {data['mood']}가 느껴집니다."
         elif any(x in menu for x in ["라포형성", "니즈파악"]):
-            # 복장과 표정 정보를 포함하여 입장 상황 묘사
-            situation = f"📍 **상황 발생** : {data['age_gender']} 고객이 {data['companion']}으로 매장에 들어옵니다. {data['looks']}을 하고 있으며, {data['mood']}로 제품을 살피기 시작합니다."
+            situation = f"📍 **상황 발생** : {data['age_gender']} 고객이 {data['companion']}으로 입장합니다. {data['looks']}에 {data['mood']}입니다."
         else:
-            situation = f"📍 **상황 발생** : {data['age_gender']} 고객과 상담이 막바지에 이르렀습니다. 고객은 {data['mood']}를 보이며 고민에 빠진 듯합니다."
+            situation = f"📍 **상황 발생** : {data['age_gender']} 고객이 {data['mood']}로 최종 결정을 고민 중입니다."
             
         st.session_state.messages.append({"role": "assistant", "content": situation})
         st.session_state.scenario_ready = True
@@ -106,7 +105,7 @@ if audio_info and 'bytes' in audio_info:
 elif chat_input:
     final_input = chat_input
 
-# --- 7. 응답 처리 로직 ---
+# --- 7. 응답 처리 로직 (1인 2역 및 호흡 조절 최적화) ---
 if final_input:
     st.session_state.messages.append({"role": "user", "content": final_input})
     
@@ -114,18 +113,23 @@ if final_input:
         with st.spinner("고객이 반응하는 중..."):
             sys_msg = f"""
             [CRITICAL RULE: 당신은 절대로 AI나 매니저가 아닙니다]
-            1. 당신은 LG전자 베스트샵에 방문한 '고객'입니다. 
-            2. 사용자가 매니저입니다. 당신이 먼저 "도와드릴까요?"라고 묻지 마세요.
-            3. 매니저의 말에 반응하거나 고객으로서 질문하세요.
-            
-            [페르소나 정보]
+            당신은 LG전자 베스트샵에 방문한 실제 '고객'과 '동반인'입니다.
+
+            1. **1인 2역 (동반 방문 시)**: 
+               - 페르소나에 '부부 동반' 등 동반자가 있다면 반드시 [고객]과 [동반인]의 대사를 모두 포함하세요.
+               - 두 사람이 서로 의견을 묻거나 매니저의 제안에 대해 각기 다르게 반응하게 하세요.
+               - 형식 예시: 
+                 [고객]: (제품을 가리키며) "이거 디자인은 괜찮네." 
+                 [동반인]: (가격표를 보며) "근데 생각보다 좀 비싼 거 아냐?"
+            2. **대화의 호흡**: 전체 답변 길이를 2문장 내외로 유지하세요. 정보 노출은 최소화하고 매니저의 질문에 맞춰 조금씩 답하세요.
+            3. **자아 고정**: 매니저처럼 행동하거나 "도와드릴까요?"라고 말하지 마세요. 당신은 응대를 '받는' 입장입니다.
+
+            [오늘의 페르소나]
             {st.session_state.persona_info}
 
             [응대 지침]
-            - (괄호 지문)에는 동작과 시선 처리를 넣으세요.
-            - 한국인 특유의 자연스러운 말투를 사용하세요.
-            - 2인 동반 시 [고객]과 [동반인]을 구분하세요.
-            - 단계({menu})에 맞춰 연기하세요.
+            - (괄호 지문)으로 구체적 동작 묘사. 한국어 구어체 사용.
+            - 단계({menu})에 맞춰 초기에는 다소 방어적으로 대응하세요.
             """
             
             cleaned_history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages if m.get("content")]
@@ -133,7 +137,6 @@ if final_input:
 
             try:
                 response = hf_client.chat_completion(full_history, max_tokens=500).choices[0].message.content
-                # '매니저:' 지칭 강제 제거 안전장치
                 response = response.replace("매니저:", "").replace("매니저 :", "").strip()
                 
                 st.session_state.messages.append({"role": "assistant", "content": response})

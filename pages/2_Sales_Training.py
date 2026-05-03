@@ -217,3 +217,54 @@ if final_input:
                 st.rerun() 
             except Exception as e:
                 st.error(f"⚠️ 에러 발생: {e}")
+
+# --- 8. 즐거운 세일즈 코칭 리포트 (업그레이드 버전) ---
+st.write("---")
+
+# 대화 내역이 있을 때만 리포트 생성 버튼 활성화
+if len(st.session_state.messages) > 1:
+    if st.button("📊 상담 종료 및 코칭 리포트 보기"):
+        # 1. 시각적 축하 효과
+        st.balloons()
+        
+        with st.spinner("마스터 코치가 매니저님의 대화를 복기하며 리포트를 작성 중입니다..."):
+            # 2. 마스터 코치 전용 프롬프트 설정
+            coach_sys_msg = f"""
+            당신은 LG전자의 성장을 이끄는 최고의 세일즈 마스터 코치입니다.
+            훈련을 마친 매니저에게 성취감을 주고, 다음 훈련을 기대하게 만드는 리포트를 작성하세요.
+
+            [코칭 원칙]
+            1. **긍정적 강화**: 매니저님이 잘한 점을 먼저 구체적으로 칭찬하세요.
+            2. **시각적 가독성**: 별점(⭐)과 이모지를 풍부하게 사용하세요.
+            3. **게임 요소**: 이번 상담의 성과를 '칭호'로 부여하세요 (예: 라포 형성의 마술사).
+            
+            [리포트 구성 요소]
+            - **🏆 오늘의 세일즈 칭호**: (매니저님의 강점에 따른 유쾌한 별명)
+            - **⭐ 항목별 스킬 점수**: 라포/니즈파악/공감을 5점 만점으로 평가
+            - **✨ 오늘의 Best Moments**: 매니저님이 사용한 가장 센스 있는 문장 1개를 인용하고 칭찬
+            - **💡 한 끗 차이 레벨업**: "이렇게 하면 더 완벽해질 거예요"라는 톤으로 조언 1가지
+            """
+            
+            # 시스템 메시지를 제외한 실제 대화 내역만 추출하여 전달
+            chat_only = [m for m in st.session_state.messages if m["role"] != "system"]
+            eval_history = [{"role": "system", "content": coach_sys_msg}] + chat_only
+            
+            try:
+                # 3. AI 피드백 생성 API 호출 (hf_client 사용)
+                feedback = hf_client.chat_completion(eval_history, max_tokens=1000).choices[0].message.content
+                
+                st.markdown("### 🏁 훈련을 성공적으로 마쳤습니다!")
+                # 4. 리포트 UI 구성
+                with st.expander("📝 매니저님을 위한 마스터 코치의 비밀 리포트", expanded=True):
+                    st.markdown(feedback)
+                    
+                    st.write("---")
+                    st.write("고생 많으셨습니다! 새로운 고객을 만나러 가볼까요? 🚀")
+                    
+                    # 5. 세션 초기화 버튼
+                    if st.button("🔄 새로운 훈련 시작"):
+                        st.session_state.scenario_ready = False
+                        st.session_state.messages = [] # 대화 내역 초기화 추가 권장
+                        st.rerun()
+            except Exception as e:
+                st.error(f"피드백 생성 중 오류가 발생했습니다: {e}")

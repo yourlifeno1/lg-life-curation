@@ -150,6 +150,13 @@ if final_input:
     
     with st.chat_message("assistant"):
         with st.spinner("고객이 반응하는 중..."):
+            # [수정 포인트] 최신 세션 데이터를 다시 가져와서 data 변수에 할당합니다.
+            data = st.session_state.raw_persona_data 
+            
+            # [안전 장치] 만약 데이터가 없을 경우를 대비해 기본값을 설정합니다.
+            mood_cat = data.get('mood_category', '일반적인')
+            mood_det = data.get('mood_detail', '차분한 태도')
+            
             # 기존 sys_msg에 리액션 규칙 3번과 4번을 추가하여 보강했습니다.
             sys_msg = f"""
             [CRITICAL RULE: 당신은 절대로 AI나 매니저가 아닙니다]

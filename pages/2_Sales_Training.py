@@ -5,7 +5,7 @@ from gtts import gTTS
 import base64
 import io
 import re
-from pydub import AudioSegment
+from pydub import AudioSegment # 라인 8 에러 해결 포인트
 from streamlit_mic_recorder import mic_recorder
 
 # --- 1. 보안 설정 및 클라이언트 초기화 ---
@@ -56,9 +56,8 @@ def filter_text_for_speech(text):
 def process_voice(audio_fp, gender, age):
     """pydub을 이용한 피치 변조 (남성/여성/연령 구분)"""
     sound = AudioSegment.from_file(audio_fp, format="mp3")
-    # 변조 수치 설정 (octaves)
-    octaves = -0.25 if gender == "male" else 0.05
-    if age == "middle": octaves -= 0.1
+    octaves = -0.25 if gender == "male" else 0.05 # 남성은 낮게, 여성은 약간 높게
+    if age == "middle": octaves -= 0.1 # 연령대가 높으면 더 묵직하게
     
     new_sample_rate = int(sound.frame_rate * (2.0 ** octaves))
     processed = sound._spawn(sound.raw_data, overrides={'frame_rate': new_sample_rate})
@@ -76,36 +75,33 @@ def speak(text, persona_name):
         tts.write_to_fp(temp_fp)
         temp_fp.seek(0)
         
-        # 변조 처리
         processed_sound = process_voice(temp_fp, p["gender"], p["age"])
         out_fp = io.BytesIO()
         processed_sound.export(out_fp, format="mp3")
         b64 = base64.b64encode(out_fp.getvalue()).decode()
         
-        # HTML5 오디오 재생 (Autoplay)
         md = f'<audio autoplay="true" src="data:audio/mp3;base64,{b64}">'
         st.markdown(md, unsafe_allow_html=True)
     except Exception as e:
         st.error(f"TTS 변조 실패: {e}")
 
-# --- 4. 메인 UI 레이아웃 ---
+# --- 4. 메인 UI 및 로직 ---
 st.set_page_config(page_title="LG전자 세일즈 훈련소", layout="centered")
 st.title("🏆 LG전자 세일즈 음성 훈련소")
 
 menu = st.sidebar.selectbox("🎯 훈련 시나리오 선택", list(PERSONA_PROMPTS.keys()))
 
-# 세션 관리
 if "messages" not in st.session_state or st.session_state.get("current_menu") != menu:
     st.session_state.messages = []
     st.session_state.current_menu = menu
-    st.session_state.first_greet = True # 첫 인사 플래그
+    st.session_state.first_greet = True
 
 # 대화 내용 표시
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
 
-# --- 고객의 첫 마디 (자동 생성 및 음성 출력) ---
+# --- 고객의 첫 마디 자동 생성 ---
 if st.session_state.first_greet:
     with st.spinner("고객이 매니저님에게 다가옵니다..."):
         p = PERSONA_PROMPTS[menu]
@@ -118,12 +114,11 @@ if st.session_state.first_greet:
         speak(first_resp, menu)
         st.session_state.first_greet = False
 
-# --- 마이크 입력 및 처리 ---
+# --- 마이크 입력 처리 (Groq Whisper STT) ---
 st.write("---")
-audio_info = mic_recorder(start_prompt="🎤 고객에게 말씀하세요", stop_prompt="🛑 녹음 중단 (클릭)", just_once=True, key='recorder')
+audio_info = mic_recorder(start_prompt="🎤 고객에게 말씀하세요", stop_prompt="🛑 녹음 완료", just_once=True, key='recorder')
 
 if audio_info and 'bytes' in audio_info:
-    # 1. Groq Whisper STT 변환
     with st.spinner("분석 중..."):
         audio_file = io.BytesIO(audio_info['bytes'])
         audio_file.name = "audio.wav"
@@ -134,14 +129,13 @@ if audio_info and 'bytes' in audio_info:
         with st.chat_message("user"):
             st.write(user_text)
 
-        # 2. AI 응답 생성
         with st.chat_message("assistant"):
-            with st.spinner("고객이 생각 중입니다..."):
+            with st.spinner("고객이 대답을 고민 중입니다..."):
                 p = PERSONA_PROMPTS[menu]
                 history = [{"role": "system", "content": f"{p['desc']} 지침: 항상 (표정이나 행동) 지문을 괄호 안에 포함하여 짧게 대답할 것."}] + st.session_state.messages
                 response = hf_client.chat_completion(history, max_tokens=150).choices[0].message.content
                 
-                st.write(response) # 화면 출력 (지문 포함)
-                speak(response, menu) # 음성 출력 (지문 제거 + 변조)
+                st.write(response)
+                speak(response, menu)
                 st.session_state.messages.append({"role": "assistant", "content": response})
         st.rerun()

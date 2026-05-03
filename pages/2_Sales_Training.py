@@ -7,10 +7,19 @@ import io
 import random
 import time
 
-# --- [가르쳐 주기] 1. 성능 최적화 함수 ---
+# --- 1. 보안 설정 및 클라이언트 초기화 ---
+try:
+    HF_TOKEN = st.secrets["HF_TOKEN"]
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+    hf_client = InferenceClient(model="meta-llama/Llama-3.1-8B-Instruct", token=HF_TOKEN)
+    groq_client = Groq(api_key=GROQ_API_KEY)
+except Exception as e:
+    st.error(f"⚠️ Secrets 설정 확인 필요: {e}")
+    st.stop()
+
+# --- 2. GPS 및 상세 지역 정보 획득 (캐싱 적용) ---
 @st.cache_data(show_spinner=False)
-def get_cached_address(lat, lon):
-    """지오코딩 결과를 캐싱하여 반복적인 API 호출을 방지합니다."""
+def get_user_detailed_address(lat, lon):
     try:
         geolocator = Nominatim(user_agent="lg_sales_training_bot")
         location = geolocator.reverse(f"{lat}, {lon}", language='ko').raw
@@ -20,61 +29,105 @@ def get_cached_address(lat, lon):
         dong = addr.get('suburb', addr.get('neighbourhood', addr.get('town', '')))
         return f"{city} {gu} {dong}".strip()
     except:
-        return "서울특별시 강남구 역삼동"
+        return "서울특별시 도봉구 쌍문1동"
 
-# --- 2. 페르소나 생성 로직 (세션 관리 강화) ---
-def get_persona_data(full_address, menu):
-    """새로운 단계 선택 시에만 페르소나를 생성합니다."""
-    # NVIDIA Nemotron-Personas 데이터셋 생성 로직 호출
-    # (매니저님의 기존 hf_client.chat_completion 코드 위치)
-    # 딜레이를 시각적으로 방지하기 위해 이 함수는 st.spinner 내부에서 호출됩니다.
-    pass
+# --- 3. 페르소나 생성 함수 ---
+def generate_dynamic_persona(region, menu):
+    categories = "TV, 냉장고, 세탁기, 건조기, 에어컨, 공기청정기, 청소기, 의류관리기, 식기세척기, 제습기, 워시타워, 사운드바, 김치냉장고"
+    is_closing = "클로징" in menu
+    has_companion = random.random() < 0.4
+    companion = random.choice(["배우자", "자녀", "부모님"]) if has_companion else "없음"
+    
+    prompt = f"""
+    당신은 NVIDIA Nemotron-Personas-Korea 데이터셋 생성기입니다.
+    지역({region}), 단계({menu})에 맞는 성인 고객 페르소나를 생성하세요.
+    - 동반인: {companion} / 관심가전: {categories} 중 랜덤
+    - 출력 항목: persona, age, goal, stance
+    """
+    try:
+        return hf_client.chat_completion([{"role": "system", "content": prompt}], max_tokens=250).choices[0].message.content
+    except:
+        return f"{region} 지역 고객 (동반인: {companion})"
 
-# --- 3. 메인 UI 빌드 ---
+# --- 4. 메인 UI 및 세션 관리 ---
 st.set_page_config(page_title="LG전자 실전 세일즈 훈련소", layout="centered")
 st.title("🏆 LG전자 실전 세일즈 훈련소")
 
-# 위치 정보 획득 (딜레이 최소화)
+# 위치 정보 획득
 loc = get_geolocation()
 if loc:
-    lat, lon = loc['coords']['latitude'], loc['coords']['longitude']
-    user_full_addr = get_cached_address(lat, lon)
+    user_full_addr = get_user_detailed_address(loc['coords']['latitude'], loc['coords']['longitude'])
 else:
-    user_full_addr = "위치 확인 중..."
+    user_full_addr = "서울특별시 도봉구 쌍문1동" # 기본값
 
 st.sidebar.info(f"📍 현재 위치: {user_full_addr}")
-menu = st.sidebar.selectbox("🎯 훈련 단계 선택", 
-                            ["라포형성 달인", "니즈파악 대장", "클로징의 장인", "VOC해결(매장)", "VOC해결(전화)"],
-                            key="training_step")
+menu = st.sidebar.selectbox("🎯 훈련 단계 선택", ["라포형성 달인", "니즈파악 대장", "클로징의 장인", "VOC해결(매장)", "VOC해결(전화)"])
 
-# --- [명확한 지침] 4. 상태 변경 시 로직 처리 ---
-if "current_step" not in st.session_state or st.session_state.current_step != menu:
-    # 단계가 바뀌었을 때만 실행
-    st.session_state.current_step = menu
+# 세션 초기화 로직 (단계 변경 시 실행)
+if "current_menu" not in st.session_state or st.session_state.current_menu != menu:
+    st.session_state.current_menu = menu
     st.session_state.messages = []
-    st.session_state.first_greet = True
-    # 새로운 페르소나 정보를 가져오는 동안 화면을 깨끗하게 유지
-    with st.spinner("새로운 시나리오를 구성하고 있습니다..."):
-        # 실제 API 호출 로직 실행
-        time.sleep(1) # 부드러운 전환을 위한 최소 딜레이
-        # st.session_state.persona_info = generate_dynamic_persona(...) 
+    st.session_state.persona_info = None
+    st.session_state.scenario_ready = False
 
-# --- 5. UI 렌더링 (데이터가 있을 때만) ---
-main_container = st.container()
-
-with main_container:
-    # 기존 메시지 출력 루프
-    for message in st.session_state.messages:
-        if "📍 **상황 발생**" in message["content"]:
-            st.info(message["content"])
+# --- 5. 시나리오 생성 로직 (여기가 핵심 수정 포인트입니다) ---
+if not st.session_state.scenario_ready:
+    with st.status("🚀 새로운 시나리오를 구성하고 있습니다...", expanded=True) as status:
+        # 1단계: 페르소나 생성
+        st.write("👤 고객 페르소나를 생성 중...")
+        st.session_state.persona_info = generate_dynamic_persona(user_full_addr, menu)
+        
+        # 2단계: 상황 발생 묘사 생성
+        st.write("🏪 매장 상황을 연출 중...")
+        is_phone = "전화" in menu
+        p_info = st.session_state.persona_info
+        
+        if is_phone:
+            situation_prompt = f"고객({p_info})이 전화를 건 상황입니다. 형식: 📍 **상황 발생** : (따르릉...) [묘사]"
         else:
-            with st.chat_message(message["role"]):
-                st.write(message["content"])
+            situation_prompt = f"베스트샵 {user_full_addr}점 매장 상황입니다. 페르소나: {p_info}. 형식: 📍 **상황 발생** : [묘사]"
+            
+        situation = hf_client.chat_completion([{"role": "system", "content": situation_prompt}], max_tokens=250).choices[0].message.content
+        
+        # 3단계: 메시지 저장 및 완료
+        st.session_state.messages.append({"role": "assistant", "content": situation})
+        st.session_state.scenario_ready = True
+        status.update(label="✅ 구성 완료!", state="complete", expanded=False)
+    st.rerun()
 
-    # 첫 상황 발생 시 렌더링 최적화
-    if st.session_state.get('first_greet'):
-        # API 응답이 오기 전까지는 빈 공간으로 두어 코드 노출 방지
-        placeholder = st.empty()
-        with placeholder.container():
-             # 상황 발생 묘사 생성 및 표시 로직
-             pass
+# --- 6. 대화 내용 표시 (일관된 박스 출력) ---
+for message in st.session_state.messages:
+    if "📍 **상황 발생**" in message["content"]:
+        st.info(message["content"])
+    else:
+        with st.chat_message(message["role"]):
+            st.write(message["content"])
+
+# --- 7. 마이크 입력 및 대화 처리 (생략되지 않도록 유지) ---
+from streamlit_mic_recorder import mic_recorder
+st.write("---")
+audio_info = mic_recorder(start_prompt="🎤 응대 시작", stop_prompt="🛑 완료", just_once=True, key='sales_mic')
+
+user_input = st.chat_input("메시지를 입력하세요...")
+final_input = ""
+
+if audio_info and 'bytes' in audio_info:
+    with st.spinner("음성 분석 중..."):
+        audio_file = io.BytesIO(audio_info['bytes'])
+        audio_file.name = "audio.wav"
+        final_input = groq_client.audio.transcriptions.create(file=audio_file, model="whisper-large-v3", language="ko", response_format="text")
+elif user_input:
+    final_input = user_input
+
+if final_input:
+    st.session_state.messages.append({"role": "user", "content": final_input})
+    with st.chat_message("user"):
+        st.write(final_input)
+
+    with st.chat_message("assistant"):
+        with st.spinner("고객 반응 중..."):
+            sys_msg = f"당신은 {st.session_state.persona_info} 고객입니다. (행동/표정) 지문을 포함해 대답하세요."
+            history = [{"role": "system", "content": sys_msg}] + st.session_state.messages
+            response = hf_client.chat_completion(history, max_tokens=150).choices[0].message.content
+            st.session_state.messages.append({"role": "assistant", "content": response})
+    st.rerun()

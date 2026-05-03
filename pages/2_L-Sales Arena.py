@@ -171,9 +171,7 @@ for i, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
             st.write(message["content"])
 
-# --- 6. 입력 섹션 (채팅창 내 마이크 통합 버전) ---
-s# --- 6. 입력 섹션 (하단 고정 레이아웃) ---
-
+# --- 6. 입력 섹션 (하단 고정 레이아웃) ---
 # 1. 하단 고정을 위한 CSS 주입
 st.markdown("""
     <style>

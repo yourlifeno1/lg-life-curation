@@ -150,4 +150,3 @@ if final_input:
                 st.error(f"⚠️ 고객 응답 중 에러 발생: {e}")
                 # 에러 발생 시 재시도 안내[cite: 1]
                 st.info("API 통신 문제일 수 있습니다. 잠시 후 다시 시도해 주세요.")
-    st.rerun()

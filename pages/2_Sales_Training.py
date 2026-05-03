@@ -95,31 +95,36 @@ if audio_info and 'bytes' in audio_info:
 elif chat_input:
     final_input = chat_input
 
-# --- 7. 응답 처리 로직 ---
+# --- 7. AI 응답 생성 로직 (고객 자아 고정 버전) ---
 if final_input:
-    # 1. 사용자 메시지 세션 저장
     st.session_state.messages.append({"role": "user", "content": final_input})
     
     with st.chat_message("assistant"):
-        with st.spinner("고객 응답 중..."):
+        with st.spinner("고객이 반응하는 중..."):
+            # 매니저 자아를 완전히 삭제하고 '듣는 고객'으로 고정
             sys_msg = f"""
-            당신은 LG전자 베스트샵을 방문한 매우 현실적인 '한국인' 고객입니다. 
-            AI라는 사실을 완전히 잊고 아래 페르소나에 몰입하세요:
-            {st.session_state.persona_info}
+            [엄격한 규칙: 당신은 절대로 매니저가 아닙니다]
+            1. 당신은 LG전자 베스트샵에 물건을 보러 온 '고객'입니다. 
+            2. 사용자가 '매니저'이므로, 당신이 먼저 매니저처럼 "도와드릴까요?"라고 묻는 것은 금지입니다.
+            3. 매니저의 말을 듣고 반응하거나, 필요한 가전에 대해 고객으로서 질문하세요.
             
+            [페르소나 정보]
+            {st.session_state.persona_info}
+
             [응대 지침]
-            1. (괄호 지문)으로 구체적 동작 묘사.
-            2. 자연스러운 한국어 구어체 사용.
-            3. 2인 동반 시 [고객], [동반인] 구분.
-            4. 단계({menu}) 목적에 충실.
+            - (괄호 지문)에는 동작과 시선 처리를 넣으세요. (예: 팔짱을 끼고 제품을 훑어보며, 옆 사람과 귓속말을 하며)
+            - 한국인 특유의 자연스러운 말투를 사용하세요. (예: "아니 그게 아니라..", "요즘은 뭐가 잘 나가요?", "생각보다 비싸네..")
+            - 2인 동반 시, 매니저가 아닌 [동반인]과 대화하여 매니저를 소외시키기도 하세요.
+            - 단계({menu})에 맞춰, 처음엔 낯가림을 하거나 대답을 피하기도 하세요.
             """
+            
             cleaned_history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages if m.get("content")]
             full_history = [{"role": "system", "content": sys_msg}] + cleaned_history
-            
+
             try:
+                # API 호출 시 페르소나 일관성 유지
                 response = hf_client.chat_completion(full_history, max_tokens=500).choices[0].message.content
                 st.session_state.messages.append({"role": "assistant", "content": response})
-                # 세션 업데이트 후 화면을 다시 그려 메시지를 유지합니다.
-                st.rerun()
+                st.rerun() 
             except Exception as e:
                 st.error(f"⚠️ 에러 발생: {e}")

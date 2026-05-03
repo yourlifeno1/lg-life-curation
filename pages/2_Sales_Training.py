@@ -92,8 +92,8 @@ if not st.session_state.scenario_ready:
         # 1. VOC(전화) 상황: 목소리와 감정 상태 강조
         if menu == "VOC해결(전화)":
             situation = (
-                f"📍 **상황 발생** : (따르릉...) {data['age_gender']} 고객의 전화입니다. "
-                f"현재 고객은 **{data['mood_category']}** 상태이며, 전화기 너머로 **{data['mood_detail']}**이 고스란히 느껴집니다."
+                f"📍 **상황 발생** : (따르릉...) {name} ({data['age_gender']}) 고객의 전화입니다. "
+                f" 전화기 너머로 **{data['mood_detail']}**이 고스란히 느껴집니다."
             )
         
         # 2. 라포/니즈파악 상황: 외양과 세부 제스처 강조

@@ -18,7 +18,7 @@ except Exception as e:
     st.error(f"⚠️ Secrets 설정 확인 필요: {e}")
     st.stop()
 
-# --- 2. GPS 및 상세 지역 정보 획득 ---
+# --- 2. GPS 및 지역 정보 획득 ---
 def get_user_detailed_address():
     loc = get_geolocation()
     if loc:
@@ -34,25 +34,27 @@ def get_user_detailed_address():
         except: pass
     return "서울특별시 강남구 역삼동"
 
-# --- 3. 가전제품 전체 범위 페르소나 생성 ---
+# --- 3. LG 가전 특화 페르소나 생성 ---
 def generate_dynamic_persona(region, menu):
-    # 제품 범위를 특정 모델이 아닌 '가전 카테고리'로 확장
-    categories = "TV, 냉장고, 세탁기, 건조기, 에어컨, 공기청정기, 청소기, 의류관리기, 식기세척기"
+    # LG전자 주요 제품군 리스트 주입
+    lg_products = "올레드 TV, 오브제 컬렉션 냉장고, 워시타워, 스타일러, 퓨리케어 공기청정기, 에어로타워, 코드제로 청소기"
     
     prompt = f"""
-    당신은 NVIDIA Nemotron-Personas-Korea 데이터셋 생성기입니다.
+    당신은 LG전자 베스트샵 고객 페르소나 생성기입니다.
     현재 지역({region})과 상담 단계({menu})에 맞는 성인 고객 페르소나 1명을 생성하세요.
     
     [필수 조건]
-    - 관심 카테고리: {categories} 중 랜덤 선택
-    - 특이사항: 30%의 확률로 '경쟁사 제품과 비교 중'이거나 '타사 브랜드 사용 경험'을 가짐
-    - 출력 항목: persona, age(19-70), goal(상담 목적), stance(성격/태도)
+    - 관심 제품은 반드시 다음 중 하나여야 함: {lg_products}
+    - 출력 항목: persona, age(19-70), goal(구체적인 구매/상담 목적), stance(성격)
     """
     try:
-        response = hf_client.chat_completion([{"role": "system", "content": prompt}], max_tokens=200).choices[0].message.content
+        response = hf_client.chat_completion(
+            [{"role": "system", "content": prompt}], 
+            max_tokens=200
+        ).choices[0].message.content
         return response
     except:
-        return f"{region} 지역의 40대 고객 (목표: 가전 제품 비교 상담)"
+        return f"{region} 지역의 고객 (관심제품: LG 오브제 냉장고)"
 
 # --- 4. 메인 UI 및 세션 관리 ---
 st.set_page_config(page_title="LG전자 실전 세일즈 훈련소", layout="centered")
@@ -68,9 +70,9 @@ if "messages" not in st.session_state or st.session_state.get("current_menu") !=
     st.session_state.first_greet = True
     st.session_state.persona_info = generate_dynamic_persona(user_full_addr, menu)
 
-# --- UI 개선: 대화 내용 표시 (상황 박스 일관성 유지) ---
+# --- UI 개선: 대화 내용 표시 (상황 박스 통일) ---
 for message in st.session_state.messages:
-    # 📍 **상황 발생** 키워드 매칭 로직 강화
+    # "📍 **상황 발생**" 이 포함된 모든 메시지를 st.info 박스로 표시
     if "📍 **상황 발생**" in message["content"]:
         st.info(message["content"])
     else:
@@ -84,38 +86,40 @@ if st.session_state.first_greet:
         is_phone = "전화" in menu
         
         if is_phone:
-            # 전화 VOC: 벨소리만 제시하고 응대 대기
             situation_prompt = f"""
-            고객({p_data})이 상담 전화를 건 초기 상황입니다.
-            [지침]
-            - 장소: 전화 상담. 
-            - 연출: (따르릉... 따르릉...) 벨소리 묘사만 핵심적으로 작성.
-            - 대사 금지. 매니저가 전화를 받기를 기다리는 긴박함 묘사.
-            형식: 📍 **상황 발생** : (따르릉... 따르릉...) 전화벨이 울립니다. {user_full_addr} 지점으로 걸려온 긴급한 고객 전화입니다.
+            NVIDIA 페르소나({p_data})로부터 전화가 걸려오기 직전 상황입니다.
+            [제약 사항]
+            - 오직 청각적 요소만 묘사하세요: (따르릉...) 소리만 강조.
+            - 매장 직원이 전화를 받기 전의 긴장감을 묘사.
+            - 대사 금지. 핵심만 1~2문장.
+            형식: 📍 **상황 발생** : (따르릉... 따르릉...) 전화벨이 울립니다. 고객이 연결을 기다리고 있습니다.
             """
         else:
-            # 매장 방문: 가전 카테고리 존에서의 구체적 상황
             situation_prompt = f"""
-            LG전자 베스트샵 {user_full_addr}점 매장 내부 상황입니다. 페르소나: {p_data}
-            [지침]
-            - 고객이 가전 제품(냉장고, TV 등) 진열 존에서 제품을 꼼꼼히 살피는 모습.
-            - 시선 처리, 제품 외관을 만지는 손동작, 경쟁사 제품과 비교하는 듯한 리플릿 대조 행동 묘사.
-            - 대사 금지. 3문장 이내 핵심 요약.
-            형식: 📍 **상황 발생** : [구체적인 매장 내 제품 앞 상황 묘사]
+            LG전자 베스트샵 {user_full_addr} 지점 내부 상황입니다.
+            [제약 사항]
+            - 페르소나({p_data})가 LG전자 가전(올레드TV, 워시타워 등) 중 하나를 유심히 보고 있어야 함.
+            - 시선, 손동작(제품 만지기), 보폭 등 비언어적 행동 위주 묘사.
+            - 대사 금지. 핵심만 3문장 이내.
+            형식: 📍 **상황 발생** : [매장 내 LG 가전을 중심으로 한 구체적 상황 묘사]
             """
         
-        situation = hf_client.chat_completion([{"role": "system", "content": situation_prompt}], max_tokens=200).choices[0].message.content
+        situation = hf_client.chat_completion(
+            [{"role": "system", "content": situation_prompt}], 
+            max_tokens=200
+        ).choices[0].message.content
+        
         st.session_state.messages.append({"role": "assistant", "content": situation})
         st.session_state.first_greet = False
         st.rerun()
 
 # --- 6. 마이크 입력 및 대화 처리 ---
 st.write("---")
-audio_info = mic_recorder(start_prompt="🎤 응대 시작 (마이크)", stop_prompt="🛑 말씀 마치기", just_once=True, key='sales_mic')
+audio_info = mic_recorder(start_prompt="🎤 마이크로 응대 시작", stop_prompt="🛑 말씀 마치기", just_once=True, key='sales_mic')
 
 user_voice_text = ""
 if audio_info and 'bytes' in audio_info:
-    with st.spinner("음성 분석 중..."):
+    with st.spinner("목소리 분석 중..."):
         audio_file = io.BytesIO(audio_info['bytes'])
         audio_file.name = "audio.wav"
         user_voice_text = groq_client.audio.transcriptions.create(
@@ -127,19 +131,20 @@ final_input = user_voice_text if user_voice_text else chat_input
 
 if final_input:
     st.session_state.messages.append({"role": "user", "content": final_input})
+    # 사용자 입력 즉시 렌더링을 위해 리런 없이 처리하거나 하단 루프에서 처리
     
     with st.chat_message("assistant"):
-        with st.spinner("고객 반응 중..."):
-            is_phone = "전화" in menu
-            location_ctx = "전화 상담 중" if is_phone else f"베스트샵 {user_full_addr} 매장"
+        with st.spinner("고객이 반응 중..."):
             sys_msg = f"""
-            당신은 {st.session_state.persona_info} 고객입니다.
-            - {location_ctx} 상황에 맞춰 대화하세요.
-            - 당신은 필요시 타사 브랜드(S사 등)와 제품 사양, 가격, 디자인을 적극적으로 비교합니다.
+            당신은 LG전자 베스트샵을 방문(혹은 전화)한 고객({st.session_state.persona_info})입니다.
+            - 상대방은 LG전자 판매 매니저입니다.
             - 반드시 (행동/표정) 지문을 포함하여 실제 고객처럼 대답하세요.
+            - LG전자 가전제품에 대한 전문 용어나 특징을 언급해도 좋습니다.
             """
             history = [{"role": "system", "content": sys_msg}] + st.session_state.messages
             response = hf_client.chat_completion(history, max_tokens=150).choices[0].message.content
             
+            # 메시지 추가 및 출력
             st.session_state.messages.append({"role": "assistant", "content": response})
-    st.rerun()
+            # 화면 갱신을 위해 리런
+            st.rerun()

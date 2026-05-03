@@ -34,35 +34,25 @@ def get_user_detailed_address():
         except: pass
     return "서울특별시 강남구 역삼동"
 
-# --- 3. 가전제품 전체 범위 및 정교한 페르소나 생성 ---
+# --- 3. 가전제품 전체 범위 페르소나 생성 ---
 def generate_dynamic_persona(region, menu):
-    categories = "TV, 냉장고, 세탁기, 건조기, 에어컨, 공기청정기, 청소기, 의류관리기, 식기세척기, 제습기, 워시타워, 사운드바, 스탠바이미, 프로젝터, 노트북, 김치냉장고, 정수기"
-    is_closing = "클로징" in menu
+    # 제품 범위를 특정 모델이 아닌 '가전 카테고리'로 확장
+    categories = "TV, 냉장고, 세탁기, 건조기, 에어컨, 공기청정기, 청소기, 의류관리기, 식기세척기"
     
-    # 클로징 단계일 때의 구체적 망설임 요소
-    hesitation_types = [
-        "배우자와 최종 상의가 필요함",
-        "사은품 구성이 생각보다 약해서 고민됨",
-        "타 지점에서 받은 견적보다 혜택이 적은 것 같음",
-        "할부 기간이나 결제 방식이 부담스러움"
-    ]
-    hesitation = random.choice(hesitation_types) if is_closing else "없음"
-
     prompt = f"""
     당신은 NVIDIA Nemotron-Personas-Korea 데이터셋 생성기입니다.
-    지역({region}), 단계({menu})에 맞는 성인 고객 페르소나 1명을 생성하세요.
+    현재 지역({region})과 상담 단계({menu})에 맞는 성인 고객 페르소나 1명을 생성하세요.
     
     [필수 조건]
-    - 관심 카테고리: {categories} 중 랜덤
-    - 경쟁사 비교: 30% 확률로만 부여 (필수 아님)
-    - 클로징 제약: {hesitation} (이 문제가 해결되지 않으면 결제하지 마세요)
-    - 출력 항목: persona, age(19-70), goal, stance
+    - 관심 카테고리: {categories} 중 랜덤 선택
+    - 특이사항: 30%의 확률로 '경쟁사 제품과 비교 중'이거나 '타사 브랜드 사용 경험'을 가짐
+    - 출력 항목: persona, age(19-70), goal(상담 목적), stance(성격/태도)
     """
     try:
         response = hf_client.chat_completion([{"role": "system", "content": prompt}], max_tokens=200).choices[0].message.content
         return response
     except:
-        return f"{region} 지역의 고객 (목표: 가전 제품 상담)"
+        return f"{region} 지역의 40대 고객 (목표: 가전 제품 비교 상담)"
 
 # --- 4. 메인 UI 및 세션 관리 ---
 st.set_page_config(page_title="LG전자 실전 세일즈 훈련소", layout="centered")
@@ -78,8 +68,9 @@ if "messages" not in st.session_state or st.session_state.get("current_menu") !=
     st.session_state.first_greet = True
     st.session_state.persona_info = generate_dynamic_persona(user_full_addr, menu)
 
-# --- UI: 대화 내용 표시 ---
+# --- UI 개선: 대화 내용 표시 (상황 박스 일관성 유지) ---
 for message in st.session_state.messages:
+    # 📍 **상황 발생** 키워드 매칭 로직 강화
     if "📍 **상황 발생**" in message["content"]:
         st.info(message["content"])
     else:
@@ -93,20 +84,24 @@ if st.session_state.first_greet:
         is_phone = "전화" in menu
         
         if is_phone:
+            # 전화 VOC: 벨소리만 제시하고 응대 대기
             situation_prompt = f"""
             고객({p_data})이 상담 전화를 건 초기 상황입니다.
-            - 연출: (따르릉... 따르릉...) 벨소리만 핵심 묘사.
-            - 대사 금지. 매니저의 응대를 기다리는 상태.
+            [지침]
+            - 장소: 전화 상담. 
+            - 연출: (따르릉... 따르릉...) 벨소리 묘사만 핵심적으로 작성.
+            - 대사 금지. 매니저가 전화를 받기를 기다리는 긴박함 묘사.
             형식: 📍 **상황 발생** : (따르릉... 따르릉...) 전화벨이 울립니다. {user_full_addr} 지점으로 걸려온 긴급한 고객 전화입니다.
             """
         else:
+            # 매장 방문: 가전 카테고리 존에서의 구체적 상황
             situation_prompt = f"""
             LG전자 베스트샵 {user_full_addr}점 매장 내부 상황입니다. 페르소나: {p_data}
-            [행동 지침]
-            - 연령대에 따라 팜플렛을 보거나 스마트폰으로 정보를 검색하는 동작 포함
-            - 시선 처리 및 제품 외관을 만지는 손동작 위주 묘사.
+            [지침]
+            - 고객이 가전 제품(냉장고, TV 등) 진열 존에서 제품을 꼼꼼히 살피는 모습.
+            - 시선 처리, 제품 외관을 만지는 손동작, 경쟁사 제품과 비교하는 듯한 리플릿 대조 행동 묘사.
             - 대사 금지. 3문장 이내 핵심 요약.
-            형식: 📍 **상황 발생** : [구체적인 매장 내 상황 묘사]
+            형식: 📍 **상황 발생** : [구체적인 매장 내 제품 앞 상황 묘사]
             """
         
         situation = hf_client.chat_completion([{"role": "system", "content": situation_prompt}], max_tokens=200).choices[0].message.content
@@ -136,16 +131,11 @@ if final_input:
     with st.chat_message("assistant"):
         with st.spinner("고객 반응 중..."):
             is_phone = "전화" in menu
-            is_closing = "클로징" in menu
-            
-            # 클로징 단계일 때 결제 결정을 위한 평가 지침 추가
-            closing_logic = ""
-            if is_closing:
-                closing_logic = "매니저가 당신의 망설임을 완벽히 해소(사은품, 가격, 배우자 설득 논리 등)해주어야만 구매를 확정하세요."
-
+            location_ctx = "전화 상담 중" if is_phone else f"베스트샵 {user_full_addr} 매장"
             sys_msg = f"""
             당신은 {st.session_state.persona_info} 고객입니다.
-            - {closing_logic}
+            - {location_ctx} 상황에 맞춰 대화하세요.
+            - 당신은 필요시 타사 브랜드(S사 등)와 제품 사양, 가격, 디자인을 적극적으로 비교합니다.
             - 반드시 (행동/표정) 지문을 포함하여 실제 고객처럼 대답하세요.
             """
             history = [{"role": "system", "content": sys_msg}] + st.session_state.messages

@@ -171,17 +171,39 @@ for i, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
             st.write(message["content"])
 
-# --- 6. 입력 섹션 ---
+# --- 6. 입력 섹션 (채팅창 내 마이크 통합 버전) ---
 st.write("---")
-audio_info = mic_recorder(start_prompt="🎤 응대 시작 (마이크)", stop_prompt="🛑 완료", just_once=True, key='sales_mic')
-chat_input = st.chat_input("메시지를 입력하세요...")
+
+# 컬럼을 나누어 입력창과 마이크를 한 줄에 배치 (비율 조절 가능)
+col1, col2 = st.columns([0.85, 0.15])
+
+with col1:
+    # 텍스트 입력창 (엔터를 치면 제출됨)
+    chat_input = st.text_input("메시지를 입력하세요...", key="chat_text_input", placeholder="고객에게 할 말을 입력하세요.")
+
+with col2:
+    # 마이크 아이콘만 표시되도록 조절 (just_once=True로 자동 업로드)
+    audio_info = mic_recorder(
+        start_prompt="🎤", 
+        stop_prompt="🛑", 
+        just_once=True, 
+        key='sales_mic'
+    )
 
 final_input = ""
+
+# 음성 입력 처리
 if audio_info and 'bytes' in audio_info:
     with st.spinner("음성 분석 중..."):
         audio_file = io.BytesIO(audio_info['bytes'])
         audio_file.name = "audio.wav"
-        final_input = groq_client.audio.transcriptions.create(file=audio_file, model="whisper-large-v3", language="ko", response_format="text")
+        final_input = groq_client.audio.transcriptions.create(
+            file=audio_file, 
+            model="whisper-large-v3", 
+            language="ko", 
+            response_format="text"
+        )
+# 텍스트 입력 처리
 elif chat_input:
     final_input = chat_input
 

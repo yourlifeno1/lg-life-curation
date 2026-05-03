@@ -70,7 +70,7 @@ def generate_step_specific_persona(menu):
 
     if is_voc_phone:
         # [수정] 중복된 이름 생성 코드를 삭제하고 이미 생성된 current_name을 사용합니다.
-        info = f"1. 고객 이름: {current_name}\n2. 연령대(성별): {age_group} ({gender})\n3. 거주지: {residence}\n4. 구매 제품: {product}\n5. 고객 상태: {random.choice(VOC_TYPES)} 건 ({mood_detail})"
+        info = f"1. 고객 이름: {current_name}\n2. 연령대(성별): {age_group} ({gender})\n3. 거주지: {residence}\n4. 상담/구매 제품: {product}\n5. 고객 상태: {random.choice(VOC_TYPES)} 건 ({mood_detail})"
     else:
         # [니즈파악 미션 핵심] 니즈파악 단계에서는 제품명을 숨깁니다.
         display_product = "❓ 질문을 통해 확인하세요" if is_needs_finding else product

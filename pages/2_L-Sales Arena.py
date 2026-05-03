@@ -55,6 +55,64 @@ MOOD_TYPES = {
     "피로함 & 결정 장애": ["피곤하지만 세심함", "망설이는 태도", "멍한 표정", "지친 기색"]
 }
 
+import re
+
+def advanced_kor_to_num(text):
+    # 1. 사전 정의
+    # 고유어 및 한자어 숫자 매핑
+    num_map = {
+        '영': 0, '일': 1, '이': 2, '삼': 3, '사': 4, '오': 5, '육': 6, '칠': 7, '팔': 8, '구': 9,
+        '한': 1, '두': 2, '세': 3, '네': 4, '다섯': 5, '여섯': 6, '일곱': 7, '여덟': 8, '아홉': 9, '열': 10,
+        '스무': 20, '서른': 30, '마흔': 40, '쉰': 50, '예순': 60, '일흔': 70, '여든': 80, '아흔': 90
+    }
+    units = {'십': 10, '백': 100, '천': 1000, '만': 10000, '억': 100000000}
+    
+    # 단위 정규화 사전
+    unit_map = {
+        '센티': 'cm', '센치': 'cm', '밀리': 'mm', '미터': 'm', 
+        '인치': '인치', '평': '평', '자': '자', '살': '세', '세': '세', '만원': '만원'
+    }
+
+    # 2. 숫자 추출 패턴 (고유어+한자어+단위 결합)
+    pattern = r'([가-힣십백천만억\s]+?)\s*(센티|센치|밀리|미터|인치|평|자|살|세|만원|톤|리터)'
+
+    def calculate_num(kor_str):
+        kor_str = kor_str.replace(" ", "")
+        result = 0
+        current_val = 0
+        
+        # 고유어 사전에 바로 있는 경우 (예: 스무, 열)
+        if kor_str in num_map:
+            return num_map[kor_str]
+            
+        # 한자어 복합 수사 계산 (예: 오천육백)
+        for char in kor_str:
+            if char in units:
+                unit_val = units[char]
+                if unit_val >= 10000: # 만, 억 단위
+                    result = (result + (current_val if current_val > 0 else 1)) * unit_val
+                    current_val = 0
+                else: # 십, 백, 천 단위
+                    result += (current_val if current_val > 0 else 1) * unit_val
+                    current_val = 0
+            elif char in num_map:
+                current_val = num_map[char]
+        return result + current_val
+
+    def replacer(match):
+        kor_num = match.group(1).strip()
+        kor_unit = match.group(2)
+        
+        try:
+            num_result = calculate_num(kor_num)
+            normalized_unit = unit_map.get(kor_unit, kor_unit)
+            # 숫자가 0이거나 변환 실패 시 원본 유지, 성공 시 변환
+            return f"{num_result}{normalized_unit}" if num_result > 0 else match.group(0)
+        except:
+            return match.group(0)
+
+    return re.sub(pattern, replacer, text)
+    
 # --- 1. 초기화 ---
 try:
     hf_client = InferenceClient(model="meta-llama/Llama-3.1-8B-Instruct", token=st.secrets["HF_TOKEN"])
@@ -203,7 +261,11 @@ elif chat_input:
 
 # --- 7. 응답 처리 로직 (매니저님 지침 + 자아 고정 통합본) ---
 if final_input:
-    st.session_state.messages.append({"role": "user", "content": final_input})
+    # [핵심] 사용자의 입력을 AI가 이해하기 쉬운 아라비아 숫자로 먼저 변환합니다.
+    refined_input = advanced_kor_to_num(final_input)
+    
+    # 변환된 내용을 세션 상태에 저장 (이렇게 해야 AI가 86인치로 인식합니다)
+    st.session_state.messages.append({"role": "user", "content": refined_input})
     
     with st.chat_message("assistant"):
         with st.spinner("고객이 반응하는 중..."):

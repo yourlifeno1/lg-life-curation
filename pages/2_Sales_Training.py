@@ -74,7 +74,8 @@ if "messages" not in st.session_state or st.session_state.get("current_menu") !=
     st.session_state.messages = []
     st.session_state.current_menu = menu
     st.session_state.first_greet = True
-    st.session_state.persona_info = generate_dynamic_persona(user_region, menu)
+    # 여기서 generate_dynamic_persona 함수를 호출할 때도 user_full_addr를 사용합니다.
+    st.session_state.persona_info = generate_dynamic_persona(user_full_addr, menu)
 
 # 대화 내용 표시
 for message in st.session_state.messages:

@@ -71,7 +71,8 @@ if not st.session_state.scenario_ready:
         st.session_state.scenario_ready = True
     st.rerun()
 
-# --- 5. 대화 화면 출력 (이 루프가 모든 것을 그립니다) ---
+# --- 5. [중요] 대화 화면 출력 루프 ---
+# 이 루프가 상단에 위치해야 rerun 시 대화가 사라지지 않습니다.
 for i, message in enumerate(st.session_state.messages):
     if i == 0 and "📍 **상황 발생**" in message["content"]:
         if "전화" in menu:
@@ -96,7 +97,7 @@ elif chat_input:
 
 # --- 7. 응답 처리 로직 ---
 if final_input:
-    # 1. 사용자 메시지 저장 (리런 후 위 루프에서 그려짐)
+    # 1. 사용자 메시지 세션 저장
     st.session_state.messages.append({"role": "user", "content": final_input})
     
     with st.chat_message("assistant"):
@@ -106,10 +107,10 @@ if final_input:
             AI라는 사실을 완전히 잊고 아래 페르소나에 몰입하세요:
             {st.session_state.persona_info}
             
-            [핵심 규칙]
+            [응대 지침]
             1. (괄호 지문)으로 구체적 동작 묘사.
             2. 자연스러운 한국어 구어체 사용.
-            3. 1인 2역 수행.
+            3. 2인 동반 시 [고객], [동반인] 구분.
             4. 단계({menu}) 목적에 충실.
             """
             cleaned_history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages if m.get("content")]
@@ -118,7 +119,7 @@ if final_input:
             try:
                 response = hf_client.chat_completion(full_history, max_tokens=500).choices[0].message.content
                 st.session_state.messages.append({"role": "assistant", "content": response})
-                # 모든 저장이 끝난 후 단 한 번만 리런합니다.
+                # 세션 업데이트 후 화면을 다시 그려 메시지를 유지합니다.
                 st.rerun()
             except Exception as e:
                 st.error(f"⚠️ 에러 발생: {e}")

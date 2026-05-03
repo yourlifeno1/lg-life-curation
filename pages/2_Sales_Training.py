@@ -103,69 +103,25 @@ if audio_info and 'bytes' in audio_info:
 elif chat_input:
     final_input = chat_input
 
-# --- 6. 대화 화면 출력 (기존 메시지 렌더링) ---
-for i, message in enumerate(st.session_state.messages):
-    if i == 0 and "📍 **상황 발생**" in message["content"]:
-        # VOC(전화) 상황일 때만 안내 문구 노출 (매니저님 요청 반영)
-        if menu == "VOC해결(전화)":
-            st.info(message["content"])
-    else:
-        with st.chat_message(message["role"]):
-            st.write(message["content"])
-
-st.write("---")
-audio_info = mic_recorder(start_prompt="🎤 응대 시작 (마이크)", stop_prompt="🛑 완료", just_once=True, key='sales_mic')
-chat_input = st.chat_input("메시지를 입력하세요...")
-
-# 입력 방식 결정
-final_input = ""
-if audio_info and 'bytes' in audio_info:
-    with st.spinner("음성 분석 중..."):
-        audio_file = io.BytesIO(audio_info['bytes'])
-        audio_file.name = "audio.wav"
-        final_input = groq_client.audio.transcriptions.create(
-            file=audio_file, model="whisper-large-v3", language="ko", response_format="text"
-        )
-elif chat_input:
-    final_input = chat_input
-
-# --- 7. 사용자 입력 처리 및 AI 응답 (수정된 로직) ---
 if final_input:
-    # 사용자 메시지 세션 저장
     st.session_state.messages.append({"role": "user", "content": final_input})
-    
-    # AI 응답 생성 시작
+    with st.chat_message("user"):
+        st.write(final_input)
+
     with st.chat_message("assistant"):
-        with st.spinner("고객이 반응하는 중..."):
+        with st.spinner("고객 응답 중..."):
+            # [픽스] 행동 지침은 여기에만 남겨둡니다.
             sys_msg = f"""
-            당신은 LG전자 베스트샵을 방문한 매우 현실적인 한국인 고객입니다. 
-            아래 페르소나 그 자체가 되어 대화하세요:
+            당신은 LG전자 베스트샵을 방문한 한국인 고객입니다. 
             {st.session_state.persona_info}
-
-            [응대 지침]
-            1. 모든 대사 앞에는 반드시 (괄호 지문)으로 표정/상태를 묘사하세요.
-            2. 한국인 세일즈 현장에서 쓰이는 구어체와 리액션을 사용하세요.
-            3. 2인 동반 시 [고객], [동반인] 구분하여 1인 2역을 수행하세요.
-            4. {menu} 단계의 목적에 맞춰 반응하세요.
-            """
             
-            # 메시지 데이터 정제
-            cleaned_history = [{"role": m["role"], "content": m["content"]} 
-                               for m in st.session_state.messages if m.get("content")]
-            full_history = [{"role": "system", "content": sys_msg}] + cleaned_history
-
-            try:
-                # API 호출
-                response_obj = hf_client.chat_completion(
-                    full_history, max_tokens=500, timeout=30
-                )
-                response = response_obj.choices[0].message.content
-                
-                # 결과 저장 및 리런
-                st.session_state.messages.append({"role": "assistant", "content": response})
-                st.rerun() # 여기서 리런하여 상단의 '대화 화면 출력' 루프를 다시 타게 합니다.
-                
-            except Exception as e:
-                st.error(f"⚠️ 에러 발생: {e}")
-
-# (주의) 여기에 있던 조건 없는 st.rerun()은 절대 넣지 마세요!
+            [응대 지침]
+            1. 모든 대사 앞에는 반드시 (괄호 지문)으로 표정이나 상태를 묘사하세요.
+            2. 한국 세일즈 현장에서 쓰이는 아주 자연스러운 구어체와 리액션을 사용하세요.
+            3. 2인 동반 시 [고객], [동반인]을 구분하여 실제 두 명과 대화하는 느낌을 주세요.
+            4. 단계({menu})의 목적에 맞춰 반응하세요.
+            """
+            history = [{"role": "system", "content": sys_msg}] + st.session_state.messages
+            response = hf_client.chat_completion(history, max_tokens=400).choices[0].message.content
+            st.session_state.messages.append({"role": "assistant", "content": response})
+    st.rerun()

@@ -6,5 +6,6 @@ selenium
 webdriver-manager
 streamlit-js-eval
 huggingface_hub
+groq
 gTTS
 streamlit-mic-recorder

@@ -165,3 +165,42 @@ if final_input:
                 st.rerun() 
             except Exception as e:
                 st.error(f"⚠️ 에러 발생: {e}")
+
+# --- 8. 정교한 피드백 엔진 (오류 수정 버전) ---
+st.write("---")
+if len(st.session_state.messages) > 1:
+    if st.button("📊 상담 종료 및 실전 피드백 받기"):
+        with st.spinner("전문 코치가 상담 내역을 정밀 분석 중입니다..."):
+            # [수정] 기존 고객 페르소나와 섞이지 않도록 코치 전용 지침만 구성합니다.
+            coach_sys_msg = f"""
+            당신은 LG전자의 전설적인 세일즈 마스터이자 전문 교육 코치입니다.
+            현재까지의 대화 내역을 바탕으로 사용자의 '세일즈 역량'을 분석하세요.
+
+            [분석 가이드라인]
+            1. 라포 형성: 고객의 특징(복장, 기분)을 언급하며 부드럽게 대화를 시작했는가?
+            2. 니즈 파악: 고객이 왜 제품을 보러 왔는지 정확한 질문을 던졌는가?
+            3. 공감 능력: 고객과 동반인의 말에 적절한 리액션을 보였는가?
+
+            [출력 규칙]
+            - 절대로 고객의 말투를 흉내 내지 마세요. 전문적인 분석가로서 답변하세요.
+            - "오호, 관심이 있는군요!" 같은 추임새 대신 객관적인 지표를 사용하세요.
+            """
+            
+            # [중요] 'system' 메시지를 제외한 순수 대화 내역만 코치에게 전달하여 자아 혼동을 방지합니다.
+            chat_only = [m for m in st.session_state.messages if m["role"] != "system"]
+            eval_history = [{"role": "system", "content": coach_sys_msg}] + chat_only
+            
+            try:
+                # 결과값이 깨지지 않도록 충분한 max_tokens를 확보합니다.
+                feedback = hf_client.chat_completion(eval_history, max_tokens=1000).choices[0].message.content
+                
+                # 결과를 보기 좋게 별도 영역에 표시합니다.
+                st.markdown("---")
+                with st.expander("📝 전문 세일즈 코칭 리포트 확인하기", expanded=True):
+                    st.markdown(feedback)
+                    
+                    if st.button("🔄 새로운 훈련 시작"):
+                        st.session_state.scenario_ready = False
+                        st.rerun()
+            except Exception as e:
+                st.error(f"피드백 생성 중 오류가 발생했습니다: {e}")

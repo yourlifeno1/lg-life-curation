@@ -6,7 +6,7 @@ import io
 import random
 from streamlit_mic_recorder import mic_recorder
 
-# [픽스] 카테고리 및 VOC 설정
+# [카테고리 설정]
 ALL_CATEGORIES = "TV, 냉장고, 세탁기, 건조기, 워시타워, 에어컨, 공기청정기, 청소기, 식기세척기, 정수기, 스타일러"
 VOC_TYPES = ["고객응대", "설명부족", "판촉/사은품", "약속불이행", "배송/설치", "제품", "전문성"]
 
@@ -24,31 +24,29 @@ def init_session_state(menu):
         st.session_state.messages = []
         st.session_state.scenario_ready = False
         st.session_state.persona_info = None
+        st.session_state.raw_persona_data = {} # 분석용 데이터 저장
 
-# --- 2. 페르소나 생성 엔진 (단계별 특화) ---
+# --- 2. 페르소나 생성 엔진 (한국인 정서 최적화) ---
 def generate_step_specific_persona(menu):
     is_voc_phone = menu == "VOC해결(전화)"
-    is_needs = "니즈파악" in menu
-    is_closing = "클로징" in menu
-    
     gender = random.choice(["남성", "여성"])
     age_group = random.choice(["20대 후반", "30대 초반", "40대 중반", "50대 초반", "60대 이상"])
-    age_gender = f"{age_group} ({gender})"
     residence = random.choice(["신축 아파트", "구축 빌라", "전원주택", "오피스텔"])
-    companion = "2인 (부부 동반 - 1인 2역 수행)" if not is_voc_phone and random.random() < 0.5 else "1인 방문"
+    companion = "2인 (부부 동반)" if not is_voc_phone and random.random() < 0.5 else "1인 방문"
     product = random.choice(ALL_CATEGORIES.split(", "))
     
+    # 데이터 저장용 딕셔너리
+    st.session_state.raw_persona_data = {
+        "age_gender": f"{age_group} ({gender})",
+        "companion": companion,
+        "product": product
+    }
+
     if is_voc_phone:
-        name = random.choice(["김철수", "이영희", "박지민", "최현우"])
-        info = f"1. 고객 이름: {name}\n2. 연령대(성별): {age_gender}\n3. 거주지: {residence}\n4. 구매 제품: {product}\n5. 고객 상태: {random.choice(VOC_TYPES)} 문제로 화가 난 목소리"
-    elif is_closing:
-        # 클로징 전용: 고민 포인트 추가
-        hesitation = random.choice(["가격 혜택이 조금 아쉬움", "구독으로 할지 일시불로 할지 고민", "타사 사은품과 비교 중", "설치 일정이 급함"])
-        info = f"1. 연령대(성별): {age_gender}\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 상담 제품: {product}\n5. 현재 상태: 제품 설명 완료. {hesitation} 상태로 최종 결정을 망설임"
-    elif is_needs:
-        info = f"1. 연령대(성별): {age_gender}\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 인상 및 복장: 깔끔한 비즈니스 캐주얼\n5. (정답): {product} (질문으로 찾아낼 것)"
-    else: # 라포형성
-        info = f"1. 연령대(성별): {age_gender}\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 상담 제품: {product}\n5. 인상 및 복장: 편안한 복장, 제품을 살피는 중"
+        name = random.choice(["김지수", "이현우", "박서윤", "최민호"])
+        info = f"1. 고객 이름: {name}\n2. 연령대(성별): {age_group} ({gender})\n3. 거주지: {residence}\n4. 구매 제품: {product}\n5. 고객 상태: {random.choice(VOC_TYPES)} 건으로 화가 난 상태"
+    else:
+        info = f"1. 연령대(성별): {age_group} ({gender})\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 상담/구매 제품: {product}\n5. 특징: 한국인 특유의 자연스러운 말투와 리액션 사용"
         
     return info
 
@@ -59,21 +57,19 @@ st.title("🏆 LG전자 실전 세일즈 훈련소")
 menu = st.sidebar.selectbox("🎯 훈련 단계 선택", ["라포형성 달인", "니즈파악 대장", "클로징의 장인", "VOC해결(매장)", "VOC해결(전화)"])
 init_session_state(menu)
 
-# 시나리오 구성 (수정 로직)
+# 시나리오 구성
 if not st.session_state.scenario_ready:
-    with st.status("🚀 훈련 세팅 중...", expanded=False):
+    with st.status("🚀 시뮬레이션 준비 중...", expanded=False):
         st.session_state.persona_info = generate_step_specific_persona(menu)
-        p_info = st.session_state.persona_info
+        data = st.session_state.raw_persona_data
         
-        if "클로징" in menu:
-            # 클로징은 상황 설명 대신 고객의 마지막 고민 멘트로 시작
-            s_prompt = f"당신은 고객입니다. 제품 설명은 다 끝났습니다. 망설이는 태도로 매니저에게 던질 첫 마디를 (지문) 포함해서 작성하세요.\n페르소나: {p_info}"
-            situation = hf_client.chat_completion([{"role": "system", "content": s_prompt}], max_tokens=100).choices[0].message.content
-        elif "전화" in menu:
-            situation = "📍 **상황 발생** : (따르릉... 따르릉...) 전화벨이 울립니다. 고객이 연결을 기다리고 있습니다."
-        else:
-            s_prompt = f"연출가입니다. 행동만 1문장으로 묘사하세요.\n{p_info}\n📍 **상황 발생** : "
-            situation = hf_client.chat_completion([{"role": "system", "content": s_prompt}], max_tokens=100).choices[0].message.content
+        # [로직 픽스] 단계별 시작 문구 설정
+        if menu == "VOC해결(전화)":
+            situation = "📍 **상황 발생** : (따르릉... 따르릉...) 전화벨이 울립니다. 고객의 목소리가 들리기 시작합니다."
+        elif any(x in menu for x in ["라포형성", "니즈파악"]):
+            situation = f"📍 **상황 발생** : {data['age_gender']} 고객이 {data['companion']}으로 매장에 들어옵니다."
+        else: # 클로징 등
+            situation = "📍 **상황 발생** : 상담이 마무리 단계에 접어들었습니다. 고객이 최종 결정을 고민하고 있습니다."
             
         st.session_state.messages.append({"role": "assistant", "content": situation})
         st.session_state.scenario_ready = True
@@ -82,16 +78,20 @@ if not st.session_state.scenario_ready:
 st.sidebar.markdown("### 👥 오늘의 고객 정보")
 st.sidebar.info(st.session_state.persona_info)
 
+# --- 4. 대화 화면 (UI 노출 제어) ---
 for message in st.session_state.messages:
     if "📍 **상황 발생**" in message["content"]:
-        st.info(message["content"])
+        # VOC(전화)일 때만 메인창에 상태 표시 노출
+        if menu == "VOC해결(전화)":
+            st.info(message["content"])
+        # 그 외 단계는 내부적으로만 기억하고 메인창에는 표시 안 함
+        continue
     else:
         with st.chat_message(message["role"]):
             st.write(message["content"])
 
-# --- 4. 입력 로직 ---
 st.write("---")
-audio_info = mic_recorder(start_prompt="🎤 응대 시작", stop_prompt="🛑 완료", just_once=True, key='sales_mic')
+audio_info = mic_recorder(start_prompt="🎤 응대 시작 (마이크)", stop_prompt="🛑 완료", just_once=True, key='sales_mic')
 chat_input = st.chat_input("메시지를 입력하세요...")
 
 final_input = ""
@@ -109,15 +109,18 @@ if final_input:
         st.write(final_input)
 
     with st.chat_message("assistant"):
-        with st.spinner("고객 반응 중..."):
+        with st.spinner("고객 응답 중..."):
+            # [수정] 자연스러운 한국어 대사 지침 강화
             sys_msg = f"""
-            당신은 LG전자 고객입니다. 다음 정보를 기반으로 연기하세요:
+            당신은 LG전자 베스트샵을 방문한 한국인 고객입니다. 
             {st.session_state.persona_info}
             
-            [핵심 규칙]
-            1. 모든 대사 앞에는 반드시 (괄호 지문)을 포함하세요.
-            2. {menu} 단계에 집중하세요. 특히 '클로징' 단계라면 제품 설명은 이미 끝났으므로 더 이상 제품에 대해 묻지 말고 혜택이나 결제 조건에 대해서만 망설이세요.
-            3. 2인 동반이면 [고객], [동반인] 구분하여 1인 2역을 수행하세요.
+            [응대 지침]
+            1. 모든 대사 앞에는 반드시 (괄호 지문)으로 표정이나 상태를 묘사하세요.
+            2. 외국어 직역투가 아닌, 한국인 세일즈 현장에서 실제 쓰이는 자연스러운 구어체를 사용하세요. 
+               (예: "좀 보려구요", "그렇긴 한데", "한번 봐도 될까요?")
+            3. 2인 동반 시 [고객], [동반인]을 구분하여 실제 두 명과 대화하는 느낌을 주세요.
+            4. 단계({menu})의 목적에 맞춰 반응하세요.
             """
             history = [{"role": "system", "content": sys_msg}] + st.session_state.messages
             response = hf_client.chat_completion(history, max_tokens=400).choices[0].message.content

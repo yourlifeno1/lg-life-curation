@@ -103,50 +103,51 @@ if audio_info and 'bytes' in audio_info:
 elif chat_input:
     final_input = chat_input
 
-# --- 6. 대화 로직 내 Assistant 응답 부분 수정 ---
+# --- 6. 대화 로직 내 Assistant 응답 부분 (수정 완료) ---
 if final_input:
+    # 1. 사용자 메시지 추가 및 화면 출력
     st.session_state.messages.append({"role": "user", "content": final_input})
     with st.chat_message("user"):
         st.write(final_input)
 
+    # 2. AI 응답 생성
     with st.chat_message("assistant"):
         with st.spinner("고객이 반응하는 중..."):
-            # 강력한 고객 페르소나 주입을 위한 프롬프트 최적화
             sys_msg = f"""
             당신은 LG전자 베스트샵을 방문한 매우 현실적인 한국인 고객입니다. 
-            지금 이 순간부터 AI가 아닌 아래 페르소나 그 자체가 되어 대화하세요:
+            지금 이 순간부터 아래 페르소나 그 자체가 되어 대화하세요:
             {st.session_state.persona_info}
 
             [Behavioral Constraints]
             1. **지문의 구체성**: 모든 대사 앞에 ( )를 사용하여 표정, 동작을 묘사하세요.
-            2. **한국어 구어체**: 자연스러운 한국인 말투를 사용하세요. (예: "아.. 그렇군요", "글쎄요")
-            3. **1인 2역**: 2인 동반 설정이면 [고객]과 [동반인]을 구분하여 대화하세요.
+            2. **한국어 구어체**: 자연스러운 한국인 말투를 사용하세요.
+            3. **1인 2역**: 2인 동반 설정이면 [고객]과 [동반인]을 구분하세요.
             4. **단계별 페르소나**: {menu} 단계의 목적에 맞게 행동하세요.
             """
             
-            # [에러 해결 포인트] history 구성 전 메시지 데이터 정제
+            # 메시지 데이터 정제
             cleaned_history = []
             for msg in st.session_state.messages:
-                # content가 비어있지 않은 메시지만 포함시킵니다.
                 if msg.get("content"):
                     cleaned_history.append({"role": msg["role"], "content": msg["content"]})
             
             full_history = [{"role": "system", "content": sys_msg}] + cleaned_history
 
             try:
-                # API 호출 (토큰 및 시간 초과 방지를 위한 설정)
+                # API 호출
                 response_obj = hf_client.chat_completion(
                     full_history, 
                     max_tokens=500,
-                    timeout=30  # 응답 지연 시 타임아웃 설정[cite: 1]
+                    timeout=30
                 )
                 response = response_obj.choices[0].message.content
                 
+                # 메시지 저장 및 즉시 리런 (if 블록 내부에서만 실행)
                 st.session_state.messages.append({"role": "assistant", "content": response})
-                st.write(response) # 즉시 출력[cite: 1]
-                st.rerun() # 상태 업데이트를 위해 리런[cite: 1]
+                st.rerun() # 이 위치가 가장 안전합니다.
                 
             except Exception as e:
                 st.error(f"⚠️ 고객 응답 중 에러 발생: {e}")
-                # 에러 발생 시 재시도 안내[cite: 1]
-                st.info("API 통신 문제일 수 있습니다. 잠시 후 다시 시도해 주세요.")
+                st.info("잠시 후 다시 시도해 주세요.")
+
+# --- 주의: 코드 가장 마지막 줄에 있는 조건 없는 st.rerun()은 삭제해야 합니다 ---

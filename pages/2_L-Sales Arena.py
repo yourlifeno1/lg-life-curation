@@ -151,6 +151,7 @@ def clean_text(text):
 # --- 2. 페르소나 생성 엔진 ---
 def generate_step_specific_persona(menu_key):
     # 내부 로직용 키값으로 판별
+    is_voc_store = menu_key == "VOC (매장)"
     is_voc_phone = menu_key == "VOC (전화)"
     is_needs_finding = menu_key == "니즈파악"
 
@@ -174,10 +175,13 @@ def generate_step_specific_persona(menu_key):
         "looks": looks,
         "mood_category": mood_category,
         "mood_detail": mood_detail
+        "voc_type": voc_type # [추가] raw 데이터에도 저장
     }
 
     if is_voc_phone:
-        info = f"1. 고객 이름: {current_name}\n2. 연령대(성별): {age_group} ({gender})\n3. 거주지: {residence}\n4. 상담/구매 제품: {product}\n5. 고객 상태: {random.choice(VOC_TYPES)} 건 ({mood_detail})"
+        info = f"1. 고객 이름: {current_name}\n2. 연령대(성별): {age_group} ({gender})\n3. 거주지: {residence}\n4. 상담/구매 제품: {product}\n5. 고객 상태: {voc_type} 건 ({mood_detail})"
+    elif is_voc_store: # [추가] 매장 VOC 전용 정보 포맷
+        info = f"1. 연령대(성별): {age_group} ({gender})\n2. 거주지: {residence}\n3. 상담/구매 제품: {product}\n4. 고객 상태: {voc_type} 건 ({mood_detail})\n5. 인상 및 복장: {looks}"
     else:
         display_product = "❓ 질문을 통해 확인하세요" if is_needs_finding else product
         info = f"1. 연령대(성별): {age_group} ({gender})\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 상담/구매 제품: {display_product}\n5. 인상 및 복장: {looks}, {mood_detail}"
@@ -203,12 +207,12 @@ if st.session_state.persona_info:
     st.sidebar.info(st.session_state.persona_info)
 
 # --- 4. 시나리오 구성 ---
+# --- 4. 시나리오 구성 ---
 if not st.session_state.scenario_ready:
     with st.status("🚀 시나리오 준비 중...", expanded=False):
         st.session_state.persona_info = generate_step_specific_persona(menu_key)
         data = st.session_state.raw_persona_data
         
-        # [수정 포인트] 해당 단계의 가이드 문구 가져오기
         guide = GUIDE_TEXTS.get(menu_key, {})
         guide_msg = f"**{guide['title']}**\n\n*{guide['slogan']}*\n\n{guide['desc']}\n\n---"
         
@@ -228,15 +232,22 @@ if not st.session_state.scenario_ready:
                 f"특히 **{data['mood_detail']}**을 보이며 {data['product']} 코너를 유심히 살피고 있습니다."
             )
         
-        # 3. 클로징/매장 VOC 상황
+        # 3. [신규 분리] VOC(매장) 상황
+        elif menu_key == "VOC (매장)":
+            situation = (
+                f"📍 **상황 발생** : {data['age_gender']} 고객이 매장으로 들어오며 다소 격앙된 태도로 매니저님을 찾습니다. "
+                f"고객은 **{data.get('voc_type')}** 문제로 인해 매우 **{data['mood_category']}**한 상태이며, "
+                f"현재 **{data['mood_detail']}**을 보이고 있어 신속하고 정중한 대응이 필요합니다."
+            )
+        
+        # 4. 클로징 상황 (최종 결정을 고민하는 상황으로 유지)
         else:
             situation = (
                 f"📍 **상황 발생** : {data['age_gender']} 고객이 {data['product']} 앞에서 최종 결정을 앞두고 고민 중입니다. "
                 f"고객의 표정에는 **{data['mood_category']}**한 기색이 역력하며, "
-                f"**{data['mood_detail']}**을 보이고 있어 매니저님의 세심한 대응이 필요한 시점입니다."
+                f"**{data['mood_detail']}**을 보이고 있어 매니저님의 세심한 클로징 멘트가 필요한 시점입니다."
             )
             
-        # [수정 포인트] 가이드 문구를 먼저 넣고, 그 다음 상황 발생 문구를 넣습니다.
         st.session_state.messages.append({"role": "assistant", "content": guide_msg})
         st.session_state.messages.append({"role": "assistant", "content": situation})
         st.session_state.scenario_ready = True

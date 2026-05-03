@@ -109,7 +109,7 @@ def generate_step_specific_persona(menu_key):
 # --- 3. 메인 UI ---
 st.set_page_config(page_title="LG 세일즈 아레나", layout="centered")
 # 제목 크기 조절 (매니저님 의견 반영)
-st.markdown("### 🏆 LG 세일즈 아레나")
+st.markdown("#### 🏆 LG 세일즈 아레나")
 
 # 사이드바 메뉴 선택 (새로운 명칭 적용)
 selected_display_name = st.sidebar.selectbox("🎯 훈련 경기장 선택", list(STAGES.values()))

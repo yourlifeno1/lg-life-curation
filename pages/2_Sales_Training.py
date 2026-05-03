@@ -5,7 +5,7 @@ from streamlit_js_eval import get_geolocation
 from geopy.geocoders import Nominatim
 import io
 import random
-import re
+import time
 from streamlit_mic_recorder import mic_recorder
 
 # [픽스] 가전 카테고리 전체 범위 (매니저님이 직접 관리 가능)
@@ -25,21 +25,19 @@ except Exception as e:
     st.error(f"⚠️ Secrets 설정 확인 필요: {e}")
     st.stop()
 
-# --- 2. GPS 및 지역 정보 획득 ---
-def get_user_detailed_address():
-    loc = get_geolocation()
-    if loc:
-        try:
-            lat, lon = loc['coords']['latitude'], loc['coords']['longitude']
-            geolocator = Nominatim(user_agent="lg_sales_training_bot")
-            location = geolocator.reverse(f"{lat}, {lon}", language='ko').raw
-            addr = location.get('address', {})
-            gu = addr.get('district', addr.get('borough', addr.get('city_district', '')))
-            dong = addr.get('suburb', addr.get('neighbourhood', ''))
-            city = addr.get('city', addr.get('province', '서울'))
-            return f"{city} {gu} {dong}".strip()
-        except: pass
-    return "서울특별시 강남구 역삼동"
+# --- 2. GPS 및 상세 지역 정보 획득 (캐싱 적용) ---
+@st.cache_data(show_spinner=False)
+def get_user_detailed_address(lat, lon):
+    try:
+        geolocator = Nominatim(user_agent="lg_sales_training_bot")
+        location = geolocator.reverse(f"{lat}, {lon}", language='ko').raw
+        addr = location.get('address', {})
+        city = addr.get('city', addr.get('province', '서울'))
+        gu = addr.get('district', addr.get('borough', addr.get('city_district', '')))
+        dong = addr.get('suburb', addr.get('neighbourhood', ''))
+        return f"{city} {gu} {dong}".strip()
+    except:
+        return "서울특별시 도봉구 쌍문1동"
 
 # --- 3. [수정] 가전 전체 범위 및 동반인 포함 페르소나 생성 ---
 def generate_dynamic_persona(region, menu, category_list):
@@ -69,24 +67,20 @@ def generate_dynamic_persona(region, menu, category_list):
 st.set_page_config(page_title="LG전자 실전 세일즈 훈련소", layout="centered")
 st.title("🏆 LG전자 실전 세일즈 훈련소")
 
-user_full_addr = get_user_detailed_address() 
+loc = get_geolocation()
+if not loc:
+    st.info("📍 위치 정보를 파악 중입니다...")
+    st.stop()
+
+user_full_addr = get_user_detailed_address(loc['coords']['latitude'], loc['coords']['longitude'])
 st.sidebar.info(f"📍 현재 위치: {user_full_addr}")
 menu = st.sidebar.selectbox("🎯 훈련 단계 선택", ["라포형성 달인", "니즈파악 대장", "클로징의 장인", "VOC해결(매장)", "VOC해결(전화)"])
 
-if "messages" not in st.session_state or st.session_state.get("current_menu") != menu:
+if "current_menu" not in st.session_state or st.session_state.current_menu != menu:
     st.session_state.messages = []
     st.session_state.current_menu = menu
-    st.session_state.first_greet = True
-    st.session_state.persona_info = generate_dynamic_persona(user_full_addr, menu)
-
-# --- UI 개선: 대화 내용 표시 (상황 박스 통일) ---
-for message in st.session_state.messages:
-    # "📍 **상황 발생**" 이 포함된 모든 메시지를 st.info 박스로 표시
-    if "📍 **상황 발생**" in message["content"]:
-        st.info(message["content"])
-    else:
-        with st.chat_message(message["role"]):
-            st.write(message["content"])
+    st.session_state.scenario_ready = False
+    st.session_state.persona_info = None
 
 # --- 5. 시나리오 생성 (방문/전화 분리) ---
 if not st.session_state.scenario_ready:

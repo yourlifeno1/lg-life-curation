@@ -111,6 +111,34 @@ st.set_page_config(page_title="LG 세일즈 아레나", layout="centered")
 # 제목 크기 조절 (매니저님 의견 반영)
 st.markdown("#### 🏆 LG 세일즈 아레나")
 
+# --- [스타일 정의] 최상단 st.set_page_config 근처에 배치 권장 ---
+st.markdown("""
+    <style>
+        /* 1. 하단 입력바 가려짐 방지를 위한 본문 여백 확보 */
+        .main .block-container {
+            padding-bottom: 120px !important;
+        }
+
+        /* 2. 마지막 섹션(입력창) 하단 고정 */
+        div[data-testid="stVerticalBlock"] > div:last-child {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: white;
+            z-index: 1000;
+            padding: 10px 20px 25px 20px;
+            border-top: 1px solid #f0f0f0;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+        }
+
+        /* 3. 입력창 라벨 숨기기 및 높이 정렬 */
+        div[data-testid="stTextInput"] label {
+            display: none !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # 사이드바 메뉴 선택 (새로운 명칭 적용)
 selected_display_name = st.sidebar.selectbox("🎯 훈련 경기장 선택", list(STAGES.values()))
 # 표시용 이름에서 내부 로직용 키값(라포형성, 니즈파악 등)을 추출
@@ -171,17 +199,42 @@ for i, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
             st.write(message["content"])
 
-# --- 6. 입력 섹션 ---
+# --- 6. 입력 섹션 (전체 로직의 하단에 배치하여 자동 스크롤 유도) ---
 st.write("---")
-audio_info = mic_recorder(start_prompt="🎤 응대 시작 (마이크)", stop_prompt="🛑 완료", just_once=True, key='sales_mic')
-chat_input = st.chat_input("메시지를 입력하세요...")
+
+# 입력창과 마이크를 한 줄로 배치 (비율 8:2)
+input_col1, input_col2 = st.columns([0.8, 0.2], vertical_alignment="center")
+
+with input_col1:
+    chat_input = st.text_input(
+        "메시지 입력", 
+        key="chat_text_input", 
+        placeholder="고객에게 할 말을 입력하세요.",
+        label_visibility="collapsed"
+    )
+
+with input_col2:
+    audio_info = mic_recorder(
+        start_prompt="🎤", 
+        stop_prompt="🛑", 
+        just_once=True, 
+        key='sales_mic'
+    )
 
 final_input = ""
+
+# 음성 입력 처리 로직
 if audio_info and 'bytes' in audio_info:
     with st.spinner("음성 분석 중..."):
         audio_file = io.BytesIO(audio_info['bytes'])
         audio_file.name = "audio.wav"
-        final_input = groq_client.audio.transcriptions.create(file=audio_file, model="whisper-large-v3", language="ko", response_format="text")
+        final_input = groq_client.audio.transcriptions.create(
+            file=audio_file, 
+            model="whisper-large-v3", 
+            language="ko", 
+            response_format="text"
+        )
+# 텍스트 입력 처리 로직
 elif chat_input:
     final_input = chat_input
 

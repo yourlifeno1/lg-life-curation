@@ -31,7 +31,6 @@ def generate_step_specific_persona(menu):
     gender = random.choice(["남성", "여성"])
     age_group = random.choice(["20대 후반", "30대 초반", "40대 중반", "50대 초반", "60대 이상"])
     residence = random.choice(["신축 아파트", "구축 빌라", "전원주택", "오피스텔"])
-    # 50% 확률로 동반인 설정
     companion = "2인 (부부 동반)" if not is_voc_phone and random.random() < 0.5 else "1인 방문"
     product = random.choice(ALL_CATEGORIES.split(", "))
     
@@ -105,7 +104,7 @@ if audio_info and 'bytes' in audio_info:
 elif chat_input:
     final_input = chat_input
 
-# --- 7. 응답 처리 로직 (1인 2역 및 호흡 조절 최적화) ---
+# --- 7. 응답 처리 로직 (줄 바꿈 형식 최적화) ---
 if final_input:
     st.session_state.messages.append({"role": "user", "content": final_input})
     
@@ -115,21 +114,20 @@ if final_input:
             [CRITICAL RULE: 당신은 절대로 AI나 매니저가 아닙니다]
             당신은 LG전자 베스트샵에 방문한 실제 '고객'과 '동반인'입니다.
 
-            1. **1인 2역 (동반 방문 시)**: 
-               - 페르소나에 '부부 동반' 등 동반자가 있다면 반드시 [고객]과 [동반인]의 대사를 모두 포함하세요.
-               - 두 사람이 서로 의견을 묻거나 매니저의 제안에 대해 각기 다르게 반응하게 하세요.
-               - 형식 예시: 
-                 [고객]: (제품을 가리키며) "이거 디자인은 괜찮네." 
-                 [동반인]: (가격표를 보며) "근데 생각보다 좀 비싼 거 아냐?"
-            2. **대화의 호흡**: 전체 답변 길이를 2문장 내외로 유지하세요. 정보 노출은 최소화하고 매니저의 질문에 맞춰 조금씩 답하세요.
-            3. **자아 고정**: 매니저처럼 행동하거나 "도와드릴까요?"라고 말하지 마세요. 당신은 응대를 '받는' 입장입니다.
+            1. **1인 2역 및 줄 바꿈 규칙 (필독)**: 
+               - 동반 방문 시 [고객]과 [동반인]의 대사 사이에 반드시 **줄 바꿈(Enter)**을 넣으세요.
+               - 형식 예시:
+                 [고객]: (제품을 보며) "어우, 디자인 예쁘네요."
+                 [동반인]: (가격표를 확인하며) "여보, 우리 예산 생각해야지."
+            2. **대화의 호흡**: 전체 답변은 화자당 1문장씩, 총 2문장 내외로 매우 짧게 대답하세요. 정보는 조금씩만 노출하세요.
+            3. **자아 고정**: 사용자가 매니저입니다. 당신은 응대를 받는 입장의 자연스러운 한국인 말투를 사용하세요.
 
             [오늘의 페르소나]
             {st.session_state.persona_info}
 
             [응대 지침]
-            - (괄호 지문)으로 구체적 동작 묘사. 한국어 구어체 사용.
-            - 단계({menu})에 맞춰 초기에는 다소 방어적으로 대응하세요.
+            - (괄호 지문)으로 구체적 동작 묘사.
+            - 단계({menu})에 맞춰 초기에는 방어적으로, 후기에는 혜택 중심적으로 반응하세요.
             """
             
             cleaned_history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages if m.get("content")]
@@ -137,6 +135,7 @@ if final_input:
 
             try:
                 response = hf_client.chat_completion(full_history, max_tokens=500).choices[0].message.content
+                # '매니저:' 지칭 강제 제거
                 response = response.replace("매니저:", "").replace("매니저 :", "").strip()
                 
                 st.session_state.messages.append({"role": "assistant", "content": response})

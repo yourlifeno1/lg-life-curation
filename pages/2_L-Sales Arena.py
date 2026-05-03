@@ -200,31 +200,30 @@ for i, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
             st.write(message["content"])
 
-# --- 6. 입력 섹션 (전체 로직의 하단에 배치하여 자동 스크롤 유도) ---
-st.write("---")
+# --- 6. 입력 섹션 (하단 고정 전용 컨테이너) ---
+with st.container():
+    # 수평 정렬을 위해 columns 사용
+    input_col1, input_col2 = st.columns([0.8, 0.2], vertical_alignment="center")
 
-# 입력창과 마이크를 한 줄로 배치 (비율 8:2)
-input_col1, input_col2 = st.columns([0.8, 0.2], vertical_alignment="center")
+    with input_col1:
+        # label_visibility를 collapsed로 설정하여 공간 절약
+        chat_input = st.text_input(
+            "메시지 입력", 
+            key="chat_text_input", 
+            placeholder="고객에게 할 말을 입력하세요.",
+            label_visibility="collapsed"
+        )
 
-with input_col1:
-    chat_input = st.text_input(
-        "메시지 입력", 
-        key="chat_text_input", 
-        placeholder="고객에게 할 말을 입력하세요.",
-        label_visibility="collapsed"
-    )
+    with input_col2:
+        audio_info = mic_recorder(
+            start_prompt="🎤", 
+            stop_prompt="🛑", 
+            just_once=True, 
+            key='sales_mic'
+        )
 
-with input_col2:
-    audio_info = mic_recorder(
-        start_prompt="🎤", 
-        stop_prompt="🛑", 
-        just_once=True, 
-        key='sales_mic'
-    )
-
+# 입력 처리 로직 (기존과 동일하되 chat_input 변수 활용)
 final_input = ""
-
-# 음성 입력 처리 로직
 if audio_info and 'bytes' in audio_info:
     with st.spinner("음성 분석 중..."):
         audio_file = io.BytesIO(audio_info['bytes'])
@@ -235,7 +234,6 @@ if audio_info and 'bytes' in audio_info:
             language="ko", 
             response_format="text"
         )
-# 텍스트 입력 처리 로직
 elif chat_input:
     final_input = chat_input
 

@@ -1,164 +1,142 @@
 import streamlit as st
 from huggingface_hub import InferenceClient
 from groq import Groq
-from streamlit_js_eval import get_geolocation
-from geopy.geocoders import Nominatim
 import io
 import random
-import re
 from streamlit_mic_recorder import mic_recorder
 
-# --- 1. 보안 설정 및 클라이언트 초기화 ---
+# [카테고리 설정]
+ALL_CATEGORIES = "TV, 냉장고, 세탁기, 건조기, 워시타워, 에어컨, 공기청정기, 청소기, 식기세척기, 정수기, 스타일러"
+VOC_TYPES = ["고객응대", "설명부족", "판촉/사은품", "약속불이행", "배송/설치", "제품", "전문성"]
+
+# --- 1. 초기화 ---
 try:
-    HF_TOKEN = st.secrets["HF_TOKEN"]
-    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-    hf_client = InferenceClient(model="meta-llama/Llama-3.1-8B-Instruct", token=HF_TOKEN)
-    groq_client = Groq(api_key=GROQ_API_KEY)
+    hf_client = InferenceClient(model="meta-llama/Llama-3.1-8B-Instruct", token=st.secrets["HF_TOKEN"])
+    groq_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 except Exception as e:
-    st.error(f"⚠️ Secrets 설정 확인 필요: {e}")
+    st.error(f"⚠️ API 설정 확인 필요: {e}")
     st.stop()
 
-# --- 2. GPS 및 지역 정보 획득 ---
-def get_user_detailed_address():
-    """GPS 좌표를 통해 구/동 단위의 상세 주소를 반환합니다."""
-    loc = get_geolocation()
-    if loc:
-        try:
-            lat, lon = loc['coords']['latitude'], loc['coords']['longitude']
-            geolocator = Nominatim(user_agent="lg_sales_training_bot")
-            location = geolocator.reverse(f"{lat}, {lon}", language='ko').raw
-            addr = location.get('address', {})
-            
-            # 구(district/borough)와 동(suburb/neighbourhood) 추출
-            gu = addr.get('distict', addr.get('borough', addr.get('city_district', '')))
-            dong = addr.get('suburb', addr.get('neighbourhood', ''))
-            city = addr.get('city', addr.get('province', '서울'))
-            
-            return f"{city} {gu} {dong}".strip()
-        except: pass
-    return "서울특별시 강남구 역삼동" # 위치 획득 실패 시 기본값
+def init_session_state(menu):
+    if "current_menu" not in st.session_state or st.session_state.current_menu != menu:
+        st.session_state.current_menu = menu
+        st.session_state.messages = []
+        st.session_state.scenario_ready = False
+        st.session_state.persona_info = None
+        st.session_state.raw_persona_data = {}
 
-# --- 3. NVIDIA 스타일 페르소나 동적 생성 로직 ---
-# datasets 라이브러리 에러를 피하기 위해 LLM이 NVIDIA Nemotron 데이터셋의 
-# 페르소나 규격(Age, Stance, Goal)에 맞춰 실시간으로 생성하도록 변경합니다.
-def generate_dynamic_persona(region, menu):
-    """NVIDIA Nemotron-Personas-Korea 규격에 맞는 페르소나를 생성합니다."""
-    prompt = f"""
-    당신은 NVIDIA Nemotron-Personas-Korea 데이터셋 생성기입니다.
-    현재 지역({region})과 상담 단계({menu})에 맞는 성인(19세 이상) 고객 페르소나 1명을 생성하세요.
+# --- 2. 페르소나 생성 엔진 (데이터 세분화) ---
+def generate_step_specific_persona(menu):
+    is_voc_phone = menu == "VOC해결(전화)"
+    gender = random.choice(["남성", "여성"])
+    age_group = random.choice(["20대 후반", "30대 초반", "40대 중반", "50대 초반", "60대 이상"])
+    residence = random.choice(["신축 아파트", "구축 빌라", "전원주택", "오피스텔"])
+    companion = "2인 (부부 동반)" if not is_voc_phone and random.random() < 0.5 else "1인 방문"
+    product = random.choice(ALL_CATEGORIES.split(", "))
     
-    [출력 항목]
-    1. persona: (예: 가전 교체를 고민하는 주부, 신혼 가전을 보러 온 예비 신랑 등)
-    2. age: (19~70 사이의 숫자)
-    3. goal: (이 상담을 통해 해결하고 싶은 근본적인 문제)
-    4. stance: (고객의 성격이나 태도)
-    """
-    try:
-        response = hf_client.chat_completion(
-            [{"role": "system", "content": prompt}], 
-            max_tokens=200
-        ).choices[0].message.content
-        return response
-    except:
-        return f"{region} 지역의 40대 고객 (목표: 가전 상담)"
+    looks = random.choice(["깔끔한 정장 차림", "편안한 트레이닝복", "비즈니스 캐주얼", "등산복 차림"])
+    mood = random.choice(["부드러운 미소를 띤 얼굴", "다소 급해 보이는 표정", "진지하게 제품을 살피는 눈빛", "피곤해 보이지만 꼼꼼한 태도"])
+    
+    # 나중에 상황 묘사에 쓰기 위해 원본 데이터를 세션에 저장
+    st.session_state.raw_persona_data = {
+        "age_gender": f"{age_group} ({gender})",
+        "companion": companion,
+        "product": product,
+        "looks": looks,
+        "mood": mood
+    }
 
-# --- 4. 메인 UI 및 세션 관리 ---
+    if is_voc_phone:
+        name = random.choice(["김지수", "이현우", "박서윤", "최민호"])
+        info = f"1. 고객 이름: {name}\n2. 연령대(성별): {age_group} ({gender})\n3. 거주지: {residence}\n4. 구매 제품: {product}\n5. 고객 상태: {random.choice(VOC_TYPES)} 건으로 격앙된 목소리"
+    else:
+        info = f"1. 연령대(성별): {age_group} ({gender})\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 상담/구매 제품: {product}\n5. 인상 및 복장: {looks}, {mood}"
+        
+    return info
+
+# --- 3. 메인 UI ---
 st.set_page_config(page_title="LG전자 실전 세일즈 훈련소", layout="centered")
 st.title("🏆 LG전자 실전 세일즈 훈련소")
 
-user_full_addr = get_user_detailed_address() 
-st.sidebar.info(f"📍 현재 위치: {user_full_addr}")
 menu = st.sidebar.selectbox("🎯 훈련 단계 선택", ["라포형성 달인", "니즈파악 대장", "클로징의 장인", "VOC해결(매장)", "VOC해결(전화)"])
+init_session_state(menu)
 
-if "messages" not in st.session_state or st.session_state.get("current_menu") != menu:
-    st.session_state.messages = []
-    st.session_state.current_menu = menu
-    st.session_state.first_greet = True
-    # 여기서 generate_dynamic_persona 함수를 호출할 때도 user_full_addr를 사용합니다.
-    st.session_state.persona_info = generate_dynamic_persona(user_full_addr, menu)
+if st.session_state.persona_info:
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("👥 오늘의 고객 정보")
+    st.sidebar.info(st.session_state.persona_info)
 
-# 대화 내용 표시
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        if "📍 **상황 발생**" in message["content"]:
-            st.info(message["content"])
+# --- 4. 시나리오 구성 (입장 상황 묘사 되살리기) ---
+if not st.session_state.scenario_ready:
+    with st.status("🚀 시뮬레이션 준비 중...", expanded=False):
+        st.session_state.persona_info = generate_step_specific_persona(menu)
+        data = st.session_state.raw_persona_data
+        
+        if menu == "VOC해결(전화)":
+            situation = f"📍 **상황 발생** : (따르릉...) {data['age_gender']} 고객으로부터 전화가 왔습니다. 목소리에서 {data['mood']}가 느껴집니다."
+        elif any(x in menu for x in ["라포형성", "니즈파악"]):
+            # 복장과 표정 정보를 포함하여 입장 상황 묘사
+            situation = f"📍 **상황 발생** : {data['age_gender']} 고객이 {data['companion']}으로 매장에 들어옵니다. {data['looks']}을 하고 있으며, {data['mood']}로 제품을 살피기 시작합니다."
         else:
+            situation = f"📍 **상황 발생** : {data['age_gender']} 고객과 상담이 막바지에 이르렀습니다. 고객은 {data['mood']}를 보이며 고민에 빠진 듯합니다."
+            
+        st.session_state.messages.append({"role": "assistant", "content": situation})
+        st.session_state.scenario_ready = True
+    st.rerun()
+
+# --- 5. 대화 화면 출력 루프 ---
+for i, message in enumerate(st.session_state.messages):
+    if i == 0 and "📍 **상황 발생**" in message["content"]:
+        st.info(message["content"])
+    else:
+        with st.chat_message(message["role"]):
             st.write(message["content"])
 
-# --- 5. 상황 생성 (첫 실행) ---
-if st.session_state.first_greet:
-    with st.spinner("현장 상황 구성 중..."):
-        p_data = st.session_state.persona_info
-        
-        # 훈련 메뉴에 따른 상황 분기 (방문 vs 전화)
-        is_phone = "전화" in menu
-        
-        if is_phone:
-            # 전화 VOC 상황 전용 프롬프트
-            situation_prompt = f"""
-            NVIDIA 페르소나({p_data})로부터 전화가 걸려온 상황입니다. 핵심만 묘사하세요.
-            [제약 사항]
-            - 장소: 고객센터 상담 전화 상황.
-            - 연출: (따르릉...) 전화벨 소리와 수화기 너머의 고객 호흡, 배경 소음만 묘사.
-            - 금기: 고객의 대사는 절대 작성하지 말 것.
-            형식: 📍 **상황 발생** : [묘사 내용]
-            """
-        else:
-            # 매장 방문 상황 전용 프롬프트
-            situation_prompt = f"""
-            당신은 LG전자 베스트샵의 상황 연출가입니다. 
-            NVIDIA 페르소나({p_data})를 바탕으로 상담원이 직면할 장면을 **핵심만** 묘사하세요.
-
-            [공간 및 위치]
-            - 장소: LG전자 베스트샵 {user_full_addr} 지점 매장 내부 (무조건 매장 안으로 한정).
-            - 배경: 주변에 LG 가전제품들이 진열된 가전 매장 분위기.
-
-            [강화된 행동 지침]
-            1. 시선: 고객이 현재 응시하는 가전 제품이나 방향.
-            2. 손동작: 제품을 만지거나 리플릿을 쥐는 구체적 동작.
-            3. 비언어: 고객의 보폭, 어깨 각도 등 미세한 태도.
-
-            [제약 사항]
-            - 대사는 절대 금지. 3~4문장 내외로 간결하게 작성할 것.
-            형식: 📍 **상황 발생** : [묘사 내용]
-            """
-        
-        situation = hf_client.chat_completion(
-            [{"role": "system", "content": situation_prompt}], 
-            max_tokens=200
-        ).choices[0].message.content
-        
-        st.session_state.messages.append({"role": "assistant", "content": situation})
-        st.session_state.first_greet = False
-        st.rerun()
-
-# --- 6. 마이크 입력 및 대화 처리 (STT 통합) ---
+# --- 6. 입력 섹션 ---
 st.write("---")
-audio_info = mic_recorder(start_prompt="🎤 마이크로 응대 시작", stop_prompt="🛑 말씀 마치기", just_once=True, key='sales_mic')
+audio_info = mic_recorder(start_prompt="🎤 응대 시작 (마이크)", stop_prompt="🛑 완료", just_once=True, key='sales_mic')
+chat_input = st.chat_input("메시지를 입력하세요...")
 
-user_voice_text = ""
+final_input = ""
 if audio_info and 'bytes' in audio_info:
-    with st.spinner("목소리 분석 중..."):
+    with st.spinner("음성 분석 중..."):
         audio_file = io.BytesIO(audio_info['bytes'])
         audio_file.name = "audio.wav"
-        user_voice_text = groq_client.audio.transcriptions.create(
-            file=audio_file, model="whisper-large-v3", language="ko", response_format="text"
-        )
+        final_input = groq_client.audio.transcriptions.create(file=audio_file, model="whisper-large-v3", language="ko", response_format="text")
+elif chat_input:
+    final_input = chat_input
 
-chat_input = st.chat_input("메시지를 입력하세요...")
-final_input = user_voice_text if user_voice_text else chat_input
-
+# --- 7. 응답 처리 로직 ---
 if final_input:
     st.session_state.messages.append({"role": "user", "content": final_input})
-    with st.chat_message("user"):
-        st.write(final_input)
-
+    
     with st.chat_message("assistant"):
-        with st.spinner("고객이 반응 중..."):
-            sys_msg = f"당신은 NVIDIA 페르소나({st.session_state.persona_info})입니다. 반드시 (행동/표정) 지문을 포함하여 실제 고객처럼 대답하세요."
-            history = [{"role": "system", "content": sys_msg}] + st.session_state.messages
-            response = hf_client.chat_completion(history, max_tokens=150).choices[0].message.content
-            st.write(response)
-            st.session_state.messages.append({"role": "assistant", "content": response})
-    if user_voice_text:
-        st.rerun()
+        with st.spinner("고객이 반응하는 중..."):
+            sys_msg = f"""
+            [CRITICAL RULE: 당신은 절대로 AI나 매니저가 아닙니다]
+            1. 당신은 LG전자 베스트샵에 방문한 '고객'입니다. 
+            2. 사용자가 매니저입니다. 당신이 먼저 "도와드릴까요?"라고 묻지 마세요.
+            3. 매니저의 말에 반응하거나 고객으로서 질문하세요.
+            
+            [페르소나 정보]
+            {st.session_state.persona_info}
+
+            [응대 지침]
+            - (괄호 지문)에는 동작과 시선 처리를 넣으세요.
+            - 한국인 특유의 자연스러운 말투를 사용하세요.
+            - 2인 동반 시 [고객]과 [동반인]을 구분하세요.
+            - 단계({menu})에 맞춰 연기하세요.
+            """
+            
+            cleaned_history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages if m.get("content")]
+            full_history = [{"role": "system", "content": sys_msg}] + cleaned_history
+
+            try:
+                response = hf_client.chat_completion(full_history, max_tokens=500).choices[0].message.content
+                # '매니저:' 지칭 강제 제거 안전장치
+                response = response.replace("매니저:", "").replace("매니저 :", "").strip()
+                
+                st.session_state.messages.append({"role": "assistant", "content": response})
+                st.rerun() 
+            except Exception as e:
+                st.error(f"⚠️ 에러 발생: {e}")

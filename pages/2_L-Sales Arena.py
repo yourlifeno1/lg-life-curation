@@ -185,6 +185,8 @@ with col2:
         key='sales_mic'
     )
 
+chat_input = st.chat_input("메시지를 입력하세요...")
+
 final_input = ""
 if audio_info and 'bytes' in audio_info:
     with st.spinner("음성 분석 중..."):

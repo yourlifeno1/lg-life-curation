@@ -108,36 +108,37 @@ def generate_step_specific_persona(menu_key):
     
 # --- 3. 메인 UI ---
 st.set_page_config(page_title="LG 세일즈 아레나", layout="centered")
-# 제목 크기 조절 (매니저님 의견 반영)
-st.markdown("#### 🏆 LG 세일즈 아레나")
 
-# --- [스타일 정의] 최상단 st.set_page_config 근처에 배치 권장 ---
+# [수정된 스타일 정의] - 선택자를 더 명확히 하여 엉뚱한 배치를 방지합니다.
 st.markdown("""
     <style>
-        /* 1. 하단 입력바 가려짐 방지를 위한 본문 여백 확보 */
+        /* 1. 하단 여백 확보 */
         .main .block-container {
-            padding-bottom: 120px !important;
+            padding-bottom: 150px !important;
         }
 
-        /* 2. 마지막 섹션(입력창) 하단 고정 */
-        div[data-testid="stVerticalBlock"] > div:last-child {
+        /* 2. 하단 바 전용 스타일 (입력창과 마이크를 감싸는 영역만 고정) */
+        [data-testid="stVerticalBlock"] > div:has(div[data-testid="stTextInput"]) {
             position: fixed;
             bottom: 0;
             left: 0;
             right: 0;
             background-color: white;
             z-index: 1000;
-            padding: 10px 20px 25px 20px;
+            padding: 10px 20px 30px 20px;
             border-top: 1px solid #f0f0f0;
             box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
         }
 
-        /* 3. 입력창 라벨 숨기기 및 높이 정렬 */
+        /* 3. 불필요한 라벨 제거 */
         div[data-testid="stTextInput"] label {
             display: none !important;
         }
     </style>
 """, unsafe_allow_html=True)
+
+# 제목 크기 조절 (매니저님 의견 반영)
+st.markdown("#### 🏆 LG 세일즈 아레나")
 
 # 사이드바 메뉴 선택 (새로운 명칭 적용)
 selected_display_name = st.sidebar.selectbox("🎯 훈련 경기장 선택", list(STAGES.values()))

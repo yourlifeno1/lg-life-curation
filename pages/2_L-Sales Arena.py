@@ -109,34 +109,6 @@ def generate_step_specific_persona(menu_key):
 # --- 3. 메인 UI ---
 st.set_page_config(page_title="LG 세일즈 아레나", layout="centered")
 
-# [수정된 스타일 정의] - 선택자를 더 명확히 하여 엉뚱한 배치를 방지합니다.
-st.markdown("""
-    <style>
-        /* 1. 본문 하단 여백: 고정 바 높이만큼 확보 */
-        .main .block-container {
-            padding-bottom: 180px !important;
-        }
-
-        /* 2. 하단 고정 바: 입력창과 마이크 버튼이 있는 섹션 고정 */
-        [data-testid="stVerticalBlock"] > div:has(div[data-testid="stTextInput"]) {
-            position: fixed !important;
-            bottom: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            background-color: #ffffff !important;
-            z-index: 9999 !important; /* 마이크 버튼이 위로 올라오도록 최우선순위 부여 */
-            padding: 15px 20px 40px 20px !important;
-            border-top: 1px solid #eeeeee !important;
-            box-shadow: 0 -5px 15px rgba(0,0,0,0.1) !important;
-        }
-
-        /* 3. 마이크 버튼 컨테이너 정렬 및 가독성 향상 */
-        [data-testid="stHorizontalBlock"] {
-            align-items: center !important;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
 # 제목 크기 조절 (매니저님 의견 반영)
 st.markdown("#### 🏆 LG 세일즈 아레나")
 
@@ -200,41 +172,17 @@ for i, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
             st.write(message["content"])
 
-# --- 6. 입력 섹션 (하단 고정 전용 컨테이너) ---
-# --- 6. 입력 섹션 (전체 로직의 맨 하단에 위치) ---
-with st.container():
-    # 마이크 버튼이 보이지 않는다면 컬럼 비율을 75:25 정도로 넓혀보세요.
-    col1, col2 = st.columns([0.75, 0.25], vertical_alignment="center")
+# --- 6. 입력 섹션 ---
+st.write("---")
+audio_info = mic_recorder(start_prompt="🎤 응대 시작 (마이크)", stop_prompt="🛑 완료", just_once=True, key='sales_mic')
+chat_input = st.chat_input("메시지를 입력하세요...")
 
-    with col1:
-        chat_input = st.text_input(
-            "대화 입력", 
-            key="chat_text_input", 
-            placeholder="고객에게 할 말을 입력하세요.",
-            label_visibility="collapsed"
-        )
-
-    with col2:
-        # 마이크 버튼 위젯
-        audio_info = mic_recorder(
-            start_prompt="🎤", 
-            stop_prompt="🛑", 
-            just_once=True, 
-            key='sales_mic'
-        )
-
-# 입력 처리 로직 (기존과 동일)
 final_input = ""
 if audio_info and 'bytes' in audio_info:
     with st.spinner("음성 분석 중..."):
         audio_file = io.BytesIO(audio_info['bytes'])
         audio_file.name = "audio.wav"
-        final_input = groq_client.audio.transcriptions.create(
-            file=audio_file, 
-            model="whisper-large-v3", 
-            language="ko", 
-            response_format="text"
-        )
+        final_input = groq_client.audio.transcriptions.create(file=audio_file, model="whisper-large-v3", language="ko", response_format="text")
 elif chat_input:
     final_input = chat_input
 

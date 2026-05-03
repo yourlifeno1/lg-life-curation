@@ -1,129 +1,36 @@
-import streamlit as st
-from huggingface_hub import InferenceClient
-from groq import Groq
-import io
-import random
-from streamlit_mic_recorder import mic_recorder
-
-# [카테고리 설정]
-ALL_CATEGORIES = "TV, 냉장고, 세탁기, 건조기, 워시타워, 에어컨, 공기청정기, 청소기, 식기세척기, 정수기, 스타일러"
-VOC_TYPES = ["고객응대", "설명부족", "판촉/사은품", "약속불이행", "배송/설치", "제품", "전문성"]
-
-# --- 1. 초기화 ---
-try:
-    hf_client = InferenceClient(model="meta-llama/Llama-3.1-8B-Instruct", token=st.secrets["HF_TOKEN"])
-    groq_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-except Exception as e:
-    st.error(f"⚠️ API 설정 확인 필요: {e}")
-    st.stop()
-
-def init_session_state(menu):
-    if "current_menu" not in st.session_state or st.session_state.current_menu != menu:
-        st.session_state.current_menu = menu
-        st.session_state.messages = []
-        st.session_state.scenario_ready = False
-        st.session_state.persona_info = None
-        st.session_state.raw_persona_data = {}
-
-# --- 2. 페르소나 생성 엔진 ---
-def generate_step_specific_persona(menu):
-    is_voc_phone = menu == "VOC해결(전화)"
-    gender = random.choice(["남성", "여성"])
-    age_group = random.choice(["20대 후반", "30대 초반", "40대 중반", "50대 초반", "60대 이상"])
-    residence = random.choice(["신축 아파트", "구축 빌라", "전원주택", "오피스텔"])
-    companion = "2인 (부부 동반)" if not is_voc_phone and random.random() < 0.5 else "1인 방문"
-    product = random.choice(ALL_CATEGORIES.split(", "))
-    looks = random.choice(["깔끔한 정장 차림", "편안한 트레이닝복", "비즈니스 캐주얼", "등산복 차림"])
-    mood = random.choice(["부드러운 미소를 띤 얼굴", "다소 급해 보이는 표정", "진지하게 제품을 살피는 눈빛", "피곤해 보이지만 꼼꼼한 태도"])
-    
-    st.session_state.raw_persona_data = {"age_gender": f"{age_group} ({gender})", "companion": companion, "product": product}
-    if is_voc_phone:
-        name = random.choice(["김지수", "이현우", "박서윤", "최민호"])
-        info = f"1. 고객 이름: {name}\n2. 연령대(성별): {age_group} ({gender})\n3. 거주지: {residence}\n4. 구매 제품: {product}\n5. 고객 상태: {random.choice(VOC_TYPES)} 건으로 격앙된 목소리"
-    else:
-        info = f"1. 연령대(성별): {age_group} ({gender})\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 상담/구매 제품: {product}\n5. 인상 및 복장: {looks}, {mood}"
-    return info
-
-# --- 3. 메인 UI ---
-st.set_page_config(page_title="LG전자 실전 세일즈 훈련소", layout="centered")
-st.title("🏆 LG전자 실전 세일즈 훈련소")
-
-menu = st.sidebar.selectbox("🎯 훈련 단계 선택", ["라포형성 달인", "니즈파악 대장", "클로징의 장인", "VOC해결(매장)", "VOC해결(전화)"])
-init_session_state(menu)
-
-if st.session_state.persona_info:
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("👥 오늘의 고객 정보")
-    st.sidebar.info(st.session_state.persona_info)
-
-# --- 4. 시나리오 구성 ---
-if not st.session_state.scenario_ready:
-    with st.status("🚀 시뮬레이션 준비 중...", expanded=False):
-        st.session_state.persona_info = generate_step_specific_persona(menu)
-        data = st.session_state.raw_persona_data
-        if menu == "VOC해결(전화)":
-            situation = "📍 **상황 발생** : (따르릉... 따르릉...) 전화벨이 울립니다. 고객의 목소리가 들리기 시작합니다."
-        elif any(x in menu for x in ["라포형성", "니즈파악"]):
-            situation = f"📍 **상황 발생** : {data['age_gender']} 고객이 {data['companion']}으로 매장에 들어옵니다."
-        else:
-            situation = "📍 **상황 발생** : 상담이 마무리 단계에 접어들었습니다. 고객이 최종 결정을 고민하고 있습니다."
-        st.session_state.messages.append({"role": "assistant", "content": situation})
-        st.session_state.scenario_ready = True
-    st.rerun()
-
-# --- 5. [중요] 대화 화면 출력 루프 ---
-# 이 루프가 상단에 위치해야 rerun 시 대화가 사라지지 않습니다.
-for i, message in enumerate(st.session_state.messages):
-    if i == 0 and "📍 **상황 발생**" in message["content"]:
-        if "전화" in menu:
-            st.info(message["content"])
-    else:
-        with st.chat_message(message["role"]):
-            st.write(message["content"])
-
-# --- 6. 입력 섹션 ---
-st.write("---")
-audio_info = mic_recorder(start_prompt="🎤 응대 시작 (마이크)", stop_prompt="🛑 완료", just_once=True, key='sales_mic')
-chat_input = st.chat_input("메시지를 입력하세요...")
-
-final_input = ""
-if audio_info and 'bytes' in audio_info:
-    with st.spinner("음성 분석 중..."):
-        audio_file = io.BytesIO(audio_info['bytes'])
-        audio_file.name = "audio.wav"
-        final_input = groq_client.audio.transcriptions.create(file=audio_file, model="whisper-large-v3", language="ko", response_format="text")
-elif chat_input:
-    final_input = chat_input
-
-# --- 7. AI 응답 생성 로직 (고객 자아 고정 버전) ---
+# --- 7. AI 응답 생성 로직 (매니저 역할 침범 차단 버전) ---
 if final_input:
     st.session_state.messages.append({"role": "user", "content": final_input})
     
     with st.chat_message("assistant"):
         with st.spinner("고객이 반응하는 중..."):
-            # 매니저 자아를 완전히 삭제하고 '듣는 고객'으로 고정
+            # 매니저(AI) 자아를 완전히 삭제하고 '듣는 고객'으로 고정
             sys_msg = f"""
-            [엄격한 규칙: 당신은 절대로 매니저가 아닙니다]
-            1. 당신은 LG전자 베스트샵에 물건을 보러 온 '고객'입니다. 
-            2. 사용자가 '매니저'이므로, 당신이 먼저 매니저처럼 "도와드릴까요?"라고 묻는 것은 금지입니다.
-            3. 매니저의 말을 듣고 반응하거나, 필요한 가전에 대해 고객으로서 질문하세요.
+            [CRITICAL RULE: 당신은 절대로 AI나 매니저가 아닙니다]
+            1. 당신의 역할은 오직 '매장을 방문한 고객' 또는 '함께 온 동반인'입니다.
+            2. 사용자가 매니저(판매원)입니다. 당신이 먼저 "어떻게 도와드릴까요?"라고 묻는 것은 절대 금지입니다.
+            3. 매니저의 말을 들었을 때, 고객의 입장에서 '대답'하거나 가전에 대해 '질문'만 하세요.
+            4. 모든 응답의 시작에 "매니저:"라는 단어를 절대 쓰지 마세요.
             
             [페르소나 정보]
             {st.session_state.persona_info}
 
             [응대 지침]
-            - (괄호 지문)에는 동작과 시선 처리를 넣으세요. (예: 팔짱을 끼고 제품을 훑어보며, 옆 사람과 귓속말을 하며)
-            - 한국인 특유의 자연스러운 말투를 사용하세요. (예: "아니 그게 아니라..", "요즘은 뭐가 잘 나가요?", "생각보다 비싸네..")
-            - 2인 동반 시, 매니저가 아닌 [동반인]과 대화하여 매니저를 소외시키기도 하세요.
-            - 단계({menu})에 맞춰, 처음엔 낯가림을 하거나 대답을 피하기도 하세요.
+            - (괄호 지문)에는 오직 '고객'의 동작만 넣으세요. (예: 팔짱을 끼고 제품을 훑어보며, 의심스러운 눈초리로 매니저를 보며)
+            - 한국인 특유의 자연스러운 말투를 사용하세요. (예: "아.. 예.. 좀 둘러볼게요", "이건 전기세 많이 안 나와요?", "생각보다 큰데?")
+            - 단계({menu})에 맞춰 반응하세요. 처음엔 낯을 가리거나 무뚝뚝하게 대답해도 좋습니다.
             """
             
             cleaned_history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages if m.get("content")]
             full_history = [{"role": "system", "content": sys_msg}] + cleaned_history
 
             try:
-                # API 호출 시 페르소나 일관성 유지
+                # 챗봇의 첫마디가 매니저처럼 나가는 것을 막기 위한 추론
                 response = hf_client.chat_completion(full_history, max_tokens=500).choices[0].message.content
+                
+                # 만약 응답에 '매니저:'라는 단어가 포함되면 강제로 제거하거나 정정하는 안전장치
+                response = response.replace("매니저:", "").replace("매니저 :", "").strip()
+                
                 st.session_state.messages.append({"role": "assistant", "content": response})
                 st.rerun() 
             except Exception as e:

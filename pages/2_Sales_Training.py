@@ -66,9 +66,9 @@ def generate_dynamic_persona(region, menu):
 st.set_page_config(page_title="LG전자 실전 세일즈 훈련소", layout="centered")
 st.title("🏆 LG전자 실전 세일즈 훈련소")
 
-user_region = get_user_region()
-st.sidebar.info(f"📍 현재 인식 지역: {user_region}")
-menu = st.sidebar.selectbox("🎯 훈련 단계 선택", ["라포형성", "니즈파악", "클로징", "VOC해결(매장)", "VOC해결(전화)"])
+user_full_addr = get_user_detailed_address() 
+st.sidebar.info(f"📍 현재 위치: {user_full_addr}")
+menu = st.sidebar.selectbox("🎯 훈련 단계 선택", ["라포형성 달인", "니즈파악 대장", "클로징의 장인", "VOC해결(매장)", "VOC해결(전화)"])
 
 if "messages" not in st.session_state or st.session_state.get("current_menu") != menu:
     st.session_state.messages = []

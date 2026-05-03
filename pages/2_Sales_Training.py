@@ -20,38 +20,45 @@ except Exception as e:
     st.error(f"⚠️ API 키 확인 필요: {e}")
     st.stop()
 
-# --- 2. GPS 정보 획득 ---
+# --- 2. GPS 정보 (내부 로직용으로만 유지) ---
 @st.cache_data(show_spinner=False)
 def get_user_detailed_address(lat, lon):
     try:
         geolocator = Nominatim(user_agent="lg_sales_training_bot")
         location = geolocator.reverse(f"{lat}, {lon}", language='ko').raw
         addr = location.get('address', {})
-        return f"{addr.get('city', '서울')} {addr.get('district', '도봉구')} {addr.get('suburb', '쌍문1동')}".strip()
+        return f"{addr.get('city', '서울')} {addr.get('district', '도봉구')}".strip()
     except:
-        return "서울특별시 도봉구 쌍문1동"
+        return "서울특별시 도봉구"
 
-# --- [에러 해결 포인트] 세션 상태 초기화 로직 ---
 def init_session_state(menu):
-    """세션 키가 없거나 메뉴가 변경되면 초기화합니다."""
     if "current_menu" not in st.session_state or st.session_state.current_menu != menu:
         st.session_state.current_menu = menu
         st.session_state.messages = []
-        st.session_state.scenario_ready = False  # 에러 발생 지점 해결
+        st.session_state.scenario_ready = False
         st.session_state.persona_info = None
 
-# --- 3. 페르소나 및 상황 생성 함수 ---
-def generate_dynamic_persona(region, menu):
+# --- 3. [수정] 5가지 항목 규격화 페르소나 생성 ---
+def generate_dynamic_persona(menu, category_list):
     is_voc_phone = menu == "VOC해결(전화)"
     is_voc = "VOC" in menu
     
-    # 전화면 1인, 아니면 40% 확률로 동반인
     has_companion = False if is_voc_phone else (random.random() < 0.4)
-    companion = random.choice(["배우자", "자녀", "부모님"]) if has_companion else "없음"
-    selected_voc = random.choice(VOC_CATEGORIES) if is_voc else "일반 상담"
+    companion_status = "부부 동반 (1인 2역 수행)" if has_companion else "1인 방문"
+    residence = random.choice(["아파트", "단독주택", "빌라", "오피스텔"])
+    selected_product = random.choice(category_list.split(", "))
     
-    prompt = f"지역({region}), 단계({menu}), 불만({selected_voc}), 동반인({companion}) 기반 LG전자 베스트샵 고객 페르소나 생성. 짧게 persona, age, goal, stance 출력."
-    return hf_client.chat_completion([{"role": "system", "content": prompt}], max_tokens=250).choices[0].message.content
+    prompt = f"""
+    당신은 LG전자 제품 구매 고객 페르소나 생성기입니다. 
+    다음 5가지 항목에 맞춰 간결하게 출력하세요. 지점명이나 지역명은 생략합니다.
+    
+    1. 연령대: (20대~70대 중 선택)
+    2. 거주지: {residence}
+    3. 동반 여부: {companion_status}
+    4. 상담할 제품: {selected_product}
+    5. 성격 및 특징: (세일즈 훈련에 도움이 될 만한 한 줄 특징)
+    """
+    return hf_client.chat_completion([{"role": "system", "content": prompt}], max_tokens=300).choices[0].message.content
 
 # --- 4. 메인 UI ---
 st.set_page_config(page_title="LG전자 실전 세일즈 훈련소", layout="centered")
@@ -62,24 +69,22 @@ if not loc:
     st.info("📍 위치 확인 중...")
     st.stop()
 
-user_full_addr = get_user_detailed_address(loc['coords']['latitude'], loc['coords']['longitude'])
-st.sidebar.info(f"📍 위치: {user_full_addr}")
+user_addr = get_user_detailed_address(loc['coords']['latitude'], loc['coords']['longitude'])
 menu = st.sidebar.selectbox("🎯 단계", ["라포형성 달인", "니즈파악 대장", "클로징의 장인", "VOC해결(매장)", "VOC해결(전화)"])
 
-# 세션 초기화 실행 (41라인 에러 방지)
 init_session_state(menu)
 
-# --- 5. 시나리오 구성 (에러 해결 후 정상 작동) ---
+# --- 5. 시나리오 구성 (간결화 및 장소 고정) ---
 if not st.session_state.scenario_ready:
-    with st.status("🚀 매장 상황 구성 중...", expanded=False):
-        st.session_state.persona_info = generate_dynamic_persona(user_full_addr, menu)
+    with st.status("🚀 시뮬레이션 환경 구성 중...", expanded=False):
+        st.session_state.persona_info = generate_dynamic_persona(menu, ALL_CATEGORIES)
         p_info = st.session_state.persona_info
         is_phone = "전화" in menu
         
         if is_phone:
             s_prompt = f"전화 벨소리 묘사 필수. 1인 상황. 페르소나: {p_info}. 📍 **상황 발생** : [한 문장]"
         else:
-            s_prompt = f"LG전자 베스트샵 {user_full_addr}점 매장 안 픽스. 추상적 표현 금지. 행동만 묘사. 페르소나: {p_info}. 📍 **상황 발생** : [한 문장]"
+            s_prompt = f"LG전자 제품을 구매하러 온 상황. 추상적 표현 금지. 행동만 묘사. 페르소나: {p_info}. 📍 **상황 발생** : [한 문장]"
             
         situation = hf_client.chat_completion([{"role": "system", "content": s_prompt}], max_tokens=150).choices[0].message.content
         st.session_state.messages.append({"role": "assistant", "content": situation})
@@ -87,6 +92,10 @@ if not st.session_state.scenario_ready:
     st.rerun()
 
 # --- 6. 대화 화면 ---
+# 페르소나 정보 상단 고정 출력
+st.sidebar.markdown("### 👥 고객 정보")
+st.sidebar.write(st.session_state.persona_info)
+
 for message in st.session_state.messages:
     if "📍 **상황 발생**" in message["content"]:
         st.info(message["content"])
@@ -114,8 +123,15 @@ if final_input:
 
     with st.chat_message("assistant"):
         with st.spinner("고객 반응 중..."):
-            sys_msg = f"당신은 {st.session_state.persona_info}입니다. [고객], [동반인] 구분하여 1인 2역 수행(전화는 1인). 행동 지문 포함."
+            sys_msg = f"""
+            당신은 아래 정보를 가진 LG전자 구매 고객입니다.
+            {st.session_state.persona_info}
+            
+            - 부부 동반일 경우 [고객], [동반인]을 구분하여 1인 2역을 수행하세요.
+            - 현재 단계({menu})의 목적에 집중하여 대화하세요.
+            - 행동 지문을 포함하세요.
+            """
             history = [{"role": "system", "content": sys_msg}] + st.session_state.messages
-            response = hf_client.chat_completion(history, max_tokens=250).choices[0].message.content
+            response = hf_client.chat_completion(history, max_tokens=300).choices[0].message.content
             st.session_state.messages.append({"role": "assistant", "content": response})
     st.rerun()

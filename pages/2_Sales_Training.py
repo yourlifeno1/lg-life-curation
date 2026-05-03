@@ -33,22 +33,15 @@ def generate_step_specific_persona(menu):
     residence = random.choice(["신축 아파트", "구축 빌라", "전원주택", "오피스텔"])
     companion = "2인 (부부 동반)" if not is_voc_phone and random.random() < 0.5 else "1인 방문"
     product = random.choice(ALL_CATEGORIES.split(", "))
-    
     looks = random.choice(["깔끔한 정장 차림", "편안한 트레이닝복", "비즈니스 캐주얼", "등산복 차림"])
     mood = random.choice(["부드러운 미소를 띤 얼굴", "다소 급해 보이는 표정", "진지하게 제품을 살피는 눈빛", "피곤해 보이지만 꼼꼼한 태도"])
     
-    st.session_state.raw_persona_data = {
-        "age_gender": f"{age_group} ({gender})",
-        "companion": companion,
-        "product": product
-    }
-
+    st.session_state.raw_persona_data = {"age_gender": f"{age_group} ({gender})", "companion": companion, "product": product}
     if is_voc_phone:
         name = random.choice(["김지수", "이현우", "박서윤", "최민호"])
         info = f"1. 고객 이름: {name}\n2. 연령대(성별): {age_group} ({gender})\n3. 거주지: {residence}\n4. 구매 제품: {product}\n5. 고객 상태: {random.choice(VOC_TYPES)} 건으로 격앙된 목소리"
     else:
         info = f"1. 연령대(성별): {age_group} ({gender})\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 상담/구매 제품: {product}\n5. 인상 및 복장: {looks}, {mood}"
-        
     return info
 
 # --- 3. 메인 UI ---
@@ -63,33 +56,31 @@ if st.session_state.persona_info:
     st.sidebar.subheader("👥 오늘의 고객 정보")
     st.sidebar.info(st.session_state.persona_info)
 
-# --- 5. 시나리오 구성 ---
+# --- 4. 시나리오 구성 ---
 if not st.session_state.scenario_ready:
     with st.status("🚀 시뮬레이션 준비 중...", expanded=False):
         st.session_state.persona_info = generate_step_specific_persona(menu)
         data = st.session_state.raw_persona_data
-        
         if menu == "VOC해결(전화)":
             situation = "📍 **상황 발생** : (따르릉... 따르릉...) 전화벨이 울립니다. 고객의 목소리가 들리기 시작합니다."
         elif any(x in menu for x in ["라포형성", "니즈파악"]):
             situation = f"📍 **상황 발생** : {data['age_gender']} 고객이 {data['companion']}으로 매장에 들어옵니다."
         else:
             situation = "📍 **상황 발생** : 상담이 마무리 단계에 접어들었습니다. 고객이 최종 결정을 고민하고 있습니다."
-            
         st.session_state.messages.append({"role": "assistant", "content": situation})
         st.session_state.scenario_ready = True
     st.rerun()
 
-# --- 6. 대화 화면 출력 ---
+# --- 5. 대화 화면 출력 (이 루프가 모든 것을 그립니다) ---
 for i, message in enumerate(st.session_state.messages):
     if i == 0 and "📍 **상황 발생**" in message["content"]:
-        # 전화 VOC 상황이거나 특정 단계일 때만 화면 상단 알림 노출
         if "전화" in menu:
             st.info(message["content"])
     else:
         with st.chat_message(message["role"]):
             st.write(message["content"])
 
+# --- 6. 입력 섹션 ---
 st.write("---")
 audio_info = mic_recorder(start_prompt="🎤 응대 시작 (마이크)", stop_prompt="🛑 완료", just_once=True, key='sales_mic')
 chat_input = st.chat_input("메시지를 입력하세요...")
@@ -103,37 +94,31 @@ if audio_info and 'bytes' in audio_info:
 elif chat_input:
     final_input = chat_input
 
+# --- 7. 응답 처리 로직 ---
 if final_input:
+    # 1. 사용자 메시지 저장 (리런 후 위 루프에서 그려짐)
     st.session_state.messages.append({"role": "user", "content": final_input})
-    with st.chat_message("user"):
-        st.write(final_input)
-
+    
     with st.chat_message("assistant"):
         with st.spinner("고객 응답 중..."):
-            # [프롬프트 최적화] 리얼리티 및 한국어 정서 강화
             sys_msg = f"""
-            당신은 LG전자 매장을 방문한 매우 현실적인 '한국인' 고객입니다. 
-            지금 이 순간부터 AI라는 사실을 완전히 잊고 오직 이 페르소나에 몰입하세요:
+            당신은 LG전자 베스트샵을 방문한 매우 현실적인 '한국인' 고객입니다. 
+            AI라는 사실을 완전히 잊고 아래 페르소나에 몰입하세요:
             {st.session_state.persona_info}
             
-            [핵심 행동 규칙 - 필독]
-            1. **지문의 구체성**: 모든 대사 앞 (괄호 지문)에는 단순 표정뿐 아니라 '시선 처리', '손동작', '제품을 만지는 행위'를 묘사하세요.
-            2. **한국형 구어체**: "좀 보려구요", "~하더라고요", "글쎄요.. 그건 좀"과 같은 자연스러운 리액션을 사용하세요. 번역투나 한자어 남용을 엄격히 금지합니다.
-            3. **1인 2역 상호작용**: 동반자가 있다면 [고객]과 [동반인]을 명확히 구분하세요. 동반인은 주로 가격이나 실용성을 따지며 고객과 가벼운 의견 차이를 보입니다.
-            4. **훈련 단계({menu}) 반영**:
-               - 라포/니즈: 처음 본 매니저를 다소 경계하며 짧게 대답하거나 딴청을 피우세요.
-               - 클로징: 결정적인 혜택을 원하면서도 최종 사인을 망설이는 '결정 장애' 상태를 연기하세요.
-               - VOC: 감정적으로 쏘아붙이되, 진심 어린 공감에는 서서히 마음을 여는 입체적인 감정을 보여주세요.
-            5. **
+            [핵심 규칙]
+            1. (괄호 지문)으로 구체적 동작 묘사.
+            2. 자연스러운 한국어 구어체 사용.
+            3. 1인 2역 수행.
+            4. 단계({menu}) 목적에 충실.
             """
-            
-            # 메시지 정제 및 API 호출
             cleaned_history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages if m.get("content")]
             full_history = [{"role": "system", "content": sys_msg}] + cleaned_history
             
             try:
                 response = hf_client.chat_completion(full_history, max_tokens=500).choices[0].message.content
                 st.session_state.messages.append({"role": "assistant", "content": response})
+                # 모든 저장이 끝난 후 단 한 번만 리런합니다.
                 st.rerun()
             except Exception as e:
-                st.error(f"⚠️ 고객 응답 중 에러 발생: {e}")
+                st.error(f"⚠️ 에러 발생: {e}")

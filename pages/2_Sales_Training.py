@@ -36,6 +36,8 @@ def init_session_state(menu):
 # --- 2. 페르소나 생성 엔진 ---
 def generate_step_specific_persona(menu):
     is_voc_phone = menu == "VOC해결(전화)"
+    is_needs_finding = menu == "니즈파악 대장" # 니즈파악 단계 확인
+    
     gender = random.choice(["남성", "여성"])
     age_group = random.choice(["20대 후반", "30대 초반", "40대 중반", "50대 초반", "60대 이상"])
     residence = random.choice(["신축 아파트", "구축 빌라", "전원주택", "오피스텔", "리모델링 중인 아파트"])

@@ -81,18 +81,36 @@ for message in st.session_state.messages:
 
 # --- 5. 상황 생성 (첫 실행) ---
 if st.session_state.first_greet:
-    with st.spinner("NVIDIA 기반 시나리오 구성 중..."):
+    with st.spinner("LG전자 베스트샵 매장 상황을 구성 중입니다..."):
         p_data = st.session_state.persona_info
-        goal_instr = "구매할 제품을 명확히 정하지 말고 대화로 풀어가세요." if menu != "클로징" else "결제 직전의 특정 제품 상황을 설정하세요."
         
+        # [수정 포인트] 장소를 LG전자 베스트샵으로 못박는 강력한 지시문 추가
+        location_constraint = ""
+        if "전화" in menu:
+            location_constraint = "장소는 '전화 상담' 상황입니다. 전화벨 소리와 수화기 너머의 분위기만 묘사하세요."
+        else:
+            location_constraint = "장소는 무조건 'LG전자 베스트샵 매장 내부'입니다. 매장 안 가전제품 진열대, 상담 테이블 등 매장 안의 풍경이 드러나게 하세요."
+
         situation_prompt = f"""
         NVIDIA 페르소나 데이터({p_data})를 바탕으로 상담원이 마주할 첫 장면을 묘사하세요.
+        
+        [공간 제약]
+        - {location_constraint}
         - 지역색({user_region})을 반영할 것.
-        - 대사는 절대 하지 말고 상황(모습, 동반인, 분위기)만 묘사할 것.
-        - 지침: {goal_instr}
+        
+        [행동 지침]
+        - 대사는 절대 하지 말고 상황(모습, 동반인, 제품을 만지는 동작 등)만 묘사할 것.
+        - 매장 안에서 가전제품(냉장고, 세탁기, TV 등)을 둘러보거나 상담 직원(매니저)을 찾는 고객의 모습을 구체적으로 그리세요.
+        
         형식: 📍 **상황 발생** : [묘사 내용]
         """
-        situation = hf_client.chat_completion([{"role": "system", "content": situation_prompt}], max_tokens=200).choices[0].message.content
+        
+        # LLM 호출 및 결과 저장
+        situation = hf_client.chat_completion(
+            [{"role": "system", "content": situation_prompt}], 
+            max_tokens=250
+        ).choices[0].message.content
+        
         st.session_state.messages.append({"role": "assistant", "content": situation})
         st.session_state.first_greet = False
         st.rerun()

@@ -25,31 +25,32 @@ def init_session_state(menu):
         st.session_state.scenario_ready = False
         st.session_state.persona_info = None
 
-# --- 2. [개선] 단계별 특화 페르소나 생성 로직 ---
+# --- 2. [수정] 성별 통합 및 전화 벨소리 특화 페르소나 엔진 ---
 def generate_step_specific_persona(menu):
     is_voc_phone = menu == "VOC해결(전화)"
     is_needs = "니즈파악" in menu
     
-    # 공통 속성 추출
-    age = random.choice(["20대 후반", "30대 초반", "40대 중반", "50대 초반", "60대 이상"])
+    # 성별 및 연령대 통합
+    gender = random.choice(["남성", "여성"])
+    age_group = random.choice(["20대 후반", "30대 초반", "40대 중반", "50대 초반", "60대 이상"])
+    age_gender = f"{age_group} ({gender})"
+    
     residence = random.choice(["신축 아파트", "구축 빌라", "전원주택", "오피스텔"])
     companion = "2인 (부부 동반 - 1인 2역 수행)" if not is_voc_phone and random.random() < 0.5 else "1인 방문"
-    
-    # 제품 설정 (니즈 파악은 정답으로만 보유)
     product = random.choice(ALL_CATEGORIES.split(", "))
     
-    # 1~5번 항목 구성 (단계별 차별화)
     if is_voc_phone:
         name = random.choice(["김철수", "이영희", "박지민", "최현우"])
         voc_topic = random.choice(VOC_TYPES)
-        info = f"1. 고객 이름: {name}\n2. 연령대: {age}\n3. 거주지: {residence}\n4. 구매 제품: {product}\n5. 고객 상태: {voc_topic} 문제로 매우 화가 난 목소리"
+        # 전화 상황: 목소리와 이름 강조
+        info = f"1. 고객 이름: {name}\n2. 연령대(성별): {age_gender}\n3. 거주지: {residence}\n4. 구매 제품: {product}\n5. 고객 상태: {voc_topic} 문제로 화가 난 목소리"
     elif "VOC" in menu:
         voc_topic = random.choice(VOC_TYPES)
-        info = f"1. 연령대: {age}\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 구매 제품: {product}\n5. 고객 상태: {voc_topic} 건으로 얼굴이 굳어 있음"
+        info = f"1. 연령대(성별): {age_gender}\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 구매 제품: {product}\n5. 고객 상태: {voc_topic} 건으로 얼굴이 굳어 있음"
     elif is_needs:
-        info = f"1. 연령대: {age}\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 인상 및 복장: 깔끔한 비즈니스 캐주얼, 무언가 찾는 듯한 눈빛\n5. (참고용 정답): 상담 제품은 {product} (질문으로 이끌어낼 것)"
+        info = f"1. 연령대(성별): {age_gender}\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 인상 및 복장: 깔끔한 비즈니스 캐주얼\n5. (정답): {product} (질문으로 찾아낼 것)"
     else: # 라포형성, 클로징
-        info = f"1. 연령대: {age}\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 상담 제품: {product}\n5. 인상 및 복장: 편안한 복장, 제품을 유심히 살피는 중"
+        info = f"1. 연령대(성별): {age_gender}\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 상담 제품: {product}\n5. 인상 및 복장: 편안한 복장, 제품을 살피는 중"
         
     return info
 
@@ -65,10 +66,20 @@ if not st.session_state.scenario_ready:
     with st.status("🚀 훈련 세팅 중...", expanded=False):
         st.session_state.persona_info = generate_step_specific_persona(menu)
         p_info = st.session_state.persona_info
+        is_phone = "전화" in menu
         
-        # 상황 묘사 프롬프트 (간결화 픽스)
-        s_prompt = f"당신은 연출가입니다. 아래 고객 정보를 바탕으로 매장 상황을 딱 한 문장으로만 묘사하세요. 제품명은 언급하지 마세요.\n{p_info}\n📍 **상황 발생** : "
-        situation = hf_client.chat_completion([{"role": "system", "content": s_prompt}], max_tokens=100).choices[0].message.content
+        if is_phone:
+            # 전화 상황용 특화 프롬프트: 벨소리만 강조
+            s_prompt = f"당신은 전화 상황 연출가입니다. 배경 설명이나 제품 언급 없이 오직 전화벨 소리만 묘사하세요.\n📍 **상황 발생** : (따르릉... 따르릉...) 전화벨이 울립니다. 고객이 연결을 기다리고 있습니다."
+        else:
+            # 매장 상황용 프롬프트: 행동 중심
+            s_prompt = f"연출가입니다. 아래 정보의 행동만 1문장으로 묘사하세요. 장소는 LG전자 매장입니다.\n{p_info}\n📍 **상황 발생** : "
+            
+        if is_phone:
+            situation = s_prompt
+        else:
+            situation = hf_client.chat_completion([{"role": "system", "content": s_prompt}], max_tokens=100).choices[0].message.content
+            
         st.session_state.messages.append({"role": "assistant", "content": situation})
         st.session_state.scenario_ready = True
     st.rerun()
@@ -107,13 +118,12 @@ if final_input:
     with st.chat_message("assistant"):
         with st.spinner("고객 반응 중..."):
             sys_msg = f"""
-            당신은 LG전자 고객입니다. 아래 정보를 바탕으로 연기하세요:
+            당신은 LG전자 고객입니다. 다음 정보를 기반으로 연기하세요:
             {st.session_state.persona_info}
             
-            - 단계({menu})의 목적을 기억하세요. 
-            - 2인 동반 시 [고객], [동반인] 구분하여 1인 2역을 수행하세요.
-            - 니즈파악 단계라면 먼저 제품명을 말하지 말고 매니저의 질문을 유도하세요.
-            - 행동 지문을 포함하세요.
+            - 2인 동반 설정이면 [고객], [동반인] 1인 2역을 수행하세요.
+            - 전화 상황이면 목소리 톤으로 감정을 표현하고 매장 환경 묘사는 하지 마세요.
+            - 니즈파악 단계라면 먼저 제품을 말하지 마세요.
             """
             history = [{"role": "system", "content": sys_msg}] + st.session_state.messages
             response = hf_client.chat_completion(history, max_tokens=300).choices[0].message.content

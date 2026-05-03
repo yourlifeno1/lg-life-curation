@@ -157,6 +157,8 @@ if not st.session_state.scenario_ready:
                 f"**{data['mood_detail']}**을 보이고 있어 매니저님의 세심한 대응이 필요한 시점입니다."
             )
             
+        # [수정 포인트] 가이드 문구를 먼저 넣고, 그 다음 상황 발생 문구를 넣습니다.
+        st.session_state.messages.append({"role": "assistant", "content": guide_msg})
         st.session_state.messages.append({"role": "assistant", "content": situation})
         st.session_state.scenario_ready = True
     st.rerun()

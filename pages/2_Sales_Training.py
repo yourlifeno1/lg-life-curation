@@ -57,7 +57,7 @@ st.title("🏆 LG전자 실전 세일즈 훈련소")
 menu = st.sidebar.selectbox("🎯 훈련 단계 선택", ["라포형성 달인", "니즈파악 대장", "클로징의 장인", "VOC해결(매장)", "VOC해결(전화)"])
 init_session_state(menu)
 
-# 시나리오 구성
+# --- 5. 시나리오 구성 및 출력 로직 수정 ---
 if not st.session_state.scenario_ready:
     with st.status("🚀 시뮬레이션 준비 중...", expanded=False):
         st.session_state.persona_info = generate_step_specific_persona(menu)
@@ -71,22 +71,18 @@ if not st.session_state.scenario_ready:
         else: # 클로징 등
             situation = "📍 **상황 발생** : 상담이 마무리 단계에 접어들었습니다. 고객이 최종 결정을 고민하고 있습니다."
             
+        # 메시지 리스트의 첫 번째에 상황을 추가합니다.
         st.session_state.messages.append({"role": "assistant", "content": situation})
         st.session_state.scenario_ready = True
     st.rerun()
 
-st.sidebar.markdown("### 👥 오늘의 고객 정보")
-st.sidebar.info(st.session_state.persona_info)
-
-# --- 4. 대화 화면 (UI 노출 제어) ---
-for message in st.session_state.messages:
-    if "📍 **상황 발생**" in message["content"]:
-        # VOC(전화)일 때만 메인창에 상태 표시 노출
-        if menu == "VOC해결(전화)":
-            st.info(message["content"])
-        # 그 외 단계는 내부적으로만 기억하고 메인창에는 표시 안 함
-        continue
+# --- 6. 대화 화면 (출력 부분 수정) ---
+for i, message in enumerate(st.session_state.messages):
+    # 첫 번째 메시지는 항상 상황 발생 문구이므로 st.info로 출력합니다.
+    if i == 0 and "📍 **상황 발생**" in message["content"]:
+        st.info(message["content"])  # [해결] 이 부분이 누락되어 보이지 않았던 것입니다.
     else:
+        # 두 번째 메시지부터는 일반 채팅 메시지로 출력합니다.
         with st.chat_message(message["role"]):
             st.write(message["content"])
 

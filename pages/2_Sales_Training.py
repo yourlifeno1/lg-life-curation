@@ -37,7 +37,9 @@ def init_session_state(menu):
 def generate_step_specific_persona(menu):
     is_voc_phone = menu == "VOC해결(전화)"
     is_needs_finding = menu == "니즈파악 대장" # 니즈파악 단계 확인
-    
+
+    # 이름 생성 (전화일 때만 생성)
+    name = random.choice(["김지수", "이현우", "박서윤", "최민호"]) if is_voc_phone else ""
     gender = random.choice(["남성", "여성"])
     age_group = random.choice(["20대 후반", "30대 초반", "40대 중반", "50대 초반", "60대 이상"])
     residence = random.choice(["신축 아파트", "구축 빌라", "전원주택", "오피스텔", "리모델링 중인 아파트"])
@@ -50,6 +52,7 @@ def generate_step_specific_persona(menu):
     mood_detail = random.choice(MOOD_TYPES[mood_category])
     
     st.session_state.raw_persona_data = {
+        "name": name,
         "age_gender": f"{age_group} ({gender})",
         "companion": companion,
         "product": product,
@@ -91,9 +94,11 @@ if not st.session_state.scenario_ready:
         
         # 1. VOC(전화) 상황: 목소리와 감정 상태 강조
         if menu == "VOC해결(전화)":
+            # data['name']이 존재할 때 안전하게 출력되도록 구성합니다.
+            customer_name = data.get('name', '고객') # 혹시 이름이 없으면 '고객'으로 대체
             situation = (
-                f"📍 **상황 발생** : (따르릉...) {data['name']} ({data['age_gender']}) 고객의 전화입니다. "
-                f" 전화기 너머로 **{data['mood_detail']}**이 고스란히 느껴집니다."
+                f"📍 **상황 발생** : (따르릉...) {customer_name} ({data['age_gender']}) 고객의 전화입니다. "
+                f"전화기 너머로 **{data['mood_detail']}**이 고스란히 느껴집니다."
             )
         
         # 2. 라포/니즈파악 상황: 외양과 세부 제스처 강조

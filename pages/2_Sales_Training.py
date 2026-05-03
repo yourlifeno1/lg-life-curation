@@ -63,7 +63,8 @@ def generate_step_specific_persona(menu):
         # [니즈파악 미션 핵심] 니즈파악 단계에서는 제품명을 숨깁니다.
         display_product = "❓ 질문을 통해 확인하세요" if is_needs_finding else product
         info = f"1. 연령대(성별): {age_group} ({gender})\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 상담/구매 제품: {display_product}\n5. 인상 및 복장: {looks}, {mood_detail}"
-
+    return info
+    
 # --- 3. 메인 UI ---
 st.set_page_config(page_title="LG전자 실전 세일즈 훈련소", layout="centered")
 st.title("🏆 LG전자 실전 세일즈 훈련소")

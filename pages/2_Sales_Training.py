@@ -38,22 +38,29 @@ def generate_step_specific_persona(menu):
     is_voc_phone = menu == "VOC해결(전화)"
     is_needs_finding = menu == "니즈파악 대장" # 니즈파악 단계 확인
 
-    # 이름 생성 (전화일 때만 생성)
-    name = random.choice(["김지수", "이현우", "박서윤", "최민호"]) if is_voc_phone else ""
+    # [수정] 변수명을 current_name으로 통일하여 생성합니다.
+    # 전화 상황일 때만 이름을 생성하고, 그 외에는 빈 문자열을 할당합니다.
+    current_name = random.choice(["김지수", "이현우", "박서윤", "최민호"]) if is_voc_phone else ""
+    
     gender = random.choice(["남성", "여성"])
     age_group = random.choice(["20대 후반", "30대 초반", "40대 중반", "50대 초반", "60대 이상"])
     residence = random.choice(["신축 아파트", "구축 빌라", "전원주택", "오피스텔", "리모델링 중인 아파트"])
     companion = "2인 (부부 동반)" if not is_voc_phone and random.random() < 0.5 else "1인 방문"
+    
+    # ALL_CATEGORIES가 사전에 정의되어 있어야 합니다.
     product = random.choice(ALL_CATEGORIES.split(", "))
     looks = random.choice(["깔끔한 정장 차림", "편안한 트레이닝복", "비즈니스 캐주얼", "꾸안꾸 스타일", "등산복 차림"])
     
-    # 무드 카테고리 및 세부 태도 선택
+    # 무드 카테고리 및 세부 태도 선택 (MOOD_TYPES가 사전에 정의되어 있어야 함)
     mood_category = random.choice(list(MOOD_TYPES.keys()))
     mood_detail = random.choice(MOOD_TYPES[mood_category])
     
+    # [중요] 세션 상태에 모든 원본 데이터를 저장합니다. 
+    # 여기서 저장된 값이 나중에 '상황 발생' 문구 등에 사용됩니다.
     st.session_state.raw_persona_data = {
         "name": current_name,
         "age_gender": f"{age_group} ({gender})",
+        "residence": residence,
         "companion": companion,
         "product": product,
         "looks": looks,
@@ -62,12 +69,13 @@ def generate_step_specific_persona(menu):
     }
 
     if is_voc_phone:
-        name = random.choice(["김지수", "이현우", "박서윤", "최민호"])
+        # [수정] 중복된 이름 생성 코드를 삭제하고 이미 생성된 current_name을 사용합니다.
         info = f"1. 고객 이름: {current_name}\n2. 연령대(성별): {age_group} ({gender})\n3. 거주지: {residence}\n4. 구매 제품: {product}\n5. 고객 상태: {random.choice(VOC_TYPES)} 건 ({mood_detail})"
     else:
         # [니즈파악 미션 핵심] 니즈파악 단계에서는 제품명을 숨깁니다.
         display_product = "❓ 질문을 통해 확인하세요" if is_needs_finding else product
         info = f"1. 연령대(성별): {age_group} ({gender})\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 상담/구매 제품: {display_product}\n5. 인상 및 복장: {looks}, {mood_detail}"
+        
     return info
     
 # --- 3. 메인 UI ---

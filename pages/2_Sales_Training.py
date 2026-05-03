@@ -80,7 +80,7 @@ def generate_step_specific_persona(menu):
     
 # --- 3. 메인 UI ---
 st.set_page_config(page_title="LG전자 실전 세일즈 훈련소", layout="centered")
-st.title("🏆 LG전자 실전 세일즈 훈련소")
+st.markdown("### 🏆 LG전자 실전 세일즈 훈련소")
 
 menu = st.sidebar.selectbox("🎯 훈련 단계 선택", ["라포형성 달인", "니즈파악 대장", "클로징의 장인", "VOC해결(매장)", "VOC해결(전화)"])
 init_session_state(menu)

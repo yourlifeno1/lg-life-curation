@@ -2,6 +2,7 @@ import streamlit as st
 from huggingface_hub import InferenceClient
 from groq import Groq
 import io
+import re
 import random
 from streamlit_mic_recorder import mic_recorder
 
@@ -69,6 +70,20 @@ def init_session_state(menu):
         st.session_state.scenario_ready = False
         st.session_state.persona_info = None
         st.session_state.raw_persona_data = {}
+
+# --- [추가] 텍스트 정제 함수 (여기에 배치하세요) ---
+def clean_text(text):
+    # 1. 한자 제거
+    text = re.sub(r'[\u4e00-\u9fff]+', '', text)
+    
+    # 2. 불필요한 AI 자아 묘사나 시스템 용어 제거
+    system_patterns = ["공략 모드", "mode", "info를 통해 확인", "아흑"]
+    for pattern in system_patterns:
+        text = text.replace(pattern, "")
+        
+    # 3. 연속된 공백 및 불필요한 문장 부호 정리
+    text = text.replace("  ", " ").strip()
+    return text
 
 # --- 2. 페르소나 생성 엔진 ---
 def generate_step_specific_persona(menu_key):
@@ -243,7 +258,13 @@ if final_input:
             full_history = [{"role": "system", "content": sys_msg}] + cleaned_history
 
             try:
-                response = hf_client.chat_completion(full_history, max_tokens=500).choices[0].message.content
+                # [토큰 관리] max_tokens를 600으로 상향하여 문장 잘림 방지
+                raw_response = hf_client.chat_completion(full_history, max_tokens=600).choices[0].message.content
+                
+                # [텍스트 정제] 생성된 답변에서 한자 및 불필요한 시스템 용어 제거
+                # 앞서 정의한 clean_text 함수를 여기서 호출합니다.
+                response = clean_text(raw_response)
+                
                 # 상담원/매니저로 오해받을 수 있는 모든 태그 및 지칭 제거
                 response = response.replace("매니저:", "").replace("상담원:", "").replace("매니저님:", "").replace("고객님:", "").strip()
                 
@@ -251,7 +272,7 @@ if final_input:
                 st.rerun() 
             except Exception as e:
                 st.error(f"⚠️ 에러 발생: {e}")
-
+                
 # --- 8. 즐거운 세일즈 코칭 리포트 (엄격한 코칭 버전) ---
 st.write("---")
 

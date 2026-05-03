@@ -172,23 +172,53 @@ for i, message in enumerate(st.session_state.messages):
             st.write(message["content"])
 
 # --- 6. 입력 섹션 (채팅창 내 마이크 통합 버전) ---
-st.write("---")
+s# --- 6. 입력 섹션 (하단 고정 레이아웃) ---
 
-# 컬럼을 나누어 입력창과 마이크를 한 줄에 배치 (비율 조절 가능)
-col1, col2 = st.columns([0.85, 0.15])
+# 1. 하단 고정을 위한 CSS 주입
+st.markdown("""
+    <style>
+        /* 입력창 컨테이너 고정 스타일 */
+        .fixed-bottom {
+            position: fixed;
+            bottom: 30px;
+            left: 0;
+            right: 0;
+            background-color: white;
+            padding: 10px 20px;
+            z-index: 999;
+            border-top: 1px solid #ddd;
+        }
+        /* 하단 여백 확보 (메시지가 입력창에 가려지지 않게 함) */
+        .main .block-container {
+            padding-bottom: 120px;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-with col1:
-    # 텍스트 입력창 (엔터를 치면 제출됨)
-    chat_input = st.text_input("메시지를 입력하세요...", key="chat_text_input", placeholder="고객에게 할 말을 입력하세요.")
+# 2. 고정될 컨테이너 생성
+input_container = st.container()
 
-with col2:
-    # 마이크 아이콘만 표시되도록 조절 (just_once=True로 자동 업로드)
-    audio_info = mic_recorder(
-        start_prompt="🎤", 
-        stop_prompt="🛑", 
-        just_once=True, 
-        key='sales_mic'
-    )
+with input_container:
+    # HTML 클래스를 적용할 수 없으므로, 내부 컬럼 배치
+    col1, col2 = st.columns([0.82, 0.18], vertical_alignment="center")
+
+    with col1:
+        chat_input = st.text_input(
+            "메시지 입력", 
+            key="chat_text_input", 
+            placeholder="고객에게 할 말을 입력하세요.",
+            label_visibility="collapsed" 
+        )
+
+    with col2:
+        audio_info = mic_recorder(
+            start_prompt="🎤", 
+            stop_prompt="🛑", 
+            just_once=True, 
+            key='sales_mic'
+        )
+
+# (이후 final_input 처리 로직은 기존과 동일)
 
 final_input = ""
 

@@ -112,7 +112,7 @@ if final_input:
         with st.spinner("고객이 반응하는 중..."):
             sys_msg = f"""
             [CRITICAL RULE: 당신은 절대로 AI나 매니저가 아닙니다]
-            당신은 LG전자 베스트샵에 방문한 실제 '고객'과 '동반인'입니다.
+            당신은 매장에 방문한 실제 '고객'과 '동반인'입니다.
 
             1. **1인 2역 및 줄 바꿈 규칙 (필독)**: 
                - 동반 방문 시 [고객]과 [동반인]의 대사 사이에 반드시 **줄 바꿈(Enter)**을 넣으세요.
@@ -142,40 +142,3 @@ if final_input:
                 st.rerun() 
             except Exception as e:
                 st.error(f"⚠️ 에러 발생: {e}")
-
-# --- 8. 정교한 피드백 엔진 추가 ---
-st.write("---")
-if len(st.session_state.messages) > 3: # 최소 3회 이상 대화 시 활성화
-    if st.button("📊 상담 종료 및 실전 피드백 받기"):
-        with st.spinner("전문 코치가 대화 내용을 정밀 분석 중입니다..."):
-            coach_sys_msg = f"""
-            당신은 LG전자의 1등 세일즈 코치입니다. 사용자의 상담 능력을 분석하여 리포트를 작성하세요.
-            
-            [분석 기준]
-            1. 라포 형성: 고객의 복장, 표정 등 비언어적 요소를 캐치해 스몰토크를 시도했는가?
-            2. 니즈 파악: 개방형 질문으로 고객의 숨겨진 구매 의도나 불편함을 찾아냈는가?
-            3. 공감 및 경청: 고객(및 동반인)의 말에 적절한 리액션과 맞장구를 쳤는가?
-            
-            [출력 양식]
-            ## 📝 세일즈 코칭 리포트
-            - **상담 단계**: {menu}
-            - **종합 점수**: O/10점
-            
-            ### 💡 주요 분석
-            - **칭찬 포인트**: 사용자가 잘한 구체적인 문장을 인용하며 칭찬하세요.
-            - **아쉬운 포인트**: 개선이 필요한 부분을 짚어주고 대안 문장을 제시하세요.
-            
-            ### 🚀 다음 연습을 위한 팁
-            - 이 고객을 잡기 위해 다음엔 어떤 전략이 좋을지 한 줄 제안하세요.
-            """
-            
-            eval_history = [{"role": "system", "content": coach_sys_msg}] + st.session_state.messages
-            
-            try:
-                feedback = hf_client.chat_completion(eval_history, max_tokens=1000).choices[0].message.content
-                st.markdown(feedback)
-                if st.button("🔄 새로운 훈련 시작"):
-                    st.session_state.scenario_ready = False
-                    st.rerun()
-            except Exception as e:
-                st.error(f"피드백 생성 실패: {e}")

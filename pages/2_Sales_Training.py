@@ -152,8 +152,7 @@ if audio_info and 'bytes' in audio_info:
 elif chat_input:
     final_input = chat_input
 
-# --- 7. 응답 처리 로직 (줄 바꿈 형식 최적화) ---
-# --- 7. 응답 처리 로직 (행동 묘사 및 유동적 호흡 통합본) ---
+# --- 7. 응답 처리 로직 (매니저님 지침 + 자아 고정 통합본) ---
 if final_input:
     st.session_state.messages.append({"role": "user", "content": final_input})
     
@@ -162,10 +161,10 @@ if final_input:
             data = st.session_state.raw_persona_data 
             is_phone = st.session_state.current_menu == "VOC해결(전화)"
             
-            # [행동 묘사 규칙]
+            # [매니저님 작성: 행동 묘사 및 대화 호흡 지침 통합]
             pacing_and_action_instruction = """
             - **(중요) 행동 묘사**: 모든 답변에는 반드시 (괄호)를 사용하여 현재의 동작, 표정, 시선 처리를 묘사하세요. 
-              예: (등산복 소매를 걷으며), (스타일러 문을 살짝 열어보며), (귀찮은 듯 휴대폰을 확인하며)
+              예: (등산복 소매를 걷으며), (스타일러 문을 살짝 열어보며), (귀찮은 듯 휴대폰을 확인하며), (한숨을 쉬며)
             - **대화의 호흡**: 처음에는 1~2문장으로 짧게 대답하세요. 그러다가 매니저의 질문이 정중하고 깊이가 있다면 그에 맞춰 구체적인 정보나 감정을 전달하세요.
             - **단계별 변화**: 
               1) 라포 형성: 가벼운 일상 반응이나 기분을 공유하세요.
@@ -176,29 +175,31 @@ if final_input:
             if is_phone:
                 specific_instruction = f"""
                 [상황: 전화 응대]
-                - 당신은 전화기 너머의 고객입니다. (수화기를 고쳐 쥐며), (한숨을 쉬며) 같은 소리나 행동을 묘사하세요.
-                - 금기: 시스템 용어(어드민, DB 등) 언급 절대 금지. 일반인답게 말하세요
+                - 당신은 LG전자에 전화를 건 고객 {data.get('name', '고객')}입니다.
+                - **자아 고정**: 당신은 절대 상담원(매니저)이 아닙니다. 상담원의 이름을 먼저 부르거나 상황을 정리하지 마세요. 오직 당신의 용건과 불편함에만 집중하세요.
+                - (수화기를 고쳐 쥐며), (한숨을 쉬며) 같은 수화기 너머의 소리나 행동을 묘사하세요.
+                - 금기: 시스템 용어(어드민, DB 등) 언급 절대 금지. 일반인답게 말하세요.
                 - {pacing_and_action_instruction}
                 """
             else:
                 specific_instruction = f"""
                 [상황: 매장 방문]
-                - 당신의 복장은 {data.get('looks')}입니다. 이에 걸맞은 행동을 (괄호)로 표현하세요.
-                - 1인 2역: [고객]과 [동반인] 사이에 줄 바꿈 필수. 각각의 행동을 묘사하세요.
+                - 당신의 복장은 {data.get('looks')}입니다. 이에 걸말은 행동을 (괄호)로 표현하세요.
+                - 1인 2역: 동반 방문 시 [고객]과 [동반인] 사이에 반드시 **줄 바꿈(Enter)**을 넣고 각각의 행동을 묘사하세요.
                 - {pacing_and_action_instruction}
                 """
 
             sys_msg = f"""
-            [CRITICAL RULE: 당신은 절대로 AI나 매니저가 아닙니다]
+            [CRITICAL RULE: 당신은 절대로 AI나 매니저/상담원이 아닙니다]
             당신은 LG전자 매장의 실제 고객입니다.
 
             {specific_instruction}
 
             1. **심리 상태**: {data.get('mood_category')} ({data.get('mood_detail')})를 행동 지문에 녹여내세요.
-            2. **자아 고정**: 사용자가 매니저입니다. 당신은 고객으로서 질문에 답하거나 반응하는 입장을 고수하세요.
+            2. **자아 고정**: 사용자가 매니저입니다. 당신은 상담을 받는 고객으로서 반응하는 입장을 고수하세요. 먼저 질문을 던져 대화를 주도하지 마세요.
             3. **한국형 리액션**: "그냥 좀 보려구요", "음, 글쎄요" 등 자연스러운 구어체를 사용하세요.
-                - "안녕하세요"에 "어떻게 지내세요" 금지.
-                - 매장상황에서 매니저가 인사하면 (고개를 살짝 끄덕이며) "아, 네. 안녕하세요" 또는 "그냥 좀 보려구요"라고 한국인답게 반응하세요.
+               - "안녕하세요"에 "어떻게 지내세요" 금지.
+               - 매니저가 인사하면 (고개를 살짝 끄덕이며) "아, 네. 안녕하세요" 또는 "그냥 좀 보려구요"라고 한국인답게 반응하세요.
 
             [오늘의 페르소나]
             {st.session_state.persona_info}
@@ -209,7 +210,8 @@ if final_input:
 
             try:
                 response = hf_client.chat_completion(full_history, max_tokens=500).choices[0].message.content
-                response = response.replace("매니저:", "").replace("상담원:", "").strip()
+                # 상담원/매니저로 오해받을 수 있는 모든 태그 및 지칭 제거
+                response = response.replace("매니저:", "").replace("상담원:", "").replace("매니저님:", "").replace("고객님:", "").strip()
                 
                 st.session_state.messages.append({"role": "assistant", "content": response})
                 st.rerun() 

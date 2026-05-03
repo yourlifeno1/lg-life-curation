@@ -8,7 +8,7 @@ import random
 import time
 from streamlit_mic_recorder import mic_recorder
 
-# [픽스] 가전 카테고리 전체 범위 (매니저님이 직접 관리 가능)
+# --- [수정] 중앙 집중식 가전 카테고리 관리 ---
 ALL_CATEGORIES = (
     "TV, 냉장고, 세탁기, 건조기, 워시타워, 에어컨, 공기청정기, 청소기, 의류관리기, "
     "식기세척기, 제습기, 사운드바, 스탠바이미, 프로젝터, 노트북, 김치냉장고, "
@@ -40,28 +40,45 @@ def get_user_detailed_address(lat, lon):
         return "서울특별시 도봉구 쌍문1동"
 
 # --- 3. [수정] 가전 전체 범위 및 동반인 포함 페르소나 생성 ---
-def generate_dynamic_persona(region, menu, category_list):
+def generate_dynamic_persona(region, menu):
     """
-    가전 전체 카테고리를 반영하고 부부/가족 동반 여부를 포함한 페르소나를 생성합니다.
+    LG전자 베스트샵 실전 세일즈를 위한 페르소나를 생성합니다.
     """
-    is_closing = "클로징" in menu
-    # [로직 픽스] 동반인 등장 확률 40% (부부, 가족 등 다양화)
+    # [로직] 동반인 등장 확률 설정 (40%)
     has_companion = random.random() < 0.4
     companion_type = random.choice(["부부 동반", "가족 동반(아이 포함)", "부모님 동반"]) if has_companion else "1인 방문"
     
-    prompt = f"""
-    당신은 LG전자 베스트샵 고객 페르소나 생성기입니다.
-    지역({region}), 단계({menu})에 맞는 성인 고객 페르소나를 생성하세요.
+    # [로직] 상담 단계에 따른 목표(Goal) 가이드
+    goal_guide = "친밀감 형성" if "라포" in menu else "최종 혜택 확인 및 결제 결정"
     
-    [필수 조건]
-    - 방문 형태: {companion_type} (상담 시 동반인의 의견이나 행동을 반영할 것)
-    - 관심 제품: {category_list} 중 하나를 무작위로 선택하여 구체적 상황 설정
-    - 출력 항목: persona, age(19-70), goal(구매/상담 목적), stance(성격 및 동반인과의 관계)[cite: 3]
+    prompt = f"""
+    당신은 LG전자 베스트샵 고객 페르소나 생성기입니다. 
+    지역({region})과 상담 단계({menu})에 맞는 성인 고객을 1명(또는 1팀) 생성하세요.
+
+    [필수 지침]
+    1. 방문 형태: {companion_type}를 반드시 반영하세요.
+    2. 제품 범위: {ALL_CATEGORIES} 중 한 가지 카테고리를 무작위로 선택하세요.
+    3. 금기 사항: 설명이나 인사말 없이 아래 항목만 정확히 출력하세요.
+
+    [출력 항목]
+    - persona: (예: 신혼 가전을 보러 온 예비 부부)
+    - age: (19-70 사이 숫자)
+    - goal: ({goal_guide}를 포함한 구체적 구매 목적)
+    - stance: (고객의 성격 및 동반인과의 의사결정 주도권 관계)
     """
+    
     try:
-        return hf_client.chat_completion([{"role": "system", "content": prompt}], max_tokens=250).choices[0].message.content
-    except:
-        return f"{region} 지역의 {companion_type} 고객 (관심제품: 냉장고)"
+        # 이 부분은 실제 hf_client.chat_completion 호출부로 대체됩니다.
+        response = hf_client.chat_completion([{"role": "system", "content": prompt}], max_tokens=250)
+        return response.choices[0].message.content
+    except Exception:
+        return f"현재 {region} 매장에 방문한 {companion_type} 고객입니다."
+
+# --- 구현 지침 ---
+# 1. ALL_CATEGORIES 변수: 제품군이 늘어날 경우 이 변수만 수정하면 전체 로직에 반영됩니다.
+# 2. companion_type: random.random()을 사용하여 매번 훈련할 때마다 고객 구성이 달라져 지루함을 방지합니다.
+# 3. 프롬프트 구조: 이미지에서 보였던 'AI의 자기소개'나 '코드 노출'을 막기 위해 [필수 지침]을 강화했습니다.
+
 
 # --- 4. 메인 UI 및 세션 관리 ---
 st.set_page_config(page_title="LG전자 실전 세일즈 훈련소", layout="centered")

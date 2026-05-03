@@ -174,18 +174,7 @@ for i, message in enumerate(st.session_state.messages):
 
 # --- 6. 입력 섹션 ---
 st.write("---")
-
-# 3개의 컬럼을 생성하여 가운데에 마이크 배치
-col1, col2, col3 = st.columns([1.5, 1, 1.5])
-with col2:
-    # 🎤 마이크 버튼 중앙 배치
-    audio_info = mic_recorder(
-        start_prompt="🎤 응대 시작", 
-        stop_prompt="🛑 완료", 
-        just_once=True, 
-        key='sales_mic'
-    )
-
+audio_info = mic_recorder(start_prompt="🎤 음성 응대 (마이크)", stop_prompt="🛑 완료", just_once=True, key='sales_mic')
 chat_input = st.chat_input("메시지를 입력하세요...")
 
 final_input = ""

@@ -120,7 +120,30 @@ if final_input:
                  [고객]: (제품을 보며) "어우, 디자인 예쁘네요."
                  [동반인]: (가격표를 확인하며) "여보, 우리 예산 생각해야지."
             2. **대화의 호흡**: 전체 답변은 화자당 1문장씩, 총 2문장 내외로 매우 짧게 대답하세요. 정보는 조금씩만 노출하세요.
-            3. **자아 고정**: 사용자가 매니저입니다. 당신은 응대를 받는 입장의 자연스러운 한국인 말투를 사용하세요.
+            3. **한국형 리액션 (추가)**: "어떻게 지내세요?" 같은 어색한 번역투는 절대 쓰지 마세요. 
+               - 매니저가 인사하면 (고개를 살짝 끄덕이며) "아, 네. 안녕하세요" 또는 "그냥 좀 보려구요"라고 한국인답게 반응하세요.
+            4. **자아 고정**: 사용자가 매니저입니다. 당신은 응대를 받는 고객 입장이며, 절대 먼저 매니저처럼 질문하지 마세요.
+
+            [오늘의 페르소나]
+            {st.session_state.persona_info}
+
+            [응대 지침]
+            - (괄호 지문)으로 구체적 동작 묘사.
+            - 단계({menu})에 맞춰 초기에는 방어적으로 반응하세요.
+            """
+            
+            cleaned_history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages if m.get("content")]
+            full_history = [{"role": "system", "content": sys_msg}] + cleaned_history
+
+            try:
+                response = hf_client.chat_completion(full_history, max_tokens=500).choices[0].message.content
+                # 기존 '매니저:' 지칭 제거 로직 유지
+                response = response.replace("매니저:", "").replace("매니저 :", "").strip()
+                
+                st.session_state.messages.append({"role": "assistant", "content": response})
+                st.rerun() 
+            except Exception as e:
+                st.error(f"⚠️ 에러 발생: {e}")
 
             [오늘의 페르소나]
             {st.session_state.persona_info}

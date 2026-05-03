@@ -131,7 +131,7 @@ if not st.session_state.scenario_ready:
         
         # [수정 포인트] 해당 단계의 가이드 문구 가져오기
         guide = GUIDE_TEXTS.get(menu_key, {})
-        guide_msg = f"🏟️ **{guide['title']}**\n\n*{guide['slogan']}*\n\n{guide['desc']}\n\n---"
+        guide_msg = f"**{guide['title']}**\n\n*{guide['slogan']}*\n\n{guide['desc']}\n\n---"
         
         # 1. VOC(전화) 상황
         if menu_key == "VOC (전화)":

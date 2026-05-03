@@ -153,41 +153,52 @@ elif chat_input:
     final_input = chat_input
 
 # --- 7. 응답 처리 로직 (줄 바꿈 형식 최적화) ---
+# --- 7. 응답 처리 로직 (매니저님 수정 지침 반영 버전) ---
 if final_input:
     st.session_state.messages.append({"role": "user", "content": final_input})
     
     with st.chat_message("assistant"):
         with st.spinner("고객이 반응하는 중..."):
-            # [수정 포인트] 최신 세션 데이터를 다시 가져와서 data 변수에 할당합니다.
             data = st.session_state.raw_persona_data 
+            is_phone = st.session_state.current_menu == "VOC해결(전화)"
             
-            # [안전 장치] 만약 데이터가 없을 경우를 대비해 기본값을 설정합니다.
-            mood_cat = data.get('mood_category', '일반적인')
-            mood_det = data.get('mood_detail', '차분한 태도')
-            
-            # 기존 sys_msg에 리액션 규칙 3번과 4번을 추가하여 보강했습니다.
+            # [매니저님이 수정해주신 유동적 호흡 지침] 
+            pacing_instruction = """
+            - **대화의 호흡**: 처음에는 1~2문장으로 짧게 대답하세요. 그러다가 매니저의 질문이 정중하고 깊이가 있다면 그에 맞춰 구체적인 정보나 감정을 전달하세요.
+            - **단계별 변화**: 
+              1) 라포 형성: 매니저의 스몰토크에 맞춰 가벼운 일상 반응이나 기분을 공유하세요.
+              2) 니즈 파악: 매니저가 질문을 잘 던지면, 현재 겪고 있는 불편함이나 주거 환경에 대해 조금 더 상세히(2~3문장) 이야기하세요.
+              3) 전화 VOC: 용건 중심이되, 감정이 고조되면 말이 빨라지거나 길어질 수 있습니다.
+            """
+
+            # 상황별 가변 지침 구성
+            if is_phone:
+                specific_instruction = f"""
+                [상황: 전화 응대]
+                - 당신은 전화로 문의 중인 실제 고객 '{data.get('name', '고객')}'입니다.
+                - 금기: 시스템 용어(어드민, DB 등) 언급 절대 금지. 일반인답게 말하세요.
+                - {pacing_instruction}
+                """
+            else:
+                specific_instruction = f"""
+                [상황: 매장 방문]
+                - 당신은 LG 매장에 방문한 '고객'과 '동반인'입니다.
+                - 1인 2역: 동반 방문 시 [고객]과 [동반인] 사이에 반드시 줄 바꿈(Enter)을 넣으세요.
+                - {pacing_instruction}
+                """
+
             sys_msg = f"""
             [CRITICAL RULE: 당신은 절대로 AI나 매니저가 아닙니다]
-            당신은 매장에 방문한 실제 '고객'과 '동반인'입니다.
+            
+            {specific_instruction}
 
-            1. **현재 당신의 심리 상태**: {data['mood_category']} ({data['mood_detail']})
-               - 이 기분에 맞춰 대화 톤을 조절하세요. (예: 급하면 단답형, 신중하면 질문 공세)
-            2. **1인 2역 및 줄 바꿈 규칙**: 
-               - 동반 방문 시 [고객]과 [동반인]의 대사 사이에 반드시 **줄 바꿈(Enter)**을 넣으세요.
-               - 형식 예시:
-                 [고객]: (제품을 보며) "어우, 디자인 예쁘네요."
-                 [동반인]: (가격표를 확인하며) "여보, 우리 예산 생각해야지."
-            3. **대화의 호흡**: 전체 답변은 화자당 1문장씩 매우 짧게 대답하세요.
-            4. **한국형 리액션 (추가)**: "어떻게 지내세요?" 같은 어색한 번역투는 절대 쓰지 마세요. 
-               - 매니저가 인사하면 (고개를 살짝 끄덕이며) "아, 네. 안녕하세요" 또는 "그냥 좀 보려구요"라고 한국인답게 반응하세요.
-            5. **자아 고정**: 사용자가 매니저입니다. 당신은 응대를 받는 입장이며, 절대 먼저 매니저처럼 질문하지 마세요.
-
+            1. **심리 상태**: {data.get('mood_category')} ({data.get('mood_detail')}) 상태를 말투에 반영하세요.
+            2. **한국형 리액션**: "안녕하세요"에 "어떻게 지내세요" 금지. "아 네, 안녕하세요" 혹은 상황에 맞게 반응하세요.
+                - 매니저가 인사하면 (고개를 살짝 끄덕이며) "아, 네. 안녕하세요" 또는 "그냥 좀 보려구요"라고 한국인답게 반응하세요.
+            3. **자아 고정**: 사용자가 매니저입니다. 당신은 대접받는 고객임을 잊지 마세요.
+            
             [오늘의 페르소나]
             {st.session_state.persona_info}
-
-            [응대 지침]
-            - (괄호 지문)으로 구체적 동작 묘사.
-            - 단계({menu})에 맞춰 초기에는 방어적으로 반응하세요.
             """
             
             cleaned_history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages if m.get("content")]
@@ -195,10 +206,9 @@ if final_input:
 
             try:
                 response = hf_client.chat_completion(full_history, max_tokens=500).choices[0].message.content
-                # 기존 '매니저:' 지칭 제거 로직 유지
-                response = response.replace("매니저:", "").replace("매니저 :", "").strip()
+                response = response.replace("매니저:", "").replace("상담원:", "").strip()
                 
                 st.session_state.messages.append({"role": "assistant", "content": response})
                 st.rerun() 
             except Exception as e:
-                st.error(f"⚠️ 에러 발생: {e}")
+                st.error(f"⚠️ 응답 생성 중 에러 발생: {e}")

@@ -9,5 +9,4 @@ huggingface_hub
 groq
 gTTS
 streamlit-mic-recorder
-datasets
 geopy

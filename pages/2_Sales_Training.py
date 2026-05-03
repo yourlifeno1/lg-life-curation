@@ -1,11 +1,7 @@
 import streamlit as st
 from huggingface_hub import InferenceClient
 from groq import Groq
-from gtts import gTTS
-import base64
 import io
-import re
-from pydub import AudioSegment
 from streamlit_mic_recorder import mic_recorder
 
 # --- 1. 보안 설정 및 초기화 ---
@@ -18,113 +14,89 @@ except Exception as e:
     st.error(f"⚠️ Secrets 설정 확인 필요: {e}")
     st.stop()
 
-# --- 2. 시나리오 설정 ---
+# --- 2. 5가지 시뮬레이션 시나리오 설정 ---
 PERSONA_PROMPTS = {
-    "1. 라포형성의 달인": {"gender": "female", "age": "young", "desc": "30대 예비 신부. 처음엔 냉소적임.", "context": "매장 입구"},
-    "2. 니즈파악의 달인": {"gender": "male", "age": "middle", "desc": "50대 가장. 전기료에 민감함.", "context": "에어컨 전시존"},
-    "3. 클로징의 장인": {"gender": "female", "age": "middle", "desc": "40대 주부. 혜택을 꼼꼼히 따짐.", "context": "상담 테이블"},
-    "4. VOC 해결 박사 (매장)": {"gender": "male", "age": "young", "desc": "화가 난 30대 남성. 단호함.", "context": "안내 데스크"},
-    "5. VOC 해결 박사 (전화)": {"gender": "female", "age": "young", "desc": "배송 지연에 화가 난 직장인.", "context": "전화 상담"}
+    "1. 라포형성의 달인": {
+        "desc": "30대 예비 신부. 혼수 가전 쇼핑 중. 디자인에 민감함.",
+        "type": "visit",
+        "detail": "30대 여성, 예비 신랑과 함께 팔짱을 끼고 매장을 둘러보는 중"
+    },
+    "2. 니즈파악의 달인": {
+        "desc": "50대 남성 가장. 에어컨 교체 희망. 실용성과 가성비 중시.",
+        "type": "visit",
+        "detail": "50대 남성, 혼자 방문하여 에어컨 리플릿을 꼼꼼히 읽고 있는 모습"
+    },
+    "3. 클로징의 장인": {
+        "desc": "40대 여성 고객. 결정 직전이지만 사은품이나 추가 할인에 민감함.",
+        "type": "visit",
+        "detail": "40대 여성, 초등학생 자녀와 함께 상담 테이블에 앉아 견적서를 뚫어지게 보는 중"
+    },
+    "4. VOC 해결 박사 (매장)": {
+        "desc": "30대 남성. 건조기 소음 문제로 화가 난 상태.",
+        "type": "visit",
+        "detail": "30대 남성, 굳은 표정으로 매장 안내 데스크를 향해 성큼성큼 걸어오는 모습"
+    },
+    "5. VOC 해결 박사 (전화)": {
+        "desc": "전화로 배송 지연 항의를 하는 고객.",
+        "type": "phone",
+        "detail": "(따르릉... 따르릉... 전화벨 소리가 울립니다)"
+    }
 }
 
-# --- 3. 핵심 유틸리티 함수 ---
-
-def filter_text_for_speech(text):
-    """지문(괄호)을 제거합니다."""
-    return re.sub(r'\([^)]*\)|\[[^]]*\]', '', text).strip()
-
-def process_voice(audio_fp, gender, age):
-    """pydub을 이용한 피치 변조"""
-    audio_fp.seek(0)
-    sound = AudioSegment.from_file(audio_fp, format="mp3")
-    
-    # 변조 수치 (남성은 낮게, 여성은 약간 높게)
-    octaves = -0.3 if gender == "male" else 0.05
-    if age == "middle": octaves -= 0.1
-    
-    new_sample_rate = int(sound.frame_rate * (2.0 ** octaves))
-    processed = sound._spawn(sound.raw_data, overrides={'frame_rate': new_sample_rate})
-    return processed.set_frame_rate(sound.frame_rate)
-
-def speak(text, persona_name):
-    """변조된 음성을 HTML5 오디오로 출력합니다."""
-    if not text: return
-    p = PERSONA_PROMPTS[persona_name]
-    clean_text = filter_text_for_speech(text)
-    
-    try:
-        # gTTS 생성
-        tts = gTTS(text=clean_text, lang='ko')
-        temp_fp = io.BytesIO()
-        tts.write_to_fp(temp_fp)
-        
-        # 음성 변조
-        processed_sound = process_voice(temp_fp, p["gender"], p["age"])
-        
-        # 재생용 데이터 인코딩
-        out_fp = io.BytesIO()
-        processed_sound.export(out_fp, format="mp3")
-        b64 = base64.b64encode(out_fp.getvalue()).decode()
-        
-        # [핵심 수정] 브라우저 호환성을 위한 오디오 태그
-        audio_tag = f"""
-            <audio autoplay="true">
-                <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
-            </audio>
-        """
-        st.markdown(audio_tag, unsafe_allow_html=True)
-    except Exception as e:
-        st.error(f"TTS 재생 실패: {e}")
-
-# --- 4. UI 레이아웃 및 로직 ---
+# --- 3. UI 및 메인 로직 ---
 st.set_page_config(page_title="LG전자 세일즈 훈련소", layout="centered")
-st.title("🏆 LG전자 세일즈 음성 훈련소")
+st.title("🏆 LG전자 세일즈 텍스트 훈련소")
 
 menu = st.sidebar.selectbox("🎯 훈련 시나리오 선택", list(PERSONA_PROMPTS.keys()))
 
+# 세션 상태 초기화
 if "messages" not in st.session_state or st.session_state.get("current_menu") != menu:
     st.session_state.messages = []
     st.session_state.current_menu = menu
     st.session_state.first_greet = True
 
-# 대화 기록 표시
+# 대화 내용 표시
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
 
-# 첫 인사 로직
+# --- [수정] 고객의 등장/전화벨 묘사 ---
 if st.session_state.first_greet:
     p = PERSONA_PROMPTS[menu]
-    sys_msg = f"당신은 {p['desc']}입니다. {p['context']} 상황에 맞는 첫 마디를 (행동 지문)과 함께 한 문장으로 말하세요."
-    first_resp = hf_client.chat_completion([{"role": "system", "content": sys_msg}], max_tokens=100).choices[0].message.content
+    # 매장 방문과 전화 상황을 구분하여 묘사
+    appearance_desc = f"📍 **상황 발생** : {p['detail']}"
     
-    st.session_state.messages.append({"role": "assistant", "content": first_resp})
+    st.session_state.messages.append({"role": "assistant", "content": appearance_desc})
     with st.chat_message("assistant"):
-        st.write(first_resp)
-    speak(first_resp, menu) # 음성 출력
+        st.info(appearance_desc)
     st.session_state.first_greet = False
 
-# 마이크 입력 및 대화 처리
+# --- 입력 섹션 (마이크 & 텍스트) ---
 st.write("---")
-audio_info = mic_recorder(start_prompt="🎤 말씀하세요", stop_prompt="🛑 완료", just_once=True, key='recorder')
+audio_info = mic_recorder(start_prompt="🎤 응대 시작하기 (마이크)", stop_prompt="🛑 녹음 완료", just_once=True, key='recorder')
 
+user_text = ""
 if audio_info and 'bytes' in audio_info:
-    with st.spinner("분석 중..."):
+    with st.spinner("매니저님의 음성을 분석 중..."):
         audio_file = io.BytesIO(audio_info['bytes'])
         audio_file.name = "audio.wav"
         user_text = groq_client.audio.transcriptions.create(file=audio_file, model="whisper-large-v3", language="ko", response_format="text")
 
-    if user_text:
-        st.session_state.messages.append({"role": "user", "content": user_text})
-        with st.chat_message("user"):
-            st.write(user_text)
+chat_input = st.chat_input("또는 여기에 직접 입력하세요")
+final_prompt = user_text if user_text else chat_input
 
-        with st.chat_message("assistant"):
+if final_prompt:
+    st.session_state.messages.append({"role": "user", "content": final_prompt})
+    with st.chat_message("user"):
+        st.write(final_prompt)
+
+    with st.chat_message("assistant"):
+        with st.spinner("고객이 반응합니다..."):
             p = PERSONA_PROMPTS[menu]
-            history = [{"role": "system", "content": f"{p['desc']} 지침: (표정/행동) 지문을 괄호 안에 포함하여 짧게 답할 것."}] + st.session_state.messages
+            # 지침: 매니저의 첫 인사에 따라 적절한 고객 반응 생성
+            history = [{"role": "system", "content": f"당신은 {p['desc']}입니다. 반드시 (행동/표정) 지문을 포함하여 실제 고객처럼 대답하세요."}] + st.session_state.messages
             response = hf_client.chat_completion(history, max_tokens=150).choices[0].message.content
             
             st.write(response)
-            speak(response, menu) # 음성 출력
             st.session_state.messages.append({"role": "assistant", "content": response})
-        st.rerun()
+    st.rerun()

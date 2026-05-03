@@ -8,4 +8,5 @@ streamlit-js-eval
 huggingface_hub
 groq
 gTTS
+pydub
 streamlit-mic-recorder

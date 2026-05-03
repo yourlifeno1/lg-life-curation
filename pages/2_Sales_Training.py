@@ -128,7 +128,16 @@ if final_input:
                - [동반인]: (가격표를 힐끗 보더니 미간을 찌푸리며) "예쁘긴 한데.. 생각보다 예산이 좀 넘네."
             5. **단계별 페르소나**: {menu} 단계에 맞춰, 상담 초기엔 다소 방어적이다가 결정 단계에선 실질적인 혜택을 따지세요.
             """
-            history = [{"role": "system", "content": sys_msg}] + st.session_state.messages
-            response = hf_client.chat_completion(history, max_tokens=400).choices[0].message.content
-            st.session_state.messages.append({"role": "assistant", "content": response})
-    st.rerun()
+            cleaned_history = [{"role": m["role"], "content": m["content"]} 
+                               for m in st.session_state.messages if m.get("content")]
+            full_history = [{"role": "system", "content": sys_msg}] + cleaned_history
+
+            try:
+                response_obj = hf_client.chat_completion(
+                    full_history, max_tokens=500, timeout=30
+                )
+                response = response_obj.choices[0].message.content
+                st.session_state.messages.append({"role": "assistant", "content": response})
+                st.rerun() 
+            except Exception as e:
+                st.error(f"⚠️ 에러 발생: {e}")

@@ -57,11 +57,12 @@ def generate_step_specific_persona(menu):
     }
 
     if is_voc_phone:
-        info = f"1. 고객: {age_group}({gender})\n2. 거주: {residence}\n3. 제품: {product}\n4. 상태: {mood_category} ({mood_detail})"
+        name = random.choice(["김지수", "이현우", "박서윤", "최민호"])
+        info = f"1. 고객 이름: {name}\n2. 연령대(성별): {age_group} ({gender})\n3. 거주지: {residence}\n4. 구매 제품: {product}\n5. 고객 상태: {random.choice(VOC_TYPES)} 건 ({mood_detail})"
     else:
-        info = f"1. 고객: {age_group}({gender})\n2. 복장: {looks}\n3. 동반: {companion}\n4. 태도: {mood_category} ({mood_detail})"
-        
-    return info
+        # [니즈파악 미션 핵심] 니즈파악 단계에서는 제품명을 숨깁니다.
+        display_product = "❓ 질문을 통해 확인하세요" if is_needs_finding else product
+        info = f"1. 연령대(성별): {age_group} ({gender})\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 상담/구매 제품: {display_product}\n5. 인상 및 복장: {looks}, {mood_detail}"
 
 # --- 3. 메인 UI ---
 st.set_page_config(page_title="LG전자 실전 세일즈 훈련소", layout="centered")
@@ -81,6 +82,9 @@ if not st.session_state.scenario_ready:
         # 페르소나 생성 및 데이터 추출
         st.session_state.persona_info = generate_step_specific_persona(menu)
         data = st.session_state.raw_persona_data
+
+        #니즈파악 단계라면 제품명을 언급하지 않음
+        product_desc = "관심 제품" if menu == "니즈파악 대장" else data['product']
         
         # 1. VOC(전화) 상황: 목소리와 감정 상태 강조
         if menu == "VOC해결(전화)":

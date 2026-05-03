@@ -88,7 +88,6 @@ for message in st.session_state.messages:
 if st.session_state.first_greet:
     with st.spinner("현장 상황 구성 중..."):
         p_data = st.session_state.persona_info
-        full_address = get_user_detailed_address()
         
         # 훈련 메뉴에 따른 상황 분기 (방문 vs 전화)
         is_phone = "전화" in menu

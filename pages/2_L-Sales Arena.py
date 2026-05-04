@@ -162,11 +162,19 @@ def generate_step_specific_persona(menu_key):
     companion = "2인 (부부 동반)" if not is_voc_phone and random.random() < 0.5 else "1인 방문"
     product = random.choice(ALL_CATEGORIES.split(", "))
     looks = random.choice(["깔끔한 정장 차림", "편안한 트레이닝복", "비즈니스 캐주얼", "꾸안꾸 스타일", "등산복 차림"])
+
+    # [수정 포인트] VOC 상황에 따른 무드 카테고리 엄격 필터링
+    mood_options = list(MOOD_TYPES.keys())
+    
+    # VOC 상황(매장 또는 전화)이라면 부적절한 두 가지 무드를 제외합니다.
+    if is_voc_store or is_voc_phone:
+        exclude_moods = ["긍정적 & 여유로운", "피로함 & 결정 장애"]
+        mood_options = [m for m in mood_options if m not in exclude_moods]
     
     mood_category = random.choice(list(MOOD_TYPES.keys()))
     mood_detail = random.choice(MOOD_TYPES[mood_category])
 
-    # [수정] VOC 유형을 미리 뽑아둡니다.
+    # VOC 유형을 미리 뽑아둡니다.
     voc_type = random.choice(VOC_TYPES)
     
     st.session_state.raw_persona_data = {

@@ -336,6 +336,8 @@ if final_input:
                     frequency_penalty=0.8, # 반복 문구 강력 억제
                     top_p=0.9
                 ).choices.message.content
+
+                raw_response = raw_output.choices[0].message.content
                 
                 response = clean_text(raw_response)
                 for tag in ["매니저:", "상담원:", "고객:", "AI:", "시스템:"]:

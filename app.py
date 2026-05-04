@@ -358,7 +358,8 @@ def show_trend_section():
         
 # --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")
-st.title("LG Life Curation")
+
+st.markdown("### LG Life Curation")
 
 loc = get_geolocation()
 

@@ -157,7 +157,7 @@ def generate_step_specific_persona(menu_key):
 
     current_name = random.choice(["김지수", "이현우", "박서윤", "최민호"]) if is_voc_phone else ""
     gender = random.choice(["남성", "여성"])
-    age_group = random.choice(["20대 후반", "30대 초반", "30대 후반", , "40대 초반", "40대 후반", "50대 초반", "50대 후반", "60대 이상"])
+    age_group = random.choice(["20대 후반", "30대 초반", "30대 후반", "40대 초반", "40대 후반", "50대 초반", "50대 후반", "60대 이상"])
     residence = random.choice(["신축 아파트", "아파트","빌라", "전원주택", "단독주택","오피스텔", "리모델링 중인 아파트"])
     if is_voc_phone:
         companion = "1인 (전화 상담)"

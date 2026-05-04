@@ -243,9 +243,8 @@ if not st.session_state.scenario_ready:
         
         # 2. 라포/니즈파악 상황
         elif any(x in menu_key for x in ["라포형성", "니즈파악"]):
-            # [수정 핵심] 니즈파악 단계일 때만 제품명을 '특정 가전'으로 치환
             display_product_in_sit = "특정 가전" if menu_key == "니즈파악" else data['product']
-            
+    
             situation = (
                 f"📍 **상황 발생** : {data['age_gender']} 고객이 {data['companion']}으로 매장 입구에 들어섭니다. "
                 f"{data['looks']} 차림의 고객은 **{data['mood_category']}**한 분위기를 풍기며, "

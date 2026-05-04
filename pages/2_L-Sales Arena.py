@@ -210,7 +210,6 @@ if st.session_state.persona_info:
     st.sidebar.info(st.session_state.persona_info)
 
 # --- 4. 시나리오 구성 ---
-# --- 4. 시나리오 구성 ---
 if not st.session_state.scenario_ready:
     with st.status("🚀 시나리오 준비 중...", expanded=False):
         st.session_state.persona_info = generate_step_specific_persona(menu_key)

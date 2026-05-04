@@ -177,7 +177,7 @@ def generate_step_specific_persona(menu_key):
         "product": product,
         "looks": looks,
         "mood_category": mood_category,
-        "mood_detail": mood_detail
+        "mood_detail": mood_detail,
         "voc_type": voc_type # [추가] raw 데이터에도 저장
     }
 

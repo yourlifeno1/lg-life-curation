@@ -157,9 +157,14 @@ def generate_step_specific_persona(menu_key):
 
     current_name = random.choice(["김지수", "이현우", "박서윤", "최민호"]) if is_voc_phone else ""
     gender = random.choice(["남성", "여성"])
-    age_group = random.choice(["20대 후반", "30대 초반", "40대 중반", "50대 후반", "60대 이상"])
+    age_group = random.choice(["20대 후반", "30대 초반", "30대 후반", , "40대 초반", "40대 후반", "50대 초반", "50대 후반", "60대 이상"])
     residence = random.choice(["신축 아파트", "아파트","빌라", "전원주택", "단독주택","오피스텔", "리모델링 중인 아파트"])
-    companion = "2인 (부부 동반)" if not is_voc_phone and random.random() < 0.5 else "1인 방문"
+    if is_voc_phone:
+        companion = "1인 (전화 상담)"
+    else:
+        # 확률적으로 1인 방문 50%, 2인 방문 상황들 50%
+        companion_options = ["1인 방문", "2인 (부부 동반)", "2인 (자녀 동반)", "2인 (지인 동반)"]
+        companion = random.choices(companion_options, weights=[50, 20, 15, 15])[0]
     product = random.choice(ALL_CATEGORIES.split(", "))
     looks = random.choice(["깔끔한 정장 차림", "편안한 트레이닝복", "비즈니스 캐주얼", "꾸안꾸 스타일", "등산복 차림"])
 

@@ -168,10 +168,12 @@ def generate_step_specific_persona(menu_key):
     
     # VOC 상황(매장 또는 전화)이라면 부적절한 두 가지 무드를 제외합니다.
     if is_voc_store or is_voc_phone:
-        exclude_moods = ["긍정적 & 여유로운", "피로함 & 결정 장애"]
-        mood_options = [m for m in mood_options if m not in exclude_moods]
+        # 제외할 무드 리스트
+        exclude_targets = ["긍정적 & 여유로운", "피로함 & 결정 장애"]
+        # 제외 대상이 아닌 것들로만 새 리스트 생성
+        mood_options = [m for m in mood_options if m not in exclude_targets]
     
-    mood_category = random.choice(list(MOOD_TYPES.keys()))
+    mood_category = random.choice(mood_options)
     mood_detail = random.choice(MOOD_TYPES[mood_category])
 
     # VOC 유형을 미리 뽑아둡니다.

@@ -329,14 +329,14 @@ if final_input:
             full_history = [{"role": "system", "content": sys_msg}] + cleaned_history
 
             try:
-                raw_response = hf_client.chat_completion(
+                raw_output = hf_client.chat_completion(
                     full_history, 
-                    max_tokens=500, # 답변 길이를 제한하여 횡설수설 방지
-                    temperature=0.8, # 조금 더 인간적인 불규칙성 부여
-                    frequency_penalty=0.8, # 반복 문구 강력 억제
+                    max_tokens=500,
+                    temperature=0.8,
+                    frequency_penalty=0.8,
                     top_p=0.9
-                ).choices.message.content
-
+                )
+                
                 raw_response = raw_output.choices[0].message.content
                 
                 response = clean_text(raw_response)

@@ -288,80 +288,66 @@ elif chat_input:
     final_input = chat_input
 
 # --- 7. 응답 처리 로직 (매니저님 지침 + 자아 고정 통합본) ---
+# --- 7. 응답 처리 로직 (최종 최적화 통합본) ---
 if final_input:
-    # [핵심] 사용자의 입력을 AI가 이해하기 쉬운 아라비아 숫자로 먼저 변환합니다.
+    # 1. 입력 처리 및 히스토리 관리
     refined_input = advanced_kor_to_num(final_input)
-    
-    # 변환된 내용을 세션 상태에 저장 (이렇게 해야 AI가 86인치로 인식합니다)
     st.session_state.messages.append({"role": "user", "content": refined_input})
     
     with st.chat_message("assistant"):
         with st.spinner("고객이 반응하는 중..."):
             data = st.session_state.raw_persona_data 
             is_phone = st.session_state.current_menu == "VOC해결(전화)"
+            # 동반인 유무 확인 (1인 2역 필요성 판단)
+            has_companion = data.get('companion') and data.get('companion') != "없음"
             
-            # [매니저님 작성: 행동 묘사 및 대화 호흡 지침 통합]
-            pacing_and_action_instruction = """
-            - **(중요) 행동 묘사**: 모든 답변에는 반드시 (괄호)를 사용하여 현재의 동작, 표정, 시선 처리를 묘사하세요. 
-              예: (등산복 소매를 걷으며), (스타일러 문을 살짝 열어보며), (귀찮은 듯 휴대폰을 확인하며), (한숨을 쉬며)
-            - **대화의 호흡**: 처음에는 1~2문장으로 짧게 대답하세요. 그러다가 매니저의 질문이 정중하고 깊이가 있다면 그에 맞춰 구체적인 정보나 감정을 전달하세요.
-            - **단계별 변화**: 
-              1) 라포 형성: 가벼운 일상 반응이나 기분을 공유하세요.
-              2) 니즈 파악: 질문이 좋으면 현재 불편함이나 주거 환경을 상세히(2~3문장) 이야기하세요.
-              3) 전화 VOC: 용건 중심이되, 감정이 고조되면 말이 길어질 수 있습니다.
+            # [지침] 1인 2역 가독성 및 행동 묘사
+            format_instruction = ""
+            if has_companion:
+                format_instruction = f"""
+                - **1인 2역 필수**: 당신은 고객({data.get('name')})과 동반인({data.get('companion')}) 역할을 모두 수행합니다.
+                - **가독성**: [고객]과 [동반인]의 대사 사이에 반드시 'Enter(줄바꿈)'를 두 번 넣으세요.
+                """
+
+            # [지침] 자아 고정 및 말투
+            behavior_instruction = f"""
+            - (중요) 모든 문장에 (괄호)로 동작/표정을 묘사할 것.
+            - 당신은 절대 AI나 매니저가 아닙니다. 말투는 '~해요', '~네요' 등 자연스러운 한국어 구어체를 사용하세요.
+            - {data.get('mood_category')} 상태를 반영하여, 질문이 좋을 때만 길게 답하세요.
             """
 
-            if is_phone:
-                specific_instruction = f"""
-                [상황: 전화 응대]
-                - 당신은 LG전자에 전화를 건 고객 {data.get('name', '고객')}입니다.
-                - **자아 고정**: 당신은 절대 상담원(매니저)이 아닙니다. 상담원(매니저)의 이름을 먼저 부르거나 상황을 정리하지 마세요. 오직 당신의 용건과 불편함에만 집중하세요.
-                - (수화기를 고쳐 쥐며), (한숨을 쉬며) 같은 수화기 너머의 소리나 행동을 묘사하세요.
-                - 금기: 시스템 용어(어드민, DB 등) 언급 절대 금지. 일반인답게 말하세요.
-                - {pacing_and_action_instruction}
-                """
-            else:
-                specific_instruction = f"""
-                [상황: 매장 방문]
-                - 당신의 복장은 {data.get('looks')}입니다. 이에 걸말은 행동을 (괄호)로 표현하세요.
-                - 1인 2역: 동반 방문 시 [고객]과 [동반인] 사이에 반드시 **줄 바꿈(Enter)**을 넣고 각각의 행동을 묘사하세요.
-                - {pacing_and_action_instruction}
-                """
-
+            # [시스템 메시지 구성] 로직 3의 간결함 + 로직 2의 상세 지침
             sys_msg = f"""
-            [CRITICAL RULE: 당신은 절대로 AI나 매니저/상담원이 아닙니다]
-            당신은 LG전자 매장의 실제 고객입니다.
-
-            {specific_instruction}
-
-            1. **심리 상태**: {data.get('mood_category')} ({data.get('mood_detail')})를 행동 지문에 녹여내세요.
-            2. **자아 고정**: 당신은 절대 매니저(상담원)이 아닙니다. 당신은 물건이나 가전제품을 구매하 고객으로서 반응하는 입장을 고수하세요. 먼저 질문을 던져 대화를 주도하지 마세요.
-            3. **한국형 리액션**: "그냥 좀 보려구요", "음, 글쎄요" 등 자연스러운 구어체를 사용하세요.
-                - "안녕하세요"에 "어떻게 지내세요" 금지.
-                - 매니저가 인사하면 (고개를 살짝 끄덕이며) "아, 네. 안녕하세요" 또는 "그냥 좀 보려구요"라고 한국인답게 반응하세요.
-                - **자연스러운 구어체**: "~입니다/합니다" 보다는 상황에 따라 "~네요", "~군요", "~죠" 등 실제 한국인이 대화에서 사용하는 어미를 사용하세요.
-                - **번역투 배제**: "당신"이나 "그것" 같은 대명사 사용을 줄이고, 주어를 생략하거나 호칭을 적절히 사용하세요.
-                - 상대방(매니저)의 말에 대해 적절한 맞장구(리액션)를 먼저 한 뒤 본론을 말씀하세요.
-
-            [오늘의 페르소나]
-            {st.session_state.persona_info}
+            [Identity] 당신은 LG전자 고객입니다. (AI/매니저 금지)
+            [Persona] {st.session_state.persona_info}
+            [Situation] {"전화 불만 응대" if is_phone else f"{data.get('looks')} 차림으로 매장 방문"}
+            [Rules]
+            1. {behavior_instruction}
+            2. {format_instruction}
+            3. 상대방(매니저)의 말에 맞장구(리액션)를 먼저 한 뒤 본론을 말하세요.
             """
             
-            cleaned_history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages if m.get("content")]
+            # 2. 횡설수설 방지를 위한 히스토리 제한 (로직 3 방식)
+            # 최근 10개의 메시지만 유지하여 문맥 혼란 방지
+            cleaned_history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages][-10:]
             full_history = [{"role": "system", "content": sys_msg}] + cleaned_history
 
             try:
-                # [토큰 관리] max_tokens를 600으로 상향하여 문장 잘림 방지
-                raw_response = hf_client.chat_completion(full_history, max_tokens=600).choices[0].message.content
+                # 3. 모델 호출 (로직 2의 반복 방지 파라미터 적용)
+                raw_response = hf_client.chat_completion(
+                    full_history, 
+                    max_tokens=600,
+                    temperature=0.7,
+                    frequency_penalty=0.6, # 단어 반복 및 횡설수설 방지 핵심
+                    top_p=0.9
+                ).choices[0].message.content
                 
-                # [텍스트 정제] 생성된 답변에서 한자 및 불필요한 시스템 용어 제거
-                # 앞서 정의한 clean_text 함수를 여기서 호출합니다.
+                # 4. 후처리 및 태그 제거
                 response = clean_text(raw_response)
+                for tag in ["매니저:", "상담원:", "고객:", "AI:", "시스템:", "매니저님:"]:
+                    response = response.replace(tag, "")
                 
-                # 상담원/매니저로 오해받을 수 있는 모든 태그 및 지칭 제거
-                response = response.replace("매니저:", "").replace("상담원:", "").replace("매니저님:", "").replace("고객님:", "").strip()
-                
-                st.session_state.messages.append({"role": "assistant", "content": response})
+                st.session_state.messages.append({"role": "assistant", "content": response.strip()})
                 st.rerun() 
             except Exception as e:
                 st.error(f"⚠️ 에러 발생: {e}")

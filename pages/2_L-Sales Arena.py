@@ -247,9 +247,9 @@ if not st.session_state.scenario_ready:
             display_product_in_sit = "특정 가전" if menu_key == "니즈파악" else data['product']
             
             situation = (
-                f"📍 **상황 발생** : {data['age_gender']} 고객이 {data['companion']}으로 매장에 입장합니다. "
-                f"{data['looks']}을 한 고객은 현재 **{data['mood_category']}**한 태도로, "
-                f"특히 **{data['mood_detail']}**을 보이며 {display_product_in_sit} 코너를 유심히 살피고 있습니다."
+                f"📍 **상황 발생** : {data['age_gender']} 고객이 {data['companion']}으로 매장 입구에 들어섭니다. "
+                f"{data['looks']} 차림의 고객은 **{data['mood_category']}**한 분위기를 풍기며, "
+                f"**{data['mood_detail']}** 눈빛으로 {display_product_in_sit} 코너 쪽을 유심히 살피며 천천히 발걸음을 옮기고 있습니다."
             )
         
         # 3. [신규 분리] VOC(매장) 상황

@@ -192,9 +192,9 @@ def generate_step_specific_persona(menu_key):
     }
 
     if is_voc_phone:
-        info = f"1. 고객 이름: {current_name}\n2. 연령대(성별): {age_group} ({gender})\n3. 거주지: {residence}\n4. 상담/구매 제품: {product}\n5. 고객 상태: {voc_type} 건 ({mood_detail})"
+        info = f"1. 고객 이름: {current_name}\n2. 연령대(성별): {age_group} ({gender})\n3. 거주지: {residence}\n4. 상담/구매 제품: {product}\n5. 고객 VOC: {voc_type} 건 ({mood_detail})"
     elif is_voc_store: # [추가] 매장 VOC 전용 정보 포맷
-        info = f"1. 연령대(성별): {age_group} ({gender})\n2. 거주지: {residence}\n3. 상담/구매 제품: {product}\n4. 고객 상태: {voc_type} 건 ({mood_detail})\n5. 인상 및 복장: {looks}"
+        info = f"1. 연령대(성별): {age_group} ({gender})\n2. 거주지: {residence}\n3. 상담/구매 제품: {product}\n4. 고객 VOC: {voc_type} 건 ({mood_detail})\n5. 인상 및 복장: {looks}"
     else:
         display_product = "❓ 질문을 통해 확인하세요" if is_needs_finding else product
         info = f"1. 연령대(성별): {age_group} ({gender})\n2. 거주지: {residence}\n3. 동반 여부: {companion}\n4. 상담/구매 제품: {display_product}\n5. 인상 및 복장: {looks}, {mood_detail}"

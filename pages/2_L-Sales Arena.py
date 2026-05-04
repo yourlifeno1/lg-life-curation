@@ -165,6 +165,9 @@ def generate_step_specific_persona(menu_key):
     
     mood_category = random.choice(list(MOOD_TYPES.keys()))
     mood_detail = random.choice(MOOD_TYPES[mood_category])
+
+    # [수정] VOC 유형을 미리 뽑아둡니다.
+    voc_type = random.choice(VOC_TYPES)
     
     st.session_state.raw_persona_data = {
         "name": current_name,

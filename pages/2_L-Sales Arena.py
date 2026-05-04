@@ -287,70 +287,81 @@ if audio_info and 'bytes' in audio_info:
 elif chat_input:
     final_input = chat_input
 
-# --- 7. 응답 처리 로직 (매니저님 지침 + 자아 고정 통합본) ---
 # --- 7. 응답 처리 로직 (최종 최적화 통합본) ---
 if final_input:
-    # 1. 입력 처리 및 히스토리 관리
+    # 1. 입력 처리 및 히스토리 저장
     refined_input = advanced_kor_to_num(final_input)
     st.session_state.messages.append({"role": "user", "content": refined_input})
     
     with st.chat_message("assistant"):
         with st.spinner("고객이 반응하는 중..."):
             data = st.session_state.raw_persona_data 
-            is_phone = st.session_state.current_menu == "VOC해결(전화)"
-            # 동반인 유무 확인 (1인 2역 필요성 판단)
-            has_companion = data.get('companion') and data.get('companion') != "없음"
+            is_phone = st.session_state.current_menu == "VOC (전화)"
             
-            # [지침] 1인 2역 가독성 및 행동 묘사
-            format_instruction = ""
-            if has_companion:
-                format_instruction = f"""
-                - **1인 2역 필수**: 당신은 고객({data.get('name')})과 동반인({data.get('companion')}) 역할을 모두 수행합니다.
-                - **가독성**: [고객]과 [동반인]의 대사 사이에 반드시 'Enter(줄바꿈)'를 두 번 넣으세요.
-                """
+            # [핵심] 동반인 유무 판정 로직 (데이터 기반으로 엄격히 분리)
+            companion_val = data.get('companion', "")
+            has_companion = "2인" in companion_val or "부부" in companion_val
+            companion_name = "동반인" # 필요시 데이터의 상세 명칭 사용 가능
 
             # [지침] 자아 고정 및 말투
             behavior_instruction = f"""
-            - (중요) 모든 문장에 (괄호)로 동작/표정을 묘사할 것.
-            - 당신은 절대 AI나 매니저가 아닙니다. 말투는 '~해요', '~네요' 등 자연스러운 한국어 구어체를 사용하세요.
-            - {data.get('mood_category')} 상태를 반영하여, 질문이 좋을 때만 길게 답하세요.
+            - (중요) 모든 문장에 (괄호)로 동작/표정을 상세히 묘사할 것.
+            - 말투는 '~해요', '~네요', '~죠' 등 자연스러운 한국어 구어체를 사용하세요.
+            - 당신의 현재 심리 상태는 '{data.get('mood_category')}'이며, 특히 '{data.get('mood_detail')}' 성향을 보입니다.
+            - 상대방(매니저)의 질문이 정중하고 전문적일 때만 구체적으로 답하세요.
             """
 
-            # [시스템 메시지 구성] 로직 3의 간결함 + 로직 2의 상세 지침
+            # [지침] 인원수에 따른 역할 분리 (1인 방문 시 동반인 등장 오류 해결)
+            if has_companion:
+                role_instruction = f"""
+                - **1인 2역 필수**: 당신은 고객({data.get('age_gender')})과 {companion_name} 역할을 모두 수행합니다.
+                - **가독성**: 반드시 아래 형식을 지키고 두 인물 사이에는 줄바꿈을 두 번 하세요.
+                  [고객] (행동) "대사"
+                  
+                  [{companion_name}] (행동) "대사"
+                """
+            else:
+                role_instruction = f"""
+                - **단독 방문**: 당신은 혼자 온 고객입니다. 
+                - 절대로 존재하지 않는 '동반인', '아내', '남편' 등을 등장시키거나 대화하게 하지 마세요. 
+                - 오직 [고객]의 대사와 행동 지문만 작성하세요.
+                """
+
+            # [최종 시스템 메시지 빌드]
             sys_msg = f"""
-            [Identity] 당신은 LG전자 고객입니다. (AI/매니저 금지)
+            [Identity] 당신은 LG전자 매장의 실제 고객입니다. (AI나 매니저가 아님)
             [Persona] {st.session_state.persona_info}
-            [Situation] {"전화 불만 응대" if is_phone else f"{data.get('looks')} 차림으로 매장 방문"}
             [Rules]
             1. {behavior_instruction}
-            2. {format_instruction}
-            3. 상대방(매니저)의 말에 맞장구(리액션)를 먼저 한 뒤 본론을 말하세요.
+            2. {role_instruction}
+            3. 매니저의 말에 대해 적절한 맞장구(리액션)를 먼저 한 뒤 본론을 말씀하세요.
+            4. 문장 처음에 '고객:', '매니저:' 같은 태그를 절대 붙이지 마세요.
             """
             
-            # 2. 횡설수설 방지를 위한 히스토리 제한 (로직 3 방식)
-            # 최근 10개의 메시지만 유지하여 문맥 혼란 방지
+            # 2. 횡설수설 방지를 위한 최근 히스토리 제한 (최근 10개만 참조)
             cleaned_history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages][-10:]
             full_history = [{"role": "system", "content": sys_msg}] + cleaned_history
 
             try:
-                # 3. 모델 호출 (로직 2의 반복 방지 파라미터 적용)
+                # 3. 모델 호출 (반복 방지 파라미터 적용)
                 raw_response = hf_client.chat_completion(
                     full_history, 
                     max_tokens=600,
-                    temperature=0.7,
-                    frequency_penalty=0.6, # 단어 반복 및 횡설수설 방지 핵심
+                    temperature=0.7,         # 답변의 다양성
+                    frequency_penalty=0.6,    # 단어/문구 반복 억제 (횡설수설 방지 핵심)
                     top_p=0.9
                 ).choices[0].message.content
                 
-                # 4. 후처리 및 태그 제거
+                # 4. 후처리: 텍스트 정제 및 불필요한 태그 강제 제거
                 response = clean_text(raw_response)
                 for tag in ["매니저:", "상담원:", "고객:", "AI:", "시스템:", "매니저님:"]:
                     response = response.replace(tag, "")
                 
+                # 최종 메시지 저장 및 화면 갱신
                 st.session_state.messages.append({"role": "assistant", "content": response.strip()})
                 st.rerun() 
             except Exception as e:
-                st.error(f"⚠️ 에러 발생: {e}")
+                st.error(f"⚠️ 응답 생성 중 오류가 발생했습니다: {e}")
                 
 # --- 8. 즐거운 세일즈 코칭 리포트 (엄격한 코칭 버전) ---
 st.write("---")

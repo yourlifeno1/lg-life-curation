@@ -162,9 +162,10 @@ def generate_step_specific_persona(menu_key):
     if is_voc_phone:
         companion = "1인 (전화 상담)"
     else:
-        # 확률적으로 1인 방문 50%, 2인 방문 상황들 50%
+        # 확률적으로 1인 방문 50%, 나머지는 각 상황별로 배분
         companion_options = ["1인 방문", "2인 (부부 동반)", "2인 (자녀 동반)", "2인 (지인 동반)"]
-        companion = random.choices(companion_options, weights=[50, 20, 15, 15])[0]
+        # weights=[50, 20, 20, 10] 처럼 숫자가 정확히 들어가야 합니다.
+        companion = random.choices(companion_options, weights=[50, 20, 20, 10], k=1)[0]
     product = random.choice(ALL_CATEGORIES.split(", "))
     looks = random.choice(["깔끔한 정장 차림", "편안한 트레이닝복", "비즈니스 캐주얼", "꾸안꾸 스타일", "등산복 차림"])
 

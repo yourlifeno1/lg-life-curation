@@ -236,12 +236,11 @@ current_turns = st.session_state.user_turn_count
 remaining_turns = max_turns - current_turns
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("📊 응대 현황")
-# 게이지 바 (0.0 ~ 1.0 사이 값)
+st.sidebar.subheader("🔥아레나 경기 지표")
 st.sidebar.progress(current_turns / max_turns)
-# 상세 수치
-st.sidebar.write(f"기회: **{current_turns} / {max_turns}**")
-st.sidebar.write(f"남은 기회: **{remaining_turns}회**")
+
+st.sidebar.write(f"현재 공략: **{current_turns} / {max_turns}**")
+st.sidebar.write(f"고객의 집중력: **{remaining_turns}회**")
 
 if st.session_state.persona_info:
     st.sidebar.markdown("---")
@@ -311,11 +310,18 @@ st.write("---")
 is_limit_reached = current_turns >= max_turns
 
 if not is_limit_reached:
+    # 2회 이하 남았을 때 시각적 경고 강조
+    if remaining_turns <= 2:
+        st.markdown(f"🔥 **마지막 승부수: {remaining_turns}회 남음!**")
+    else:
+        # 평소에는 가독성을 해치지 않는 작은 캡션으로 표시
+        st.caption(f"🎯 현재 라운드: {current_turns}/{max_turns} (남은 기회: {remaining_turns}회)")
+    
     audio_info = mic_recorder(start_prompt="🎤 음성 응대", stop_prompt="🛑 완료", just_once=True, key='sales_mic')
     chat_input = st.chat_input("메시지를 입력하세요...")
 else:
-    st.warning("🎯 모든 응대 기회를 사용하였습니다. 아래 '리포트 보기' 버튼을 눌러 점수를 확인하세요!")
-    st.chat_input("훈련이 종료되었습니다.", disabled=True)
+    st.error("🏁 모든 공략 기회를 소진하였습니다. 리포트를 확인하세요!")
+    st.chat_input("훈련 종료", disabled=True)
     chat_input = None
     audio_info = None
 

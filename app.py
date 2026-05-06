@@ -360,16 +360,15 @@ def show_trend_section():
         
 # --- UI 메인 ---
 st.set_page_config(page_title="LG 라이프 큐레이션", layout="wide")
-st.markdown("## LG Life Curation")
 
 loc = get_geolocation()
-
 # [1] 변수 사전 선언: 454라인 NameError 방지를 위해 if loc 밖에서 미리 정의합니다.
 u_dong = "위치 파악 중..."
 target = {"gu": "서울시", "name": "거점 탐색 중", "code": "11110"}
 cnt_now, cnt_last, diff, diff_pct = 0, 0, 0, 0
 
 if loc:
+
     u_lat, u_lon = loc['coords']['latitude'], loc['coords']['longitude']
     
     # [2] 위치 기반 정보 세션 관리 (중복 호출 방지 및 잔상 제거)
@@ -382,6 +381,19 @@ if loc:
             st.session_state['u_dong'] = "현재 위치"
     
     u_dong = st.session_state['u_dong']
+    target = get_nearest_point(u_lat, u_lon)
+
+    st.markdown(f"""
+        <div style="margin-top: -50px; margin-bottom: 20px;">
+            <h2 style="margin-bottom: 0px; padding-bottom: 0px; color: #212529;">
+                LG Life Curation
+            </h2>
+            <p style="font-size: 13px; color: #868E96; margin-top: 5px;">
+                📍 GPS 수신: {u_dong} | 거점: {target['name']}
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+
     
     # [3] 거점 확정 및 지역 코드 추출
     current_target = get_nearest_point(u_lat, u_lon)
@@ -581,8 +593,6 @@ if loc:
     u_gu_name = target.get('gu', '지역 미확인')
     u_sido_name = target.get('sido', '서울시') # sido 변수도 선언 확인 필수!
 
-    # 2. 그 다음에 출력합니다. (이게 매니저님의 512라인입니다)
-    st.caption(f"📍GPS 수신: {u_dong} | 거점: {target['name']}")
     st.divider()
     
     # 1. 기상 아이콘 및 상단 제목

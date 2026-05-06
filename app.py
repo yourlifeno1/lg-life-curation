@@ -155,116 +155,60 @@ CITY_POINTS = [
     {"name": "신촌 스타광장", "lat": 37.5580, "lon": 126.9370, "category": "발달상권", "code": "11410", "gu": "서대문구"}
 ]
 
-# --- 수정 포인트 1: 거리 계산 함수 추가 ---
+# --- [3단계] 속도 최적화 및 유틸리티 함수 (올려주신 수정 포인트 반영) ---
+
+@st.cache_data(ttl=3600)
+def get_cached_df(url):
+    return pd.read_csv(url)
+
 def calculate_distance(lat1, lon1, lat2, lon2):
     R = 6371  # 지구 반지름 (km)
-    dLat = math.radians(lat2 - lat1)
-    dLon = math.radians(lon2 - lon1)
-    a = math.sin(dLat / 2) ** 2 + \
-        math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * \
-        math.sin(dLon / 2) ** 2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return R * c
+    dLat, dLon = math.radians(lat2 - lat1), math.radians(lon2 - lon1)
+    a = math.sin(dLat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dLon / 2) ** 2
+    return R * (2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)))
 
-# [순서 2] 가장 가까운 거점 찾기 함수
 def get_nearest_point(u_lat, u_lon):
-    # 이 함수는 내부에서 calculate_distance를 사용하므로 그 뒤에 와야 합니다.
     nearest_pt = min(CITY_POINTS, key=lambda p: calculate_distance(u_lat, u_lon, p['lat'], p['lon']))
-    # 거리값도 함께 반환하도록 수정 (에러 방지)
-    dist = calculate_distance(u_lat, u_lon, nearest_pt['lat'], nearest_pt['lon'])
     return nearest_pt
-    
-# --- 수정 포인트 2: 거리 기반 필터링 로직 적용 ---
+
+@st.cache_data(ttl=600)
 def fetch_moving_all(lawd_cd, year_month, _t=None):
     total = 0
-
-    paths = [
-        "RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", # 아파트 매매
-        "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",         # 아파트 전월세
-        "RTMSDataSvcOffiTrade/getRTMSDataSvcOffiTrade",    # 오피스텔 매매
-        "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent",      # 오피스텔 전월세
-        "RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade",        # 연립다세대 매매
-        "RTMSDataSvcRHRent/getRTMSDataSvcRHRent",          # 연립다세대 전월세
-        "RTMSDataSvcSHTrade/getRTMSDataSvcSHTrade",        # 단독다가구 매매
-        "RTMSDataSvcSHRent/getRTMSDataSvcSHRent"           # 단독다가구 전월세
-    ]
-
+    paths = ["RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev", "RTMSDataSvcAptRent/getRTMSDataSvcAptRent",
+             "RTMSDataSvcOffiTrade/getRTMSDataSvcOffiTrade", "RTMSDataSvcOffiRent/getRTMSDataSvcOffiRent",
+             "RTMSDataSvcRHTrade/getRTMSDataSvcRHTrade", "RTMSDataSvcRHRent/getRTMSDataSvcRHRent",
+             "RTMSDataSvcSHTrade/getRTMSDataSvcSHTrade", "RTMSDataSvcSHRent/getRTMSDataSvcSHRent"]
     for path in paths:
         try:
             url = f"http://apis.data.go.kr/1613000/{path}"
-            p = {
-                'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 
-                'LAWD_CD': lawd_cd, 
-                'DEAL_YMD': year_month,
-                'numOfRows': '9999',  # [필수] 이 설정이 없으면 10건만 가져옵니다.
-                '_cache_buster': _t
-            }
-            # 서버 부하를 줄이기 위해 타임아웃을 7초로 늘립니다.
+            p = {'serviceKey': requests.utils.unquote(MOLIT_API_KEY), 'LAWD_CD': lawd_cd, 'DEAL_YMD': year_month, 'numOfRows': '9999', '_cache_buster': _t}
             r = requests.get(url, params=p, timeout=10)
             if r.status_code == 200:
                 root = ET.fromstring(r.text)
-                items = root.findall('.//item')
-                total += len(items)
-        except Exception as e:
-            ## 에러가 나도 멈추지 않고 다음 API로 넘어가도록 처리
-            continue
+                total += len(root.findall('.//item'))
+        except: continue
     return total
-
-# ==========================================================
-# [신규 추가] S-DoT 위치 로드 및 하이브리드 계산 함수
-# ==========================================================
 
 @st.cache_data(ttl=86400)
 def load_sdot_list():
-    """구글 시트(C:시리얼, E:위도, F:경도)에서 센서 목록을 읽어옵니다."""
     try:
-        # 매니저님이 공유해주신 S-DoT 시트의 웹 게시 주소
-        SDOT_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRXnh3VI7oOzSbMWMUCI6Owk4G6oK_2hb1kWjTtNNgAfyox_ZgypeM0QK-P6e-nDaRfhpY02WEGTt9z/pub?gid=430558979&single=true&output=csv"
-        df = pd.read_csv(SDOT_URL)
-        points = []
-        for _, row in df.iterrows():
-            points.append({
-                'serial': str(row.iloc[2]), # C열: 시리얼번호
-                'lat': float(row.iloc[4]),    # E열: 위도
-                'lon': float(row.iloc[5])     # F열: 경도
-            })
-        return points
-    except Exception as e:
-        return []
+        df = get_cached_df(SDOT_SHEET_URL)
+        return [{'serial': str(row.iloc[2]), 'lat': float(row.iloc[4]), 'lon': float(row.iloc[5])} for _, row in df.iterrows()]
+    except: return []
 
 @st.cache_data(ttl=3600)
 def get_sdot_live_traffic(serial_no):
-    """S-DoT API를 통해 실시간 VISIT_COUNT(방문자수)를 가져옵니다."""
     try:
         url = f"http://openapi.seoul.go.kr:8088/{SEOUL_API_KEY}/json/SdotV2PeopleCount/1/1/{serial_no}"
         res = requests.get(url, timeout=5).json()
-        if 'SdotV2PeopleCount' in res:
-            return int(res['SdotV2PeopleCount']['row'][0]['VISIT_COUNT'])
-        return 0
-    except:
-        return 0
+        return int(res['SdotV2PeopleCount']['row'][0]['VISIT_COUNT']) if 'SdotV2PeopleCount' in res else 0
+    except: return 0
 
 def calculate_hybrid_vitality(cong_lvl, s_traffic, dist_sdot):
-    """도시데이터와 S-DoT 데이터를 믹스하여 하이브리드 점수를 산출합니다."""
-    # (A) 도시데이터 인구 점수 (50점 만점 기준)
     cong_map = {"여유": 15, "보통": 30, "약간 붐빔": 42, "붐빔": 50}
     cong_score = cong_map.get(cong_lvl, 15)
-    
-    # (B) S-DoT 센서 점수 (50점 만점 기준)
-    # 500m(0.5km) 이내에 센서가 있을 때만 활성화
-    sdot_score = 0
-    if dist_sdot <= 0.5 and s_traffic > 0:
-        sdot_score = min(int((s_traffic / 50) * 50), 50)
-    
-    # (C) 하이브리드 판정
-    if sdot_score > 0:
-        final_v = cong_score + sdot_score
-        label = "하이브리드(거점+센서)"
-    else:
-        final_v = cong_score * 2
-        label = "광역 거점 기반"
-        
-    return final_v, label
+    sdot_score = min(int((s_traffic / 50) * 50), 50) if dist_sdot <= 0.5 and s_traffic > 0 else 0
+    return (cong_score + sdot_score, "하이브리드(거점+센서)") if sdot_score > 0 else (cong_score * 2, "광역 거점 기반")
 
 
 # [신규 함수] 우리 동네 가전 이슈 리포트 출력 로직

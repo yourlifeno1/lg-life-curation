@@ -235,6 +235,14 @@ max_turns = STAGE_LIMITS.get(menu_key, 10)
 current_turns = st.session_state.user_turn_count
 remaining_turns = max_turns - current_turns
 
+st.sidebar.markdown("---")
+st.sidebar.subheader("📊 응대 현황")
+# 게이지 바 (0.0 ~ 1.0 사이 값)
+st.sidebar.progress(current_turns / max_turns)
+# 상세 수치
+st.sidebar.write(f"기회: **{current_turns} / {max_turns}**")
+st.sidebar.write(f"남은 기회: **{remaining_turns}회**")
+
 if st.session_state.persona_info:
     st.sidebar.markdown("---")
     st.sidebar.subheader("👥 오늘의 고객 정보")

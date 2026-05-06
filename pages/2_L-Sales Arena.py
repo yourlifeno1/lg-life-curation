@@ -337,7 +337,9 @@ elif chat_input:
 # --- 7. 응답 처리 로직 (고객다운 말투 최적화 버전) ---
 if final_input:
     
-    refined_input = advanced_kor_to_num(final_input)
+    final_input_stripped = final_input.strip()
+    refined_input = advanced_kor_to_num(final_input_stripped)
+    
     st.session_state.messages.append({"role": "user", "content": refined_input})
     # 횟수 증가
     st.session_state.user_turn_count += 1

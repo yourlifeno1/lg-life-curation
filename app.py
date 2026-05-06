@@ -568,27 +568,6 @@ if loc:
                 except:
                     sales_total = "0"
 
-                # 3. [핵심] 실시간 결제 업종 Top 3 추출
-                upjong_list = []
-                for i in range(1, 6):
-                    # 명세서의 태그명(UPJONG_NM_i, RSB_SH_PAYMENT_CNT_i)을 정확히 매칭합니다
-                    nm = found_shop.findtext(f"UPJONG_NM_{i}")
-                    cnt = found_shop.findtext(f"RSB_SH_PAYMENT_CNT_{i}")
-                    
-                    if nm and nm != "-" and cnt:
-                        try:
-                            upjong_list.append({"name": nm, "count": int(cnt)})
-                        except:
-                            continue
-
-                # 4. 결제 건수가 많은 순서대로 정렬 후 문자열 완성
-                if upjong_list:
-                    sorted_list = sorted(upjong_list, key=lambda x: x['count'], reverse=True)
-                    # "1위 업종명 / 2위 업종명 / 3위 업종명" 형식으로 가로 출력
-                    rank_parts = [f"{idx+1}위 {item['name']}" for idx, item in enumerate(sorted_list[:3])]
-                    sales_rank = " / ".join(rank_parts)
-                else:
-                    sales_rank = "현재 집계된 업종 정보가 없습니다."
             else:
                 # 데이터가 아예 없는 경우 초기화
                 shop_lvl = "데이터 미제공"
@@ -735,12 +714,6 @@ if loc:
             </p>
             <p style="font-size:9px; color:#ADB5BD; margin:0; font-weight:normal;">
                 (신한카드 내국인 기준)
-            </p>
-        </div>
-        <div style="{box_style} margin-top:10px;">
-            <p style="font-size:12px; color:#868E96; margin:0;">실시간 결제 Top 3 업종 (10분 기준)</p>
-            <p style="font-size:15px; font-weight:bold; margin:8px 0 0 0; color:#1A1C1E; letter-spacing:-0.5px;">
-                {sales_rank}
             </p>
         </div>
     </div>

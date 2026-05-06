@@ -6,6 +6,15 @@ import re
 import random
 from streamlit_mic_recorder import mic_recorder
 
+# --- [설정] 경기장별 최대 응대 횟수 (매니저 입력 기준) ---
+STAGE_LIMITS = {
+    "라포형성": 7,       # 입장 인사 + 스몰토크 고려
+    "니즈파악": 12,      # 깊이 있는 질문 필요
+    "클로징": 8,         # 망설임 극복 단계
+    "VOC (매장)": 10,    # 경청 및 해결책 제시
+    "VOC (전화)": 8      # 빠른 결론 필요
+}
+
 # [카테고리 및 단계 명칭 설정] - 매니저님이 제안하신 컨셉 반영
 STAGES = {
     "라포형성": "🤝 아이스브레이킹 코트",
@@ -129,6 +138,7 @@ def init_session_state(menu):
         st.session_state.scenario_ready = False
         st.session_state.persona_info = None
         st.session_state.raw_persona_data = {}
+        st.session_state.user_turn_count = 0  # 사용자 응대 횟수 초기화
 
 # --- [추가] 텍스트 정제 함수 (여기에 배치하세요) ---
 def clean_text(text):
@@ -220,6 +230,11 @@ menu_key = [k for k, v in STAGES.items() if v == selected_display_name][0]
 
 init_session_state(menu_key)
 
+# 현재 진행 상황 계산
+max_turns = STAGE_LIMITS.get(menu_key, 10)
+current_turns = st.session_state.user_turn_count
+remaining_turns = max_turns - current_turns
+
 if st.session_state.persona_info:
     st.sidebar.markdown("---")
     st.sidebar.subheader("👥 오늘의 고객 정보")
@@ -283,17 +298,33 @@ for i, message in enumerate(st.session_state.messages):
 
 # --- 6. 입력 섹션 ---
 st.write("---")
-audio_info = mic_recorder(start_prompt="🎤 음성 응대 (마이크)", stop_prompt="🛑 완료", just_once=True, key='sales_mic')
-chat_input = st.chat_input("메시지를 입력하세요...")
+
+# 횟수 제한 체크
+is_limit_reached = current_turns >= max_turns
+
+if not is_limit_reached:
+    audio_info = mic_recorder(start_prompt="🎤 음성 응대", stop_prompt="🛑 완료", just_once=True, key='sales_mic')
+    chat_input = st.chat_input("메시지를 입력하세요...")
+else:
+    st.warning("🎯 모든 응대 기회를 사용하였습니다. 아래 '리포트 보기' 버튼을 눌러 점수를 확인하세요!")
+    st.chat_input("훈련이 종료되었습니다.", disabled=True)
+    chat_input = None
+    audio_info = None
 
 final_input = ""
 if audio_info and 'bytes' in audio_info:
     with st.spinner("음성 분석 중..."):
         audio_file = io.BytesIO(audio_info['bytes'])
         audio_file.name = "audio.wav"
-        final_input = groq_client.audio.transcriptions.create(file=audio_file, model="whisper-large-v3", language="ko", response_format="text")
+        final_input = groq_client.audio.transcriptions.create(file=audio_file, model="whisper-large-v3", language="ko", response_format="text") 
 elif chat_input:
     final_input = chat_input
+
+if final_input:
+    # 횟수 증가
+    st.session_state.user_turn_count += 1
+    refined_input = advanced_kor_to_num(final_input)
+    st.session_state.messages.append({"role": "user", "content": refined_input})
 
 # --- 7. 응답 처리 로직 (고객다운 말투 최적화 버전) ---
 if final_input:
@@ -375,11 +406,12 @@ if len(chat_only) > 1:
     # 가운데 정렬을 위한 컬럼 배치
     btn_col1, btn_col2, btn_col3 = st.columns([1, 4, 1])
     with btn_col2:
-        if st.button("📊 스테이지 종료 및 리포트 보기", use_container_width=True):
-            
-            # 대화가 너무 짧은 경우 (최소 6번의 대화 왕복 기준)
-            if len(chat_only) < 6:
-                st.warning("⚠️ 아직 충분한 대화가 이루어지지 않았습니다. 조금 더 대화를 나눈 후 리포트를 확인해 주세요!")
+        # 횟수를 다 채웠거나, 사용자가 중간에 종료하고 싶을 때
+        report_label = "📊 스테이지 종료 및 리포트 보기" if is_limit_reached else "📊 중간 점검 및 리포트 보기"
+        
+        if st.button(report_label, use_container_width=True, type="primary" if is_limit_reached else "secondary"):
+            if len(chat_only) < 4: # 최소 대화 기준은 상황에 맞춰 조정
+                st.warning("⚠️ 입장 후 최소 2회 이상의 응대가 필요합니다!")
             else:
                 st.balloons()
                 with st.spinner("세일즈 마스터 코치가 대화를 엄격하게 분석 중입니다..."):
@@ -423,6 +455,7 @@ if len(chat_only) > 1:
                             if st.button("🔄 부족한 점 보완하여 다시 시작"):
                                 st.session_state.scenario_ready = False
                                 st.session_state.messages = []
+                                st.session_state.user_turn_count = 0  # 횟수도 초기화
                                 st.rerun()
                     except Exception as e:
                         st.error(f"피드백 생성 중 오류가 발생했습니다: {e}")

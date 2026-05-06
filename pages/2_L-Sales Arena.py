@@ -239,8 +239,8 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("🔥아레나 경기 지표")
 st.sidebar.progress(current_turns / max_turns)
 
-st.sidebar.write(f"현재 공략: **{current_turns} / {max_turns}**")
-st.sidebar.write(f"고객의 집중력: **{remaining_turns}회**")
+st.sidebar.write(f"고객의 인내심: **{current_turns} / {max_turns}**")
+st.sidebar.write(f"남은 골든타임: **{remaining_turns}회**")
 
 if st.session_state.persona_info:
     st.sidebar.markdown("---")
@@ -315,12 +315,12 @@ if not is_limit_reached:
         st.markdown(f"🔥 **마지막 승부수: {remaining_turns}회 남음!**")
     else:
         # 평소에는 가독성을 해치지 않는 작은 캡션으로 표시
-        st.caption(f"🎯 현재 라운드: {current_turns}/{max_turns} (남은 기회: {remaining_turns}회)")
+        st.caption(f"🎯 남은 승부수: {remaining_turns}회")
     
     audio_info = mic_recorder(start_prompt="🎤 음성 응대", stop_prompt="🛑 완료", just_once=True, key='sales_mic')
     chat_input = st.chat_input("메시지를 입력하세요...")
 else:
-    st.error("🏁 모든 공략 기회를 소진하였습니다. 리포트를 확인하세요!")
+    st.error("🏁 모든 승부수를 던졌습니다. 이제 결과를 확인하세요!")
     st.chat_input("훈련 종료", disabled=True)
     chat_input = None
     audio_info = None

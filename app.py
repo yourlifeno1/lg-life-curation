@@ -455,7 +455,6 @@ if loc:
         traffic = s_traffic # 537라인 UI 변수와 호환성 유지
         
     except Exception as e:
-        st.caption("상권 센서 연결 확인 중...")
         # 에러 발생 시에도 기본값 유지하여 NameError 방지
         traffic = 0
         v_score = 0

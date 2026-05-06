@@ -593,7 +593,7 @@ if loc:
     u_gu_name = target.get('gu', '지역 미확인')
     u_sido_name = target.get('sido', '서울시') # sido 변수도 선언 확인 필수!
 
-    st.divider()
+    # st.divider()
     
     # 1. 기상 아이콘 및 상단 제목
     weather_icon = "☀️" if v_score >= 70 else "☁️" if v_score >= 35 else "☔"

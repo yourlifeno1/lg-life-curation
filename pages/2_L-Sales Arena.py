@@ -455,10 +455,19 @@ if len(chat_only) > 1:
                             st.write("---")
                             
                             # 다시 시작 버튼
-                            if st.button("🔄 부족한 점 보완하여 다시 시작"):
+                            if st.button("🔄 부족한 점 보완하여 다시 시작", use_container_width=True):
+                                # 1. 모든 세션 상태를 태초의 상태로 되돌림
                                 st.session_state.scenario_ready = False
                                 st.session_state.messages = []
-                                st.session_state.user_turn_count = 0  # 횟수도 초기화
+                                st.session_state.user_turn_count = 0
+                                st.session_state.persona_info = None
+                                st.session_state.raw_persona_data = {}
+    
+                                # 2. 음성 데이터 충돌 방지를 위해 관련 키 삭제 (선택 사항)
+                                if 'sales_mic' in st.session_state:
+                                    del st.session_state['sales_mic']
+    
+                                # 3. 강제 재실행 (이게 핵심입니다)
                                 st.rerun()
                     except Exception as e:
                         st.error(f"피드백 생성 중 오류가 발생했습니다: {e}")

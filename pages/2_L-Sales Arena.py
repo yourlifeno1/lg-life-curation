@@ -301,7 +301,7 @@ for i, message in enumerate(st.session_state.messages):
         st.info(message["content"])
     else:
         with st.chat_message(message["role"]):
-            st.write(message["content"])
+            st.markdown(message["content"])
 
 # --- 6. 입력 섹션 ---
 st.write("---")
@@ -336,10 +336,12 @@ elif chat_input:
 
 # --- 7. 응답 처리 로직 (고객다운 말투 최적화 버전) ---
 if final_input:
-    # 횟수 증가
-    st.session_state.user_turn_count += 1
+    
     refined_input = advanced_kor_to_num(final_input)
     st.session_state.messages.append({"role": "user", "content": refined_input})
+    # 횟수 증가
+    st.session_state.user_turn_count += 1
+    
     with st.chat_message("assistant"):
         with st.spinner("고객이 반응하는 중..."):
             data = st.session_state.raw_persona_data 
@@ -394,7 +396,7 @@ if final_input:
             try:
                 raw_output = hf_client.chat_completion(
                     full_history, 
-                    max_tokens=500,
+                    max_tokens=800,
                     temperature=0.8,
                     frequency_penalty=0.5,
                     top_p=0.9

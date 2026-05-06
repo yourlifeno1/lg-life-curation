@@ -386,7 +386,7 @@ if final_input:
             3. (시각적 묘사): 모든 답변의 시작은 반드시 (행동)이나 (표정)을 괄호 안에 넣어 작성하세요.
                예: (고개를 갸웃거리며) "그건 저희 집에 너무 크지 않을까요?"
             4. 답변은 행동 묘사를 포함하여 2~3문장 이내로 짧게 유지하세요.
-            5. 단독 방문 시에만 이름 태그(고객:, 매니저:, 상담원:, [고객]: 등)를 쓰지 마세요.
+            5. 2인 방문 시에는 반드시 화자 태그([고객], [{short_companion}])를 문장 앞에 붙이세요.
             """       
             cleaned_history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages][-10:]
             full_history = [{"role": "system", "content": sys_msg}] + cleaned_history

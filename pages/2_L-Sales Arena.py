@@ -344,11 +344,12 @@ if final_input:
 
             # [핵심 변경] 일반인스러운 말투와 지식 수준 강제
             behavior_instruction = f"""
-            - (중요) **정보 공개의 단계**: 매니저가 묻지 않은 정보(거주지, 가족관계 등)를 먼저 쏟아내지 마세요.
-            - (대화의 절제) 매니저가 한 번 질문하면 당신도 한 번만 응답하세요. [고객]이 혼자서 두 번 연속 말하며 대화를 주도하지 마세요.
-            - (리액션) 처음에는 (가볍게 고개를 끄덕이며) "아, 네. 안녕하세요. {data.get('product')} 좀 보고 있어요." 정도로 짧게 반응하여 매니저의 질문을 유도하세요.
-            - (심리) 당신은 '{data.get('mood_category')}' 상태입니다. 매니저가 정중하고 실력이 있을 때만 정보를 조금씩 더 흘리세요.
-            - (언어) 전문 용어는 절대 쓰지 말고, 2~3문장 이내로 답변을 끊으세요.
+            - (중요) **일관성 유지**: 당신의 설정(나이, 가족관계, 거주지 등)을 절대 바꾸지 마세요. 방금 한 말을 기억하고 논리적으로 대답하세요.
+            - (비유 금지): 매니저가 '3대 이모' 같은 비유를 써도 단어 그대로(3대 가족 등) 받지 말고, 가전제품에 대한 칭찬으로 이해하세요.
+            - (전문 지식 배제): 당신은 판매원이 아닙니다. "6인용이 어떠냐"는 식의 제안은 절대 하지 마세요. 모르는 척 질문하거나(예: "둘이 쓰기엔 너무 큰가요?"), 고민만 하세요.
+            - (정보 공개의 단계): 매니저가 묻지 않은 정보는 먼저 말하지 마세요. 질문 하나에 답변 하나만 하세요.
+            - (언어): 전문 용어는 피하고, "그건 좀 비싸네요", "자리가 좁을 것 같아요" 같은 일상적인 표현만 쓰세요.
+            - (말투): "~인 것 같아요", "~인가요?", "~네요" 처럼 고객의 입장에서 말하세요. (판매원 말투 절대 금지)
             """
 
             if has_companion:
@@ -372,10 +373,11 @@ if final_input:
             [Rules]
             1. {behavior_instruction}
             2. {role_instruction}
-            3. 답변은 2~3문장 이내로 짧게 유지하세요. (횡설수설 방지)
-            4. 문장 처음에 태그(고객:, 매니저:) 절대 금지.
-            """
-            
+            3. (시각적 묘사): 모든 답변의 시작은 반드시 (행동)이나 (표정)을 괄호 안에 넣어 작성하세요.
+               예: (고개를 갸웃거리며) "그건 저희 집에 너무 크지 않을까요?"
+            4. 답변은 행동 묘사를 포함하여 2~3문장 이내로 짧게 유지하세요.
+            5. 문장 처음에 이름 태그(고객:, 매니저:, 상담원:, [고객]: 등)는 절대 쓰지 마세요.
+            """       
             cleaned_history = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages][-10:]
             full_history = [{"role": "system", "content": sys_msg}] + cleaned_history
 
@@ -384,7 +386,7 @@ if final_input:
                     full_history, 
                     max_tokens=500,
                     temperature=0.8,
-                    frequency_penalty=0.8,
+                    frequency_penalty=0.5,
                     top_p=0.9
                 )
                 
@@ -402,72 +404,78 @@ if final_input:
 # --- 8. 즐거운 세일즈 코칭 리포트 (엄격한 코칭 버전) ---
 st.write("---")
 
-# 시스템 메시지를 제외한 실제 대화 내역만 추출
+# 1. 상태 초기화 및 대화 추출
+if "show_report" not in st.session_state:
+    st.session_state.show_report = False
+    
 chat_only = [m for m in st.session_state.messages if m["role"] != "system"]
 
 if len(chat_only) > 1:
-    # 가운데 정렬을 위한 컬럼 배치
     btn_col1, btn_col2, btn_col3 = st.columns([1, 4, 1])
+    
     with btn_col2:
-        # 횟수를 다 채웠거나, 사용자가 중간에 종료하고 싶을 때
-        report_label = "📊 스테이지 종료 및 리포트 보기" if is_limit_reached else "📊 중간 점검 및 리포트 보기"
-        
-        if st.button(report_label, use_container_width=True, type="primary" if is_limit_reached else "secondary"):
-            if len(chat_only) < 4: # 최소 대화 기준은 상황에 맞춰 조정
-                st.warning("⚠️ 입장 후 최소 2회 이상의 응대가 필요합니다!")
-            else:
-                st.balloons()
+        # 2. 리포트 보기 버튼 (리포트가 꺼져있을 때만 표시)
+        if not st.session_state.show_report:
+            report_label = "📊 스테이지 종료 및 리포트 보기" if is_limit_reached else "📊 중간 점검 및 리포트 보기"
+            if st.button(report_label, use_container_width=True, type="primary" if is_limit_reached else "secondary"):
+                if len(chat_only) < 4:
+                    st.warning("⚠️ 입장 후 최소 2회 이상의 응대가 필요합니다!")
+                else:
+                    st.session_state.show_report = True
+                    st.rerun()
+                    
+        # 3. 리포트가 활성화된 상태일 때의 화면 구성
+        if st.session_state.show_report:
+            st.markdown("### 🏁 훈련 분석 결과")
+            
+            # 피드백 생성 (세션에 결과가 없을 때만 딱 한 번 실행)
+            if "feedback_result" not in st.session_state:
                 with st.spinner("세일즈 마스터 코치가 대화를 엄격하게 분석 중입니다..."):
-                    # 2. 마스터 코치 프롬프트 (엄격함 추가)
                     coach_sys_msg = f"""
                     당신은 엘지전자의 성장을 이끄는 최고의 세일즈 마스터 코치입니다.    
                     교육생의 발전을 위해 **매우 날카롭고 객관적으로** 평가하되, 아래의 언어 규칙을 엄격히 지키십시오.
 
                     [언어 규칙]
-                    1. **기본 원칙**: 모든 설명과 문장은 **순수 한글**로만 작성합니다. (영단어 사용 금지)
-                    2. **외래어 표기**: 꼭 필요한 단어는 한글 발음으로 적으십시오. (예: 서비스, 세일즈, 마인드, 커뮤니케이션)
-                    3. **허용 항목**: 
-                       - 모델명에 포함된 영어와 숫자 (예: OLED83G3)
-                       - 측정 단위 기호 (예: %, kg, W, L, inch, mm 등)
-                       - 항목별 등급을 나타내는 알파벳 (예: A등급, B점)
+                    1. 모든 설명과 문장은 **순수 한글**로만 작성합니다. (영단어 사용 금지)
+                    2. 꼭 필요한 외래어는 한글 발음으로 적으십시오. (예: 서비스, 세일즈, 마인드)
+                    3. 허용 항목: 모델명(OLED83G3), 단위(%, kg, W 등), 등급 알파벳(A등급)
 
                     [코칭 원칙]
-                    - 대화가 짧거나 알맹이가 없다면 무조건 칭찬하지 마세요. 부족한 점은 단호하게 지적하십시오.
-                    - NCS 기반 분석: 라포 형성/니즈 파악/해결책 제시 능력을 냉정하게 분석하세요.
+                    - 알맹이가 없다면 무조건 칭찬하지 말고 날카롭게 지적하세요.
+                    - NCS 기반 분석(라포/니즈/해결책)을 수행하세요.
                     - 성과가 나쁘면 낮은 등급의 칭호를 부여하세요 (예: 아직은 세일즈 새내기).
                     
                     [리포트 구성 요소]
-                    - **🏆 오늘의 세일즈 칭호**: (현재 실력에 걸맞은 솔직한 별명)
-                    - **⭐ 항목별 스킬 점수**: (10점 만점 기준, 미달 시 1~2점 부여)
-                    - **✨ 오늘의 빛나는 순간**: (센스 있는 문장이 없다면 "발견되지 않음"과 그 이유 기술)
-                    - **💡 한 끗 차이 레벨업**: (구체적이고 실전적인 개선 방안 2가지)
+                    - **🏆 오늘의 세일즈 칭호**: (솔직한 별명)
+                    - **⭐ 항목별 스킬 점수**: (10점 만점)
+                    - **✨ 오늘의 빛나는 순간**: (없다면 이유 기술)
+                    - **💡 한 끗 차이 레벨업**: (실전 개선 방안 2가지)
                     """
                     
-                    eval_history = [{"role": "system", "content": coach_sys_msg}] + chat_only
-                    
                     try:
+                        eval_history = [{"role": "system", "content": coach_sys_msg}] + chat_only
                         response = hf_client.chat_completion(eval_history, max_tokens=1000)
-                        feedback = response.choices[0].message.content
-                        
-                        st.markdown("### 🏁 훈련 분석 결과")
-                        with st.expander("📝 마스터 코치의 냉철한 비밀 리포트", expanded=True):
-                            st.markdown(feedback)
-                            st.write("---")
-                            
-                            # 다시 시작 버튼
-                            if st.button("🔄 부족한 점 보완하여 다시 시작", use_container_width=True):
-                                # 1. 모든 세션 상태를 태초의 상태로 되돌림
-                                st.session_state.scenario_ready = False
-                                st.session_state.messages = []
-                                st.session_state.user_turn_count = 0
-                                st.session_state.persona_info = None
-                                st.session_state.raw_persona_data = {}
-    
-                                # 2. 음성 데이터 충돌 방지를 위해 관련 키 삭제 (선택 사항)
-                                if 'sales_mic' in st.session_state:
-                                    del st.session_state['sales_mic']
-    
-                                # 3. 강제 재실행 (이게 핵심입니다)
-                                st.rerun()
+                        st.session_state.feedback_result = response.choices[0].message.content
                     except Exception as e:
-                        st.error(f"피드백 생성 중 오류가 발생했습니다: {e}")
+                        st.error(f"피드백 생성 중 오류 발생: {e}")
+
+            # 생성된 리포트 출력
+            if "feedback_result" in st.session_state:
+                with st.expander("📝 마스터 코치의 냉철한 비밀 리포트", expanded=True):
+                    st.markdown(st.session_state.feedback_result)
+                    st.write("---")
+                
+                # 4. 다시 시작 버튼 (리포트 화면 하단에 배치)
+                if st.button("🔄 부족한 점 보완하여 다시 시작", use_container_width=True):
+                    # 모든 세션 데이터 초기화
+                    st.session_state.scenario_ready = False
+                    st.session_state.messages = []
+                    st.session_state.user_turn_count = 0
+                    st.session_state.persona_info = None
+                    st.session_state.raw_persona_data = {}
+                    st.session_state.show_report = False
+                    if "feedback_result" in st.session_state:
+                        del st.session_state.feedback_result
+                    
+                    # [중요] 반드시 강제 재실행을 해줘야 첫 화면으로 돌아갑니다.
+                    st.rerun()

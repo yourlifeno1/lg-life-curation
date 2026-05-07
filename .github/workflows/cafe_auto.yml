@@ -1,1 +1,31 @@
+name: Naver Cafe Daily Crawler
 
+on:
+  schedule:
+    # 한국 시간(KST) 새벽 2시 실행 (UTC 17:00)
+    - cron: '0 17 * * *'
+  workflow_dispatch: # 수동 실행 버튼 활성화
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pandas
+
+      - name: Run Crawler
+        env:
+          # 깃허브 Secrets에 등록한 키값을 환경 변수로 가져옵니다.
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+        run: python naver_cafe_crawler.py

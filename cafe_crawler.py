@@ -1,28 +1,23 @@
+import os
 import requests
 import pandas as pd
-import time
-import random
-import yaml
 from datetime import datetime, timedelta
 
 # ==========================================
-# 1. 환경 설정 및 API 키
+# 1. 설정값 (보안 및 환경 설정)
 # ==========================================
-# 설정 파일 로드
-with open('config.yml', 'r', encoding='utf-8') as f:
-    config = yaml.safe_load(f)
 
-# 변수 할당
-NAVER_CLIENT_ID = config['naver_api']['client_id']
-NAVER_CLIENT_SECRET = config['naver_api']['client_secret']
-GAS_URL = config['google_sheet']['gas_url']
-DAYS_BACK = config['crawler_settings']['days_back']
+# [중요] 로컬 테스트와 깃허브 액션 모두 대응하는 로직
+NAVER_CLIENT_ID = os.environ.get('NAVER_CLIENT_ID')
+NAVER_CLIENT_SECRET = os.environ.get('NAVER_CLIENT_SECRET')
 
+# 구글 시트 정보 (이 정보는 노출되어도 실행 권한이 제어되므로 변수로 두셔도 무방합니다)
 GAS_URL = "https://script.google.com/macros/s/AKfycbzfKXq3qbSAfdvkPpFNo7LJjKdJ6UrH2Ea97kz_BMuznL2Z7RWqgxim6TRpLv_6eb45/exec"
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSGEDlHeWG2PHspcMEtlO74lWt9UWdeIzwL9A9fpV6nTY5eSvYTUfeNOFlWvh8qHXFnNwHBsaKKG6cp/pub?gid=189297044&single=true&output=csv"
 
-# 수집 기준일 설정 (오늘부터 90일 전까지)
-TARGET_DATE_LIMIT = (datetime.now() - timedelta(days=90)).strftime('%Y%m%d')
+# 수집 정책
+DAYS_BACK = 90  # 3개월
+TARGET_DATE_LIMIT = (datetime.now() - timedelta(days=DAYS_BACK)).strftime('%Y%m%d')
 
 # ==========================================
 # 2. 고도화된 지역 추출 사전 (서울/광역시 구 단위, 도 시/군 단위)

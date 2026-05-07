@@ -1,6 +1,8 @@
 import os
 import requests
-import pandas as pd
+import json
+import time
+import random
 from datetime import datetime, timedelta
 
 # ==========================================
@@ -78,10 +80,23 @@ def crawl_naver_cafe(appliance, issue):
 
     try:
         res = requests.get(url, headers=headers, params=params)
-        if res.status_code != 200: return
+        if res.status_code != 200: 
+            print(f"⚠️ API 호출 실패 (상태코드: {res.status_code})")
+            return
 
         data = res.json()
-        for item in data.get('items', []):
+        items = data.get('items', [])
+        
+        # [추가] 데이터가 한 건도 없을 경우 함수를 종료하여 에러 방지
+        if not items:
+            print(f"ℹ️ {appliance} > {issue}: 검색 결과가 없습니다.")
+            return
+
+        for item in items:
+            # [추가] 데이터 형식이 이상할 경우를 대비한 안전장치
+            if 'postdate' not in item:
+                continue
+                
             post_date = item['postdate'] # YYYYMMDD
             
             # 1. 기간 체크 (3개월 이전 데이터면 루프 중단)
@@ -96,9 +111,9 @@ def crawl_naver_cafe(appliance, issue):
             region = extract_region_advanced(full_text)
             brand = "LG전자" if any(x in full_text.upper() for x in ["LG", "엘지"]) else "삼성전자" if "삼성" in full_text else "기타"
             
-            # 3. 데이터 전송 (기존 push_to_sheet와 동일 구조)
+            # 3. 데이터 전송
             payload = {
-                "sheetName": "naverkin_voc", # 동일 시트 사용
+                "sheetName": "naverkin_voc",
                 "channel": "네이버 카페",
                 "region": region,
                 "category": appliance,

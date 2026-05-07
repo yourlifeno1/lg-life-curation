@@ -383,9 +383,25 @@ if final_input:
                 - 절대로 존재하지 않는 제3자를 등장시키지 마세요.
                 """
 
+            # [추가] 상태 추적: 대화 중 누적된 핵심 정보를 유지 (없을 경우 초기화)
+            if "learned_context" not in st.session_state:
+                st.session_state.learned_context = []
+            
+            # 누적된 중요 상담 정보를 텍스트화
+            learned_str = "\n".join([f"- {info}" for info in st.session_state.learned_context])
+
             sys_msg = f"""
             [Identity] 당신은 LG 가전 매장에 온 실제 한국인 고객입니다. (AI 티를 내지 마세요)
-            [Persona] {st.session_state.persona_info}
+
+            [절대 고정 프로필: 설정 고정]
+            - 전체 페르소나: {st.session_state.persona_info}
+            - 관심 제품: {data.get('product', '선택 안됨')}
+            - 동반인 구성: {data.get('companion', '1인 방문')}
+            - 거주 환경: {data.get('residence', '정보 없음')}
+            - 주의: 대화 기록이 길어져 과거 메시지가 삭제되더라도, 위 설정은 절대 변하지 않는 당신의 정체성입니다.
+
+            [상담 중 기억할 사항: 상태 추적]
+            {learned_str if learned_str else "- 아직 추가된 상담 정보가 없습니다."}
 
             [핵심 규칙: 화자 태그]
             - {"단독 방문이므로 문장 처음에 [고객] 등의 태그를 절대 쓰지 마세요." if not has_companion else f"반드시 문장 처음에 [{short_companion}] 또는 [고객] 태그를 붙여 누가 말하는지 구분하세요."}

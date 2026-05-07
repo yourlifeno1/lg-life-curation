@@ -1,10 +1,19 @@
-import requests, json, time, math
+import requests
+import json
+import time
+import math
+import os  # 환경 변수 사용을 위해 추가
 from datetime import datetime, timedelta
 
-# 1. 매니저님의 최신 배포 URL 및 네이버 API 정보
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzRWXSaM0jbaPR97j0BXwSK8DcF1CrJIZdw-QYu7R2rPRgtmFxycxwHweXZ1kIweQDU/exec"
-CLIENT_ID = "IIynXlpQmqgD8GfQRJj6"
-CLIENT_SECRET = "28cZQMwaJ9"
+# ==========================================
+# 1. 보안 설정 (GitHub Secrets에서 불러오기)
+# ==========================================
+
+# 깃허브 Settings -> Secrets -> Actions에 등록한 이름과 똑같이 맞춰야 합니다.
+WEBAPP_URL = os.environ.get("GAS_URL")
+CLIENT_ID = os.environ.get("NAVER_CLIENT_ID")
+CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET")
+
 NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
 
 def get_dates():

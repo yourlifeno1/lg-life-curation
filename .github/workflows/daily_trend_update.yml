@@ -2,7 +2,8 @@ name: Daily Trend Data Update
 
 on:
   schedule:
-    # 매일 아침 한국 시간(KST) 오전 8시 30분에 자동 실행 (UTC 23:30)
+    # 매일 한국 시간(KST) 낮 12시 30분에 실행 (UTC 03:30)
+    # *참고: 30 3 * * * 은 한국 시간으로 오후 12시 30분입니다!*
     - cron: '30 3 * * *'
   workflow_dispatch: # 수동 실행 버튼 활성화
 
@@ -20,18 +21,19 @@ jobs:
           python-version: '3.9'
 
       - name: Install Dependencies
-        # 필요한 라이브러리를 한 번에 설치합니다.
         run: pip install requests pandas
 
       - name: Run TOP Crawler
-        # 깃허브 시크릿을 시스템 환경 변수로 등록합니다.
         env:
-          NAVER_CLIENT_ID: ${{ secrets.NAVER }}
-          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_SECRET }}
+          # 파이썬의 os.environ.get("NAVER_CLIENT_ID")와 연결됩니다.
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          GAS_URL: ${{ secrets.GAS_URL }}
         run: python trend_crawler.py
 
       - name: Run AGE Crawler
         env:
-          NAVER_CLIENT_ID: ${{ secrets.NAVER }}
-          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_SECRET }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          GAS_URL: ${{ secrets.GAS_URL }}
         run: python age_crawler.py

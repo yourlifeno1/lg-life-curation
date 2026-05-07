@@ -37,19 +37,36 @@ def get_dates():
         "display_day": yesterday.strftime('%Y-%m-%d')
     }
 
-def get_calibrated_score(ratios):
+def get_calibrated_score(ratios, window=3):
+    """
+    이동 평균(Moving Average)을 적용하여 튀는 값을 잡고, 
+    임계값을 완화하여 0값 속출을 방지합니다.
+    """
     if not ratios or sum(ratios) == 0: return 0
     
-    significant_days = [v for v in ratios if v > 1.0]
+    # --- [NEW] 1. 이동 평균(Moving Average) 적용 ---
+    # 튀는 날짜의 영향을 주변으로 분산시켜 그래프를 부드럽게 만듭니다.
+    ma_ratios = []
+    for i in range(len(ratios)):
+        start = max(0, i - window // 2)
+        end = min(len(ratios), i + window // 2 + 1)
+        ma_ratios.append(sum(ratios[start:end]) / (end - start))
+    
+    ratios = ma_ratios # 이동 평균이 적용된 데이터로 교체
+    
+    # --- [FIX] 2. 임계값 완화 (1.0 -> 0.1) ---
+    # 소형 가전이나 클릭량이 적은 품목도 신호를 잡을 수 있게 문턱을 낮춥니다.
+    significant_days = [v for v in ratios if v > 0.1]
     if len(significant_days) < 1: return 0
 
     avg_raw = sum(ratios) / len(ratios)
+    # 상한선 보정 (특정일 튀는 것 방지)
     smooth_ratios = [min(v, avg_raw * 2.2) for v in ratios]
     
     sorted_ratios = sorted(smooth_ratios)
     median_val = sorted_ratios[len(sorted_ratios)//2]
     
-    # --- 가중치 완화 (분모의 /2 제거) ---
+    # 시간 가중치 적용 (최신 트렌드 반영)
     weights = [math.exp(i / len(smooth_ratios)) for i in range(len(smooth_ratios))]
     weighted_avg = sum(v * w for v, w in zip(smooth_ratios, weights)) / sum(weights)
     

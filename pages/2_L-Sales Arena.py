@@ -422,9 +422,9 @@ if final_input:
                 raw_output = hf_client.chat_completion(
                     full_history, 
                     max_tokens=800,
-                    temperature=0.8,
+                    temperature=0.6,
                     frequency_penalty=0.4,
-                    top_p=0.95
+                    top_p=0.9
                 )
                 
                 raw_response = raw_output.choices[0].message.content

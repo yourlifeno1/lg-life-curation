@@ -28,4 +28,4 @@ jobs:
           # 깃허브 Secrets에 등록한 키값을 환경 변수로 가져옵니다.
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
-        run: python naver_cafe_crawler.py
+        run: python cafe_crawler.py

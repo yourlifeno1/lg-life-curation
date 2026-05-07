@@ -21,8 +21,28 @@ SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSGEDlHeWG2PHsp
 DAYS_BACK = 90  # 3개월
 TARGET_DATE_LIMIT = (datetime.now() - timedelta(days=DAYS_BACK)).strftime('%Y%m%d')
 
+# 전역 중복 체크 리스트
+GLOBAL_TITLES = set()
+
 # ==========================================
-# 2. 고도화된 지역 추출 사전 (서울/광역시 구 단위, 도 시/군 단위)
+# 2. 유틸리티 함수 (중복체크, 지역추출, 카테고리정제)
+# ==========================================
+
+def get_existing_titles():
+    """[지식iN 로직 이식] 시트에서 기존 데이터를 가져와 중복 체크용 리스트 생성"""
+    global GLOBAL_TITLES
+    try:
+        url = f"{SHEET_CSV_URL}&t={int(time.time())}"
+        df = pd.read_csv(url)
+        # 제목의 공백을 제거하고 대문자로 통일하여 비교
+        GLOBAL_TITLES = {str(t).replace(" ", "").upper().strip() for t in df['제목(VOC)'].tolist()}
+        print(f"📊 기존 데이터 {len(GLOBAL_TITLES)}건 로드 완료")
+    except Exception as e:
+        print(f"⚠️ 기존 데이터 로드 실패: {e}")
+        GLOBAL_TITLES = set()
+
+# ==========================================
+# 3. 고도화된 지역 추출 사전 (서울/광역시 구 단위, 도 시/군 단위)
 # ==========================================
 def extract_region_advanced(text):
     # 촘촘한 지역 매핑 사전 (별칭 및 신도시 포함)
@@ -82,10 +102,49 @@ def refine_category(title, summary, initial_item):
     return initial_item
 
 # ==========================================
-# 3. 카페 크롤링 핵심 함수
+# 3. 데이터 전송 함수 (push_to_sheet 이식)
+# ==========================================
+
+def push_to_sheet(channel, region, category, title, summary, post_date, issue_tag, brand):
+    """[지식iN 로직 이식] 중복 체크 후 시트로 전송"""
+    global GLOBAL_TITLES
+    check_title = title.replace(" ", "").upper().strip()
+    
+    if check_title in GLOBAL_TITLES:
+        print(f"⏭️ 중복 스킵: {title[:15]}...")
+        return False
+
+    # [핵심] type 파라미터를 추가하여 GAS 스크립트가 인식하게 합니다.
+    payload = {
+        "type": "naverkin_voc", 
+        "sheetName": "naverkin_voc",
+        "channel": channel, 
+        "region": region, 
+        "category": category,
+        "voc": title, 
+        "summary": summary, 
+        "postDate": post_date,
+        "issueTag": issue_tag, 
+        "brand": brand
+    }
+    
+    try:
+        res = requests.post(GAS_URL, data=payload, timeout=15)
+        if res.status_code == 200:
+            GLOBAL_TITLES.add(check_title)
+            print(f"✅ 전송성공: [{region}/{brand}] {title[:12]}...")
+            return True
+        else:
+            print(f"❌ 전송실패: 상태코드 {res.status_code}")
+    except Exception as e:
+        print(f"❌ 전송오류: {e}")
+    return False
+
+# ==========================================
+# 4. 카페 크롤링 핵심 함수
 # ==========================================
 def crawl_naver_cafe(appliance, issue):
-    # 검색어 조합 (광고/중고거래 제외 로직 강화)
+    # 큰따옴표 제거로 검색 범위 확장
     query = f'{appliance} {issue} -판매 -매입 -중고'
     url = "https://openapi.naver.com/v1/search/cafearticle.json"
     
@@ -94,73 +153,46 @@ def crawl_naver_cafe(appliance, issue):
         "X-Naver-Client-Secret": NAVER_CLIENT_SECRET
     }
     
-    params = {
-        "query": query,
-        "display": 100,  # 한 번에 최대 100건
-        "start": 1,
-        "sort": "date"   # 최신 날짜순
-    }
+    params = {"query": query, "display": 100, "start": 1, "sort": "date"}
 
     try:
         res = requests.get(url, headers=headers, params=params)
-        if res.status_code != 200: 
-            print(f"⚠️ API 호출 실패 (상태코드: {res.status_code})")
-            return
+        if res.status_code != 200: return
 
         data = res.json()
         items = data.get('items', [])
         
-        # [추가] 데이터가 한 건도 없을 경우 함수를 종료하여 에러 방지
-        if not items:
-            print(f"ℹ️ {appliance} > {issue}: 검색 결과가 없습니다.")
-            return
+        if not items: return
 
         for item in items:
-            # [추가] 데이터 형식이 이상할 경우를 대비한 안전장치
-            if 'postdate' not in item:
-                continue
-                
-            post_date = item['postdate'] # YYYYMMDD
+            if 'postdate' not in item: continue
+            post_date = item['postdate']
             
-            # 1. 기간 체크 (3개월 이전 데이터면 루프 중단)
-            if post_date < TARGET_DATE_LIMIT:
-                break
+            if post_date < TARGET_DATE_LIMIT: break
             
             title = item['title'].replace("<b>", "").replace("</b>", "")
             summary = item['description'].replace("<b>", "").replace("</b>", "")
             full_text = title + " " + summary
             
-            # [수정] 지식iN에서 가져온 정밀 분류 로직 적용
+            # 정밀 분류 및 분석
             final_category = refine_category(title, summary, appliance)
-            
-            # 2. 지역 및 브랜드 분석
             region = extract_region_advanced(full_text)
             brand = "LG전자" if any(x in full_text.upper() for x in ["LG", "엘지"]) else "삼성전자" if "삼성" in full_text else "기타"
             
-            # 3. 데이터 전송
-            payload = {
-                "sheetName": "naverkin_voc",
-                "channel": "네이버 카페",
-                "region": region,
-                "category": final_category,  # <--- appliance 대신 final_category를 넣습니다!
-                "voc": title,
-                "summary": summary,
-                "postDate": f"{post_date[:4]}-{post_date[4:6]}-{post_date[6:]}",
-                "issueTag": issue,
-                "brand": brand
-            }
-            
-            # 중복 체크 로직은 기존 GLOBAL_TITLES 연동 권장
-            requests.post(GAS_URL, data=payload)
-            print(f"✅ 카페 VOC 추가: [{region}] {title[:20]}...")
+            # [수정] 전용 함수를 통해 전송
+            formatted_date = f"{post_date[:4]}-{post_date[4:6]}-{post_date[6:]}"
+            push_to_sheet("네이버 카페", region, final_category, title, summary, formatted_date, issue, brand)
             
     except Exception as e:
         print(f"❌ 카페 크롤링 오류: {e}")
 
 # ==========================================
-# 4. 메인 실행부
+# 5. 메인 실행부
 # ==========================================
 if __name__ == "__main__":
+    # 0. 기존 시트 데이터 불러오기 (중복 방지 시작)
+    get_existing_titles()
+
     appliance_settings = {
        "세탁기": ["분해세척", "냄새", "곰팡이", "고장수리", "파손", "소음", "이전설치", "입주설치"],
         "에어컨": ["분해세척", "냄새", "곰팡이", "냉방안됨", "실외기", "고장수리", "이전설치", "입주설치" ],

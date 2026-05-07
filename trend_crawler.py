@@ -38,38 +38,35 @@ def get_dates():
     }
 
 def get_calibrated_score(ratios):
-    """
-    TOP_Trend의 0값 방지 및 TV 튐 현상을 잡기 위한 통합 보정 로직
-    """
     if not ratios or sum(ratios) == 0: return 0
     
-    # [방어] 0값 방지: 데이터가 1.0 이상인 날이 하루라도 있으면 생존
     significant_days = [v for v in ratios if v > 1.0]
     if len(significant_days) < 1: return 0
 
-    # [억제] 피크 억제: 평균 대비 배수를 2.2배로 타이트하게 조정
     avg_raw = sum(ratios) / len(ratios)
     smooth_ratios = [min(v, avg_raw * 2.2) for v in ratios]
     
     sorted_ratios = sorted(smooth_ratios)
     median_val = sorted_ratios[len(sorted_ratios)//2]
     
-    # 시간 가중치 적용 (최근 데이터에 가중치)
-    weights = [math.exp(i / (len(smooth_ratios)/2)) for i in range(len(smooth_ratios))]
+    # --- 가중치 완화 (분모의 /2 제거) ---
+    weights = [math.exp(i / len(smooth_ratios)) for i in range(len(smooth_ratios))]
     weighted_avg = sum(v * w for v, w in zip(smooth_ratios, weights)) / sum(weights)
     
-    # 안정성 60%, 트렌드 40%로 결합하여 튐 현상 억제
     return (median_val * 0.6) + (weighted_avg * 0.4)
 
 def calculate_final_ratio(current_val, ref_val, max_relative_val):
-    """루트 연산을 통해 1위 독주를 완화하고 하위 품목 수치를 살려냅니다."""
+    """로그 연산을 통해 TV 독주를 억제하고 하위 품목의 변별력을 높입니다."""
     if max_relative_val <= 0 or current_val <= 0: return 0
     
     rel_pos = current_val / ref_val
-    raw_ratio = (rel_pos / max_relative_val)
+    raw_ratio = (rel_pos / max_relative_val) # 0~1 사이값
     
-    # 루트(sqrt) 적용으로 0점 방지 및 시각적 변별력 향상
-    adjusted_ratio = math.sqrt(raw_ratio) * 100
+    # --- 로그 스케일 보정 (격차 완화 핵심) ---
+    # raw_ratio가 0.1(10%)이라도 로그를 거치면 약 40~50% 수준으로 올라와서 보입니다.
+    # TV가 100점일 때, 10점짜리들이 40~50점으로 보이게 되어 트렌드 파악이 쉬워집니다.
+    adjusted_ratio = (math.log1p(raw_ratio * 9) / math.log1p(9)) * 100
+    
     return round(adjusted_ratio, 5)
 
 def run():

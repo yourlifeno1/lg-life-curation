@@ -6,7 +6,7 @@ import os  # 환경 변수를 읽어오기 위해 추가합니다
 from datetime import datetime, timedelta
 
 # 매니저님의 최신 GAS URL
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzRWXSaM0jbaPR97j0BXwSK8DcF1CrJIZdw-QYu7R2rPRgtmFxycxwHweXZ1kIweQDU/exec"
+WEBAPP_URL = os.environ.get("GAS_URL")
 CLIENT_ID = os.environ.get("NAVER_CLIENT_ID")
 CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET")
 NAVER_URL = "https://openapi.naver.com/v1/datalab/shopping/categories"
